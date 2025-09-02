@@ -42,10 +42,10 @@ const Hero = () => {
             Adventure Awaits
           </span>
           <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 drop-shadow-md text-balance">
-            {getHeading("Discover Nature's Wonder at Amuse.Ke")}
+            {getHeading("Forest Adventures at Amuse Kenya")}
           </h1>
           <p className="text-lg md:text-xl text-white/90 max-w-2xl mx-auto mb-8 drop-shadow-md">
-            {getSubheading("An unforgettable journey of exploration, friendship, and growth in the heart of Karura Forest.")}
+            {getSubheading("Join us at Karura Forest for daily activities, camps, birthday parties, and unforgettable outdoor adventures for children aged 3-17.")}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a 

@@ -122,19 +122,52 @@ const Index = () => {
   
   return (
     <div className="min-h-screen">
-      <Navbar />
-      <Hero />
-      <Announcements />
-      <AboutSection />
-      <div className="bg-forest-50">
-        <ProgramHighlights />
-        <YearlyCalendar />
-      </div>
-      <TeamSection />
-      <Gallery />
-      <Testimonials />
-      <ContactForm />
-      <Footer />
+      <header role="banner">
+        <Navbar />
+      </header>
+      
+      <main role="main">
+        <section aria-label="Hero section">
+          <Hero />
+        </section>
+        
+        <section aria-label="Latest announcements">
+          <Announcements />
+        </section>
+        
+        <section aria-label="About our organization">
+          <AboutSection />
+        </section>
+        
+        <div className="bg-forest-50">
+          <section aria-label="Program highlights">
+            <ProgramHighlights />
+          </section>
+          <section aria-label="Annual calendar">
+            <YearlyCalendar />
+          </section>
+        </div>
+        
+        <section aria-label="Our team">
+          <TeamSection />
+        </section>
+        
+        <section aria-label="Photo gallery">
+          <Gallery />
+        </section>
+        
+        <section aria-label="Customer testimonials">
+          <Testimonials />
+        </section>
+        
+        <section aria-label="Contact information">
+          <ContactForm />
+        </section>
+      </main>
+      
+      <footer role="contentinfo">
+        <Footer />
+      </footer>
 
       <div 
         className="fixed bottom-6 right-6 z-10 w-12 h-12 flex items-center justify-center rounded-full cursor-pointer opacity-20 hover:opacity-100 transition-opacity"

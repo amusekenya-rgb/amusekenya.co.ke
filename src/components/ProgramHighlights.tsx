@@ -17,33 +17,33 @@ interface Program {
 const programs: Program[] = [
   {
     id: '1',
-    title: "Little Explorers",
-    ageRange: "Ages 5-7",
-    description: "A gentle introduction to forest life through guided sensory activities, nature art, and short trail walks designed for our youngest adventurers.",
+    title: "Daily Activities",
+    ageRange: "Ages 3-17",
+    description: "Join us at Karura Forest for a full range of forest activities. Monday to Sunday from 8:00 AM to 5:00 PM for exciting nature exploration and outdoor fun.",
     iconType: "TreePine",
     colorAccent: "accent-forest",
-    startDate: "June 15, 2024",
-    duration: "1 Week"
+    startDate: "Every Day",
+    duration: "8 AM - 5 PM"
   },
   {
     id: '2',
-    title: "Junior Rangers",
-    ageRange: "Ages 8-11",
-    description: "Develop outdoor skills through shelter building, wildlife tracking, and forest navigation while fostering teamwork and independence.",
+    title: "Adventure Camps",
+    ageRange: "Ages 5-17",
+    description: "Spark your child's love for adventure! Our exciting camps offer games, orientation, survival skills and exploration in nature. Unforgettable memories await!",
     iconType: "TentTree",
     colorAccent: "accent-earth",
-    startDate: "July 8, 2024",
-    duration: "2 Weeks"
+    startDate: "Holiday Periods",
+    duration: "Multi-day"
   },
   {
     id: '3',
-    title: "Forest Guardians",
-    ageRange: "Ages 12-15",
-    description: "Deepen ecological understanding through conservation projects, biodiversity surveys, and overnight camping experiences.",
+    title: "Birthday Parties",
+    ageRange: "All Ages",
+    description: "Make birthdays magical! Our exciting service brings the fun to you. We provide engaging activities, unforgettable themes, and memories that last.",
     iconType: "Bird",
     colorAccent: "accent-sky",
-    startDate: "August 3, 2024",
-    duration: "3 Weeks"
+    startDate: "By Appointment",
+    duration: "2-4 Hours"
   }
 ];
 
@@ -157,9 +157,9 @@ const ProgramHighlights: React.FC = () => {
         style={{ transitionDelay: '0.1s' }}
       >
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Summer Programs</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Programs</h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Discover the perfect summer adventure for your child. Our programs are designed to nurture a deep connection with nature while developing important life skills.
+            Discover exciting forest adventures for your child at Karura Forest. Our programs build character, confidence, and connection with nature through engaging outdoor experiences.
           </p>
         </div>
         

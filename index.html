@@ -3,8 +3,80 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Amuze.Ke</title>
+    <!-- SEO handled by SEOHead.tsx component -->
 
+    <!-- Additional SEO -->
+    <meta name="theme-color" content="#2D5016" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Amuse Kenya",
+      "url": "https://amusekenya.co.ke",
+      "logo": "https://amusekenya.co.ke/og-image.png",
+      "description": "Forest adventures and outdoor education for children at Karura Forest. Daily activities, camps, birthday parties, school programs and adventures.",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Karura Forest, Sigiria Ridge (Gate F)",
+        "addressLocality": "Nairobi",
+        "addressCountry": "Kenya"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "telephone": "+254-114-705-763",
+        "contactType": "Customer Service",
+        "email": "info@amusekenya.co.ke",
+        "availableLanguage": ["English", "Swahili"]
+      },
+      "openingHours": "Mo-Su 08:00-17:00",
+      "sameAs": [
+        "https://www.instagram.com/amusekenya",
+        "https://www.facebook.com/amusekenya"
+      ],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Forest Adventure Programs",
+        "itemListElement": [
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Daily Activities",
+              "description": "Forest activities and nature exploration programs for children aged 3-17"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Adventure Camps",
+              "description": "Holiday camps with games, orientation, survival skills and exploration"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "Birthday Parties",
+              "description": "Magical birthday celebrations with engaging activities and themes"
+            }
+          },
+          {
+            "@type": "Offer",
+            "itemOffered": {
+              "@type": "Service",
+              "name": "School Programs",
+              "description": "Collaborative nature programs for schools with skill-building adventures"
+            }
+          }
+        ]
+      }
+    }
+    </script>
   </head>
 
   <body>

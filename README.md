@@ -1,13 +1,9 @@
 
 # Amuse Ke - Children's Nature Camp Platform
 
-## Project Overview
+## About Amuse Ke
 
-Amuse Ke is a comprehensive web platform for a children's nature camp based in Kenya's Karura Forest. The platform provides parents with information about summer programs, camp activities, and facilitates program registration.
-
-## Project Info
-
-**URL**: https://lovable.dev/projects/92601e35-7fdd-439f-9870-89512bd7cbd2
+Amuse Ke is a comprehensive digital platform designed for a children's nature camp located in Kenya's beautiful Karura Forest. Our platform connects families with exceptional outdoor educational experiences, offering nature-based summer programs that inspire environmental stewardship and personal growth in children.
 
 ## Key Features
 
@@ -85,59 +81,49 @@ Amuse Ke is a comprehensive web platform for a children's nature camp based in K
 - Progressive enhancement
 - Feature flag management for controlled rollouts
 
-## How can I edit this code?
+## Getting Started
 
-There are several ways of editing your application.
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn package manager
+- MongoDB database
 
-**Use Lovable**
+### Installation
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/92601e35-7fdd-439f-9870-89512bd7cbd2) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+1. Clone the repository:
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
 git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+2. Install dependencies:
+```sh
+npm install
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Set up environment variables:
+- Copy `.env.example` to `.env` in the server directory
+- Configure your MongoDB connection string
+- Set up email service credentials
+- Configure payment gateway settings
+
+4. Start the development server:
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Deployment
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+This application can be deployed to various hosting platforms:
+- **Frontend**: Netlify, Vercel, or any static hosting service
+- **Backend**: Heroku, Railway, or any Node.js hosting platform
+- **Database**: MongoDB Atlas or self-hosted MongoDB instance
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/92601e35-7fdd-439f-9870-89512bd7cbd2) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+For production deployment:
+1. Build the frontend: `npm run build`
+2. Configure environment variables for production
+3. Set up your MongoDB database
+4. Deploy both frontend and backend to your chosen platforms
 
 ## File Structure Overview
 

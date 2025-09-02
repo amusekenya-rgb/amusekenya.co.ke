@@ -10,6 +10,7 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import { AuthProvider } from "./hooks/useAuth";
 import ProgramRegistration from "./components/ProgramRegistration";
+import FloatingFAQ from "./components/FloatingFAQ";
 import { useState } from "react";
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
               <Route path="/register" element={<ProgramRegistration />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <FloatingFAQ />
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

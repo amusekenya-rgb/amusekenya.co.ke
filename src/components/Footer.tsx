@@ -15,9 +15,9 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-16">
         <div className="flex flex-col md:flex-row justify-between gap-8">
           <div className="md:w-1/3">
-            <h3 className="text-2xl font-bold mb-4">Amuse.Ke</h3>
+            <h3 className="text-2xl font-bold mb-4">Amuse Kenya</h3>
             <p className="text-gray-300 mb-6 leading-relaxed">
-              Connecting children with nature through immersive outdoor experiences in the heart of Karura Forest.
+              Forest adventures and outdoor education for children at Karura Forest. Building character and confidence through nature exploration.
             </p>
             <div className="flex space-x-4">
               <a 
@@ -63,17 +63,18 @@ const Footer = () => {
           <div className="md:w-1/3">
             <h4 className="text-lg font-semibold mb-4">Contact Us</h4>
             <address className="not-italic text-gray-300 leading-relaxed">
-              Karura Forest, Limuru Road<br />
-              Nairobi, Kenya<br /><br />
-              <a href="tel:+254712345678" className="hover:text-white transition-colors duration-300">+254 712 345 678</a><br />
-              <a href="mailto:info@amuse.ke" className="hover:text-white transition-colors duration-300">info@amuse.ke</a>
+              Karura Forest, Sigiria Ridge (Gate F)<br />
+              Nairobi, Kenya<br />
+              <strong>Hours:</strong> Monday - Sunday, 8:00 AM - 5:00 PM<br /><br />
+              <a href="tel:+254114705763" className="hover:text-white transition-colors duration-300">+254 114 705 763</a><br />
+              <a href="mailto:info@amusekenya.co.ke" className="hover:text-white transition-colors duration-300">info@amusekenya.co.ke</a>
             </address>
           </div>
         </div>
         
         <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-gray-400 text-sm mb-4 md:mb-0">
-            &copy; {new Date().getFullYear()} Amuse.Ke. All rights reserved.
+            &copy; {new Date().getFullYear()} Amuse Kenya. All rights reserved.
           </p>
           <button 
             onClick={scrollToTop}
