@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { cn } from "@/lib/utils";
 import { Menu, X, ChevronDown } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import amuseLogo from "@/assets/amuse-logo.png";
 
 const Navbar = () => {
   const location = useLocation();
@@ -71,12 +71,11 @@ const Navbar = () => {
       <div className="container mx-auto">
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <span className={cn(
-              "text-xl md:text-2xl font-bold transition-colors duration-300",
-              isScrolled || !isHomePage ? "text-forest-800" : "text-white"
-            )}>
-              Amuse.Ke
-            </span>
+            <img 
+              src={amuseLogo} 
+              alt="Amuse Kenya Logo" 
+              className="h-10 md:h-12 w-auto object-contain"
+            />
           </Link>
 
           <ul className="hidden md:flex items-center space-x-8">

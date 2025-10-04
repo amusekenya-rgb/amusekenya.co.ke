@@ -13,7 +13,12 @@ import {
   subMonths,
   eachDayOfInterval,
   parseISO,
-  set
+  set,
+  startOfYear,
+  endOfYear,
+  addYears,
+  subYears,
+  getMonth
 } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,7 +66,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
 }) => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [events, setEvents] = useState<Event[]>([]);
-  const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+  const [view, setView] = useState<'month' | 'week' | 'day' | 'year'>('month');
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState<boolean>(false);
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string | null>(null);
@@ -101,6 +106,8 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
       setCurrentDate(subMonths(currentDate, 1));
     } else if (view === 'week') {
       setCurrentDate(addDays(currentDate, -7));
+    } else if (view === 'year') {
+      setCurrentDate(subYears(currentDate, 1));
     } else {
       setCurrentDate(addDays(currentDate, -1));
     }
@@ -111,6 +118,8 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
       setCurrentDate(addMonths(currentDate, 1));
     } else if (view === 'week') {
       setCurrentDate(addDays(currentDate, 7));
+    } else if (view === 'year') {
+      setCurrentDate(addYears(currentDate, 1));
     } else {
       setCurrentDate(addDays(currentDate, 1));
     }
@@ -165,6 +174,23 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
     }
   };
 
+  const getEventsByMonth = (monthIndex: number) => {
+    return events.filter(event => {
+      const eventDate = event.start instanceof Date ? event.start : new Date(event.start);
+      return getMonth(eventDate) === monthIndex && eventDate.getFullYear() === currentDate.getFullYear();
+    });
+  };
+
+  const getMonthDays = (monthIndex: number) => {
+    const monthStart = new Date(currentDate.getFullYear(), monthIndex, 1);
+    const start = startOfMonth(monthStart);
+    const end = endOfMonth(monthStart);
+    const startDate = startOfWeek(start);
+    const endDate = endOfWeek(end);
+    
+    return eachDayOfInterval({ start: startDate, end: endDate });
+  };
+
   return (
     <Card className={cn("w-full", className)}>
       <CardHeader className="space-y-1 border-b pb-2">
@@ -207,6 +233,8 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
               format(currentDate, 'MMMM yyyy')
             ) : view === 'week' ? (
               `Week of ${format(days[0], 'MMM d')} - ${format(days[days.length - 1], 'MMM d, yyyy')}`
+            ) : view === 'year' ? (
+              format(currentDate, 'yyyy')
             ) : (
               format(currentDate, 'MMMM d, yyyy')
             )}
@@ -215,10 +243,14 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
           <Tabs 
             defaultValue={view}
             value={view} 
-            onValueChange={(val) => setView(val as 'month' | 'week' | 'day')}
-            className="w-[300px]"
+            onValueChange={(val) => setView(val as 'month' | 'week' | 'day' | 'year')}
+            className="w-[400px]"
           >
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="year">
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                Year
+              </TabsTrigger>
               <TabsTrigger value="month">
                 <CalendarDays className="h-4 w-4 mr-2" />
                 Month
@@ -237,6 +269,100 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
       </CardHeader>
       
       <CardContent className="p-0 pt-0">
+        {view === 'year' && (
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 12 }, (_, i) => {
+                const monthDays = getMonthDays(i);
+                const monthEvents = getEventsByMonth(i);
+                const monthDate = new Date(currentDate.getFullYear(), i, 1);
+                
+                return (
+                  <Card key={i} className="overflow-hidden border-forest-100 hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-2 bg-gradient-to-r from-forest-50 to-sky-50">
+                      <CardTitle className="text-base font-semibold text-center">
+                        {format(monthDate, 'MMMM yyyy')}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-2">
+                      <div className="grid grid-cols-7 gap-px text-center mb-1">
+                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+                          <div key={idx} className="text-xs font-medium text-muted-foreground py-1">
+                            {day}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="grid grid-cols-7 gap-px">
+                        {monthDays.map((day, index) => {
+                          const dayEvents = events.filter(event => {
+                            const eventDate = event.start instanceof Date ? event.start : new Date(event.start);
+                            return isSameDay(eventDate, day);
+                          });
+                          const isCurrentDay = isToday(day);
+                          const inMonth = isSameMonth(day, monthDate);
+                          
+                          return (
+                            <div 
+                              key={index}
+                              className={cn(
+                                "aspect-square text-xs flex items-center justify-center rounded-sm relative cursor-pointer",
+                                !inMonth && "text-muted-foreground opacity-40",
+                                isCurrentDay && "bg-primary text-primary-foreground font-bold",
+                                dayEvents.length > 0 && !isCurrentDay && "bg-forest-100 font-medium",
+                                inMonth && !isCurrentDay && dayEvents.length === 0 && "hover:bg-accent"
+                              )}
+                              onClick={() => {
+                                if (dayEvents.length > 0) {
+                                  setSelectedEvent(dayEvents[0]);
+                                  setIsEventDialogOpen(true);
+                                }
+                              }}
+                            >
+                              {format(day, 'd')}
+                              {dayEvents.length > 0 && (
+                                <div className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-forest-600 rounded-full" />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {monthEvents.length > 0 && (
+                        <div className="mt-2 pt-2 border-t">
+                          <div className="text-xs text-muted-foreground mb-1">Events ({monthEvents.length})</div>
+                          <div className="space-y-1 max-h-20 overflow-y-auto">
+                            {monthEvents.slice(0, 3).map((event) => (
+                              <div
+                                key={event.id}
+                                className={cn(
+                                  "text-xs p-1 rounded truncate cursor-pointer text-white",
+                                  event.color
+                                )}
+                                onClick={() => {
+                                  setSelectedEvent(event);
+                                  setIsEventDialogOpen(true);
+                                }}
+                              >
+                                {event.title}
+                              </div>
+                            ))}
+                            {monthEvents.length > 3 && (
+                              <div className="text-xs text-muted-foreground text-center">
+                                +{monthEvents.length - 3} more
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
         {view === 'month' && (
           <div className="grid grid-cols-7 text-center">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (

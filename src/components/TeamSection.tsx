@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useInView } from '@/hooks/useInView';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { TeamMemberCard } from '@/components/team/TeamMemberCard';
+import { TeamMemberModal } from '@/components/team/TeamMemberModal';
 import { TeamRecruitmentSection } from '@/components/team/TeamRecruitmentSection';
 
 interface TeamMember {
@@ -11,6 +12,7 @@ interface TeamMember {
   name: string;
   role: string;
   bio: string;
+  shortDescription?: string;
   image: string;
   specialization: string;
   icon: string;
@@ -19,6 +21,8 @@ interface TeamMember {
 const TeamSection = () => {
   const [showRecruitment, setShowRecruitment] = useState<boolean>(false);
   const [showAllTeam, setShowAllTeam] = useState<boolean>(false);
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const isInView = useInView(sectionRef, { once: true, threshold: 0.1 });
   
@@ -83,10 +87,18 @@ const TeamSection = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {displayedMembers.length > 0 ? (
             displayedMembers.map((member, index) => (
-              <TeamMemberCard key={member.id || index} member={member} index={index} />
+              <TeamMemberCard 
+                key={member.id || index} 
+                member={member} 
+                index={index}
+                onClick={() => {
+                  setSelectedMember(member);
+                  setIsModalOpen(true);
+                }}
+              />
             ))
           ) : (
-            <div className="col-span-full text-center py-8 text-gray-500">
+            <div className="col-span-full text-center py-8 text-muted-foreground">
               No team members have been added yet.
             </div>
           )}
@@ -107,13 +119,30 @@ const TeamSection = () => {
         {showAllTeam && remainingMembers.length > 0 && (
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {remainingMembers.map((member, index) => (
-              <TeamMemberCard key={member.id || index} member={member} index={index} />
+              <TeamMemberCard 
+                key={member.id || index} 
+                member={member} 
+                index={index}
+                onClick={() => {
+                  setSelectedMember(member);
+                  setIsModalOpen(true);
+                }}
+              />
             ))}
           </div>
         )}
         
         {showRecruitment && <TeamRecruitmentSection />}
       </div>
+      
+      <TeamMemberModal 
+        member={selectedMember}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedMember(null);
+        }}
+      />
     </section>
   );
 };

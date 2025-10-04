@@ -63,10 +63,10 @@ const Footer = () => {
           <div className="md:w-1/3">
             <h4 className="text-lg font-semibold mb-4">Contact Us</h4>
             <address className="not-italic text-gray-300 leading-relaxed">
-              Karura Forest, Sigiria Ridge (Gate F)<br />
-              Nairobi, Kenya<br />
-              <strong>Hours:</strong> Monday - Sunday, 8:00 AM - 5:00 PM<br /><br />
-              <a href="tel:+254114705763" className="hover:text-white transition-colors duration-300">+254 114 705 763</a><br />
+              Karura Forest<br />
+              Gate F, Thigiri Ridge<br />
+              <strong>Training Hours:</strong> Monday to Sunday: 08:00am - 05:00pm<br /><br />
+              <a href="tel:0114705763" className="hover:text-white transition-colors duration-300">0114 705 763</a><br />
               <a href="mailto:info@amusekenya.co.ke" className="hover:text-white transition-colors duration-300">info@amusekenya.co.ke</a>
             </address>
           </div>

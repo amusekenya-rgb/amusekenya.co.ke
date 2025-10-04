@@ -1,8 +1,6 @@
 
 import React, { useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mail, Phone, Trophy, Heart, Users, Briefcase, Leaf } from 'lucide-react';
 
 interface TeamMemberCardProps {
   member: {
@@ -10,40 +8,26 @@ interface TeamMemberCardProps {
     name: string;
     role: string;
     bio: string;
+    shortDescription?: string;
     image: string;
     specialization: string;
     icon: string;
   };
   index: number;
+  onClick: () => void;
 }
 
-export const TeamMemberCard: React.FC<TeamMemberCardProps> = ({ member, index }) => {
+export const TeamMemberCard: React.FC<TeamMemberCardProps> = ({ member, index, onClick }) => {
   const [isImageLoaded, setIsImageLoaded] = useState(false);
-
-  const renderIcon = (iconName: string) => {
-    const iconProps = { className: "h-4 w-4 text-forest-500" };
-    
-    switch(iconName) {
-      case 'Trophy':
-        return <Trophy {...iconProps} />;
-      case 'Heart':
-        return <Heart {...iconProps} />;
-      case 'Briefcase':
-        return <Briefcase {...iconProps} />;
-      case 'Leaf':
-        return <Leaf {...iconProps} />;
-      case 'Users':
-        return <Users {...iconProps} />;
-      default:
-        return <Trophy {...iconProps} />;
-    }
-  };
+  
+  const displayDescription = member.shortDescription || member.bio.substring(0, 100) + '...';
 
   return (
     <Card 
       key={member.id || index} 
-      className="fade-in-element opacity-0 transform translate-y-10 hover:shadow-lg transition-all duration-700"
+      className="fade-in-element opacity-0 transform translate-y-10 hover:shadow-lg transition-all duration-700 cursor-pointer"
       style={{ transitionDelay: `${0.1 * (index + 1)}s` }}
+      onClick={onClick}
     >
       <div className="relative overflow-hidden aspect-square">
         <div 
@@ -66,23 +50,9 @@ export const TeamMemberCard: React.FC<TeamMemberCardProps> = ({ member, index })
         />
       </div>
       <CardContent className="p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-1">{member.name}</h3>
+        <h3 className="text-xl font-bold text-foreground mb-1">{member.name}</h3>
         <p className="text-forest-600 font-medium mb-3">{member.role}</p>
-        <p className="text-gray-600 text-sm mb-4">{member.bio}</p>
-        
-        <div className="flex items-center text-sm text-gray-700 mb-4">
-          {renderIcon(member.icon)}
-          <span className="ml-2">{member.specialization}</span>
-        </div>
-        
-        <div className="flex space-x-3 mt-4">
-          <button className="text-gray-600 hover:text-forest-600 transition-colors">
-            <Mail className="h-4 w-4" />
-          </button>
-          <button className="text-gray-600 hover:text-forest-600 transition-colors">
-            <Phone className="h-4 w-4" />
-          </button>
-        </div>
+        <p className="text-muted-foreground text-sm line-clamp-2">{displayDescription}</p>
       </CardContent>
     </Card>
   );

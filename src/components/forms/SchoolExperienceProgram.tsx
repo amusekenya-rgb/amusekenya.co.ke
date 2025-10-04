@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card } from '@/components/ui/card';
@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { GraduationCap, MapPin, Users, ArrowLeft, CheckCircle } from 'lucide-react';
+import { GraduationCap, MapPin, Users, ArrowLeft, CheckCircle, Plus, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import schoolsImage from '@/assets/schools.jpg';
 import DatePickerField from './DatePickerField';
@@ -20,9 +20,13 @@ const schoolExperienceSchema = z.object({
   schoolName: z.string().min(1, 'School name is required').max(200),
   numberOfKids: z.string().min(1, 'Number of kids is required'),
   numberOfAdults: z.string().min(1, 'Number of adults is required'),
-  ageRange: z.enum(['6-8', '9-11', '12-14', '15-17']),
+  ageRanges: z.array(z.object({
+    range: z.enum(['6-8', '9-11', '12-14', '15-17'])
+  })).min(1, 'Please add at least one age range'),
   package: z.enum(['day-trip', 'sleep-away', 'after-school-club', 'physical-education']),
-  visitDate: z.date({ required_error: 'Visit date is required' }),
+  preferredDates: z.array(z.object({
+    date: z.date()
+  })).min(1, 'Please add at least one preferred date'),
   location: z.enum(['karura-gate-f', 'karura-gate-a', 'tigoni', 'ngong']),
   numberOfStudents: z.string().min(1, 'Number of students is required'),
   numberOfTeachers: z.string().min(1, 'Number of teachers is required'),
@@ -47,10 +51,22 @@ const SchoolExperienceProgram = () => {
   } = useForm<SchoolExperienceFormData>({
     resolver: zodResolver(schoolExperienceSchema),
     defaultValues: {
+      ageRanges: [{ range: undefined as any }],
+      preferredDates: [{ date: undefined as any }],
       transport: false,
       catering: false,
       consent: false
     }
+  });
+
+  const { fields: ageRangeFields, append: appendAgeRange, remove: removeAgeRange } = useFieldArray({
+    control,
+    name: 'ageRanges'
+  });
+
+  const { fields: dateFields, append: appendDate, remove: removeDate } = useFieldArray({
+    control,
+    name: 'preferredDates'
   });
 
   const consent = watch('consent');
@@ -237,21 +253,58 @@ const SchoolExperienceProgram = () => {
               </div>
 
               <div>
-                <Label className="text-base font-medium">Age Range *</Label>
-                <Select onValueChange={(value) => setValue('ageRange', value as any)}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Select age range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="6-8">6-8 years</SelectItem>
-                    <SelectItem value="9-11">9-11 years</SelectItem>
-                    <SelectItem value="12-14">12-14 years</SelectItem>
-                    <SelectItem value="15-17">15-17 years</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.ageRange && (
-                  <p className="text-destructive text-sm mt-1">{errors.ageRange.message}</p>
-                )}
+                <Label className="text-base font-medium mb-2 block">Age Ranges *</Label>
+                <div className="space-y-3">
+                  {ageRangeFields.map((field, index) => (
+                    <div key={field.id} className="flex gap-3 items-start">
+                      <div className="flex-1">
+                        <Controller
+                          name={`ageRanges.${index}.range`}
+                          control={control}
+                          render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select age range" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="6-8">6-8 years</SelectItem>
+                                <SelectItem value="9-11">9-11 years</SelectItem>
+                                <SelectItem value="12-14">12-14 years</SelectItem>
+                                <SelectItem value="15-17">15-17 years</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        {errors.ageRanges?.[index]?.range && (
+                          <p className="text-destructive text-sm mt-1">{errors.ageRanges[index]?.range?.message}</p>
+                        )}
+                      </div>
+                      {ageRangeFields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeAgeRange(index)}
+                          className="shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => appendAgeRange({ range: undefined as any })}
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Age Range
+                  </Button>
+                  {errors.ageRanges && typeof errors.ageRanges.message === 'string' && (
+                    <p className="text-destructive text-sm mt-1">{errors.ageRanges.message}</p>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -269,20 +322,53 @@ const SchoolExperienceProgram = () => {
                 </Select>
               </div>
 
-              <Controller
-                name="visitDate"
-                control={control}
-                render={({ field }) => (
-                  <DatePickerField
-                    label="Visit Date"
-                    placeholder="Select visit date"
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={errors.visitDate?.message}
-                    required
-                  />
-                )}
-              />
+              <div>
+                <Label className="text-base font-medium mb-2 block">Preferred Dates *</Label>
+                <div className="space-y-3">
+                  {dateFields.map((field, index) => (
+                    <div key={field.id} className="flex gap-3 items-start">
+                      <div className="flex-1">
+                        <Controller
+                          name={`preferredDates.${index}.date`}
+                          control={control}
+                          render={({ field }) => (
+                            <DatePickerField
+                              label=""
+                              placeholder="Select date"
+                              value={field.value}
+                              onChange={field.onChange}
+                              error={errors.preferredDates?.[index]?.date?.message}
+                            />
+                          )}
+                        />
+                      </div>
+                      {dateFields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeDate(index)}
+                          className="shrink-0 mt-2"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => appendDate({ date: undefined as any })}
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Date
+                  </Button>
+                  {errors.preferredDates && typeof errors.preferredDates.message === 'string' && (
+                    <p className="text-destructive text-sm mt-1">{errors.preferredDates.message}</p>
+                  )}
+                </div>
+              </div>
 
               <div>
                 <Label className="text-base font-medium">Location *</Label>

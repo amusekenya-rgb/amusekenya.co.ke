@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card } from '@/components/ui/card';
@@ -10,14 +10,20 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Clock, Users, Target, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Clock, Users, Target, CheckCircle, ArrowLeft, Plus, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import schoolsImage from '@/assets/schools.jpg';
 import { ConsentDialog } from './ConsentDialog';
 
+const currentYear = new Date().getFullYear();
+const birthYears = Array.from({ length: 18 }, (_, i) => currentYear - i - 3);
+
 const homeschoolingSchema = z.object({
   parentName: z.string().min(1, 'Parent name is required').max(100),
-  childrenNames: z.string().min(1, 'Children names and birth years are required').max(500),
+  children: z.array(z.object({
+    name: z.string().min(1, 'Child name is required').max(100),
+    birthYear: z.string().min(1, 'Birth year is required')
+  })).min(1, 'Please add at least one child'),
   package: z.enum(['1-day-discovery', 'weekly-pod', 'project-based']),
   focus: z.array(z.string()).min(1, 'Please select at least one focus area'),
   transport: z.boolean().default(false),
@@ -36,15 +42,22 @@ const HomeschoolingProgram = () => {
     handleSubmit,
     setValue,
     watch,
+    control,
     formState: { errors, isSubmitting }
   } = useForm<HomeschoolingFormData>({
     resolver: zodResolver(homeschoolingSchema),
     defaultValues: {
+      children: [{ name: '', birthYear: '' }],
       focus: [],
       transport: false,
       meal: false,
       consent: false
     }
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'children'
   });
 
   const watchedFocus = watch('focus') || [];
@@ -169,17 +182,69 @@ const HomeschoolingProgram = () => {
               </div>
 
               <div>
-                <Label htmlFor="childrenNames" className="text-base font-medium">Children Names & Birth Years *</Label>
-                <Textarea
-                  id="childrenNames"
-                  {...register('childrenNames')}
-                  className="mt-2"
-                  placeholder="e.g., John Smith (2015), Mary Smith (2017)"
-                  rows={3}
-                />
-                {errors.childrenNames && (
-                  <p className="text-destructive text-sm mt-1">{errors.childrenNames.message}</p>
-                )}
+                <Label className="text-base font-medium mb-2 block">Children *</Label>
+                <div className="space-y-4">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="flex gap-3 items-start">
+                      <div className="flex-1">
+                        <Input
+                          {...register(`children.${index}.name`)}
+                          placeholder="Child's name"
+                          className="w-full"
+                        />
+                        {errors.children?.[index]?.name && (
+                          <p className="text-destructive text-sm mt-1">{errors.children[index]?.name?.message}</p>
+                        )}
+                      </div>
+                      <div className="w-32">
+                        <Controller
+                          name={`children.${index}.birthYear`}
+                          control={control}
+                          render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Birth year" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {birthYears.map((year) => (
+                                  <SelectItem key={year} value={year.toString()}>
+                                    {year}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                        {errors.children?.[index]?.birthYear && (
+                          <p className="text-destructive text-sm mt-1">{errors.children[index]?.birthYear?.message}</p>
+                        )}
+                      </div>
+                      {fields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => remove(index)}
+                          className="shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => append({ name: '', birthYear: '' })}
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Child
+                  </Button>
+                  {errors.children && typeof errors.children.message === 'string' && (
+                    <p className="text-destructive text-sm mt-1">{errors.children.message}</p>
+                  )}
+                </div>
               </div>
 
               <div>

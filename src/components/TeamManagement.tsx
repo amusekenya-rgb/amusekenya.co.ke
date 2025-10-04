@@ -31,6 +31,7 @@ interface TeamMember {
   name: string;
   role: string;
   bio: string;
+  shortDescription?: string;
   image: string;
   specialization: string;
   icon: string;
@@ -61,6 +62,7 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ currentAdminUsername })
       name: '',
       role: '',
       bio: '',
+      shortDescription: '',
       image: '',
       specialization: '',
       icon: 'Trophy'
@@ -300,14 +302,28 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ currentAdminUsername })
             </div>
 
             <div className="grid grid-cols-4 items-start gap-4">
+              <Label htmlFor="shortDescription" className="text-right pt-2">
+                Short Description
+              </Label>
+              <Textarea
+                id="shortDescription"
+                value={currentMember?.shortDescription || ''}
+                onChange={(e) => setCurrentMember({ ...currentMember!, shortDescription: e.target.value })}
+                className="col-span-3 min-h-[60px]"
+                placeholder="Brief 2-line description for card view"
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-start gap-4">
               <Label htmlFor="bio" className="text-right pt-2">
-                Bio
+                Full Bio
               </Label>
               <Textarea
                 id="bio"
                 value={currentMember?.bio || ''}
                 onChange={(e) => setCurrentMember({ ...currentMember!, bio: e.target.value })}
                 className="col-span-3 min-h-[120px]"
+                placeholder="Complete biography shown in detail view"
               />
             </div>
           </div>

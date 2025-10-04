@@ -3,45 +3,49 @@ import { cn } from "@/lib/utils";
 import { Mail, Phone, MapPin, Send } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
-
 const ContactForm = () => {
-  const { toast } = useToast();
+  const {
+    toast
+  } = useToast();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     subject: '',
     message: ''
   });
-  
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const {
+      name,
+      value
+    } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
-  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     // Validate email
     if (!formData.email || !formData.email.includes('@')) {
       toast({
         title: "Invalid Email",
         description: "Please enter a valid email address.",
-        variant: "destructive",
+        variant: "destructive"
       });
       setIsSubmitting(false);
       return;
     }
-    
+
     // Simulate form submission
     setTimeout(() => {
       toast({
         title: "Message Sent!",
-        description: "Thank you for your message. We'll get back to you soon.",
+        description: "Thank you for your message. We'll get back to you soon."
       });
-      
+
       // Reset form
       setFormData({
         name: '',
@@ -49,28 +53,15 @@ const ContactForm = () => {
         subject: '',
         message: ''
       });
-      
       setIsSubmitting(false);
     }, 1000);
   };
-  
-  return (
-    <section id="contact" className="py-24 px-4 bg-earth-50 relative overflow-hidden">
+  return <section id="contact" className="py-24 px-4 bg-earth-50 relative overflow-hidden">
       {/* Background Element */}
       <div className="absolute top-0 right-0 w-1/3 h-full bg-earth-100 -skew-x-12 transform translate-x-1/2 z-0"></div>
       
       <div className="container mx-auto relative z-10">
-        <div className="max-w-3xl mx-auto text-center mb-16">
-          <span className="inline-block text-earth-700 bg-earth-100 px-3 py-1 rounded-full text-sm font-medium mb-4">
-            Get in Touch
-          </span>
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 text-balance">
-            Contact Us
-          </h2>
-          <p className="text-lg text-gray-700 leading-relaxed">
-            Have questions about our programs? Want to share feedback? We'd love to hear from you!
-          </p>
-        </div>
+        
         
         <div className="flex flex-col md:flex-row gap-8 max-w-6xl mx-auto">
           {/* Contact Information */}
@@ -84,8 +75,8 @@ const ContactForm = () => {
                     <MapPin size={20} />
                   </div>
                   <div>
-                    <h4 className="font-medium">Location</h4>
-                    <p className="text-forest-100">Karura Forest, Limuru Road<br />Nairobi, Kenya</p>
+                    <h4 className="font-medium">Find us Here</h4>
+                    <p className="text-forest-100">Karura Forest<br />Gate F, Thigiri Ridge</p>
                   </div>
                 </div>
                 
@@ -94,8 +85,8 @@ const ContactForm = () => {
                     <Mail size={20} />
                   </div>
                   <div>
-                    <h4 className="font-medium">Email Us</h4>
-                    <p className="text-forest-100">info@karurakidscamp.com</p>
+                    <h4 className="font-medium">Get In touch</h4>
+                    <p className="text-forest-100">info@amusekenya.co.ke</p>
                   </div>
                 </div>
                 
@@ -104,15 +95,15 @@ const ContactForm = () => {
                     <Phone size={20} />
                   </div>
                   <div>
-                    <h4 className="font-medium">Call Us</h4>
-                    <p className="text-forest-100">+254 712 345 678</p>
+                    <h4 className="font-medium">Get In touch</h4>
+                    <p className="text-forest-100">0114 705 763</p>
                   </div>
                 </div>
               </div>
               
               <div className="mt-auto">
-                <h4 className="font-medium mb-2">Camp Hours</h4>
-                <p className="text-forest-100">Monday - Friday: 8:00 AM - 4:00 PM</p>
+                <h4 className="font-medium mb-2">Training Hours</h4>
+                <p className="text-forest-100">Monday to Sunday: 08:00am - 05:00pm</p>
               </div>
             </div>
           </div>
@@ -127,85 +118,36 @@ const ContactForm = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label htmlFor="name" className="block text-gray-700 font-medium mb-2">Your Name</label>
-                      <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 outline-none transition-all"
-                        placeholder="Your Name"
-                      />
+                      <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 outline-none transition-all" placeholder="Your Name" />
                     </div>
                     
                     <div>
                       <label htmlFor="email" className="block text-gray-700 font-medium mb-2">Email Address</label>
-                      <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 outline-none transition-all"
-                        placeholder="your.email@example.com"
-                      />
+                      <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 outline-none transition-all" placeholder="your.email@example.com" />
                     </div>
                   </div>
                   
                   <div>
                     <label htmlFor="subject" className="block text-gray-700 font-medium mb-2">Subject</label>
-                    <input
-                      type="text"
-                      id="subject"
-                      name="subject"
-                      value={formData.subject}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 outline-none transition-all"
-                      placeholder="What is this about?"
-                    />
+                    <input type="text" id="subject" name="subject" value={formData.subject} onChange={handleChange} required className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 outline-none transition-all" placeholder="What is this about?" />
                   </div>
                   
                   <div>
                     <label htmlFor="message" className="block text-gray-700 font-medium mb-2">Your Message</label>
-                    <Textarea
-                      id="message"
-                      name="message"
-                      value={formData.message}
-                      onChange={handleChange}
-                      required
-                      rows={6}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 outline-none transition-all resize-none"
-                      placeholder="Share your thoughts, questions, or feedback with us..."
-                    />
+                    <Textarea id="message" name="message" value={formData.message} onChange={handleChange} required rows={6} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-forest-500 focus:border-forest-500 outline-none transition-all resize-none" placeholder="Share your thoughts, questions, or feedback with us..." />
                   </div>
                   
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={cn(
-                      "w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2",
-                      isSubmitting
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : "bg-forest-600 hover:bg-forest-700 text-white shadow-md hover:shadow-lg"
-                    )}
-                  >
-                    {isSubmitting ? (
-                      <>
+                  <button type="submit" disabled={isSubmitting} className={cn("w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2", isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-forest-600 hover:bg-forest-700 text-white shadow-md hover:shadow-lg")}>
+                    {isSubmitting ? <>
                         <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                         Sending...
-                      </>
-                    ) : (
-                      <>
+                      </> : <>
                         Send Message
                         <Send size={18} />
-                      </>
-                    )}
+                      </>}
                   </button>
                 </div>
               </form>
@@ -213,8 +155,6 @@ const ContactForm = () => {
           </div>
         </div>
       </div>
-    </section>
-  );
+    </section>;
 };
-
 export default ContactForm;

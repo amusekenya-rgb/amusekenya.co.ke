@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card } from '@/components/ui/card';
@@ -10,16 +10,26 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Mountain, MapPin, Calendar, ArrowLeft } from 'lucide-react';
+import { Mountain, MapPin, Calendar, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import adventureImage from '@/assets/adventure.jpg';
 import { ConsentDialog } from './ConsentDialog';
+import DatePickerField from './DatePickerField';
+
+const participantSchema = z.object({
+  name: z.string().min(1, 'Participant name is required').max(100),
+  ageRange: z.enum(['9-12', '13-17'], { required_error: 'Age range is required' })
+});
+
+const preferredDateSchema = z.object({
+  date: z.date({ required_error: 'Date is required' })
+});
 
 const kenyanExperiencesSchema = z.object({
   parentLeader: z.string().min(1, 'Parent/Leader name is required').max(100),
-  participantsNames: z.string().min(1, 'Participant names and age ranges are required').max(500),
+  participants: z.array(participantSchema).min(1, 'At least one participant is required'),
   circuit: z.enum(['mt-kenya', 'coast', 'mara', 'chalbi', 'western']),
-  dates: z.string().min(1, 'Dates are required'),
+  preferredDates: z.array(preferredDateSchema).min(1, 'At least one preferred date is required'),
   transport: z.boolean().default(false),
   specialMedicalNeeds: z.string().max(500),
   email: z.string().email('Invalid email address'),
@@ -35,13 +45,26 @@ const KenyanExperiencesProgram = () => {
     handleSubmit,
     setValue,
     watch,
+    control,
     formState: { errors, isSubmitting }
   } = useForm<KenyanExperiencesFormData>({
     resolver: zodResolver(kenyanExperiencesSchema),
     defaultValues: {
+      participants: [{ name: '', ageRange: '9-12' as const }],
+      preferredDates: [{ date: undefined as any }],
       transport: false,
       consent: false
     }
+  });
+
+  const { fields: participantFields, append: appendParticipant, remove: removeParticipant } = useFieldArray({
+    control,
+    name: 'participants'
+  });
+
+  const { fields: dateFields, append: appendDate, remove: removeDate } = useFieldArray({
+    control,
+    name: 'preferredDates'
   });
 
   const consent = watch('consent');
@@ -225,16 +248,74 @@ const KenyanExperiencesProgram = () => {
               </div>
 
               <div>
-                <Label htmlFor="participantsNames" className="text-base font-medium">Participants Names & Age Ranges *</Label>
-                <Textarea
-                  id="participantsNames"
-                  {...register('participantsNames')}
-                  className="mt-2"
-                  placeholder="e.g., John Smith (14), Mary Johnson (16), etc."
-                  rows={3}
-                />
-                {errors.participantsNames && (
-                  <p className="text-destructive text-sm mt-1">{errors.participantsNames.message}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-base font-medium">Participants *</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendParticipant({ name: '', ageRange: '9-12' as const })}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Participant
+                  </Button>
+                </div>
+                
+                <div className="space-y-4">
+                  {participantFields.map((field, index) => (
+                    <div key={field.id} className="flex gap-3 items-start">
+                      <div className="flex-1 space-y-3">
+                        <div>
+                          <Label className="text-sm">Participant Name</Label>
+                          <Input
+                            {...register(`participants.${index}.name`)}
+                            className="mt-1"
+                            placeholder="Enter full name"
+                          />
+                          {errors.participants?.[index]?.name && (
+                            <p className="text-destructive text-sm mt-1">{errors.participants[index]?.name?.message}</p>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <Label className="text-sm">Age Range</Label>
+                          <Controller
+                            name={`participants.${index}.ageRange`}
+                            control={control}
+                            render={({ field }) => (
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder="Select age range" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="9-12">9-12 years</SelectItem>
+                                  <SelectItem value="13-17">13-17 years</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                          {errors.participants?.[index]?.ageRange && (
+                            <p className="text-destructive text-sm mt-1">{errors.participants[index]?.ageRange?.message}</p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {participantFields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => removeParticipant(index)}
+                          className="mt-8"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {errors.participants && typeof errors.participants.message === 'string' && (
+                  <p className="text-destructive text-sm mt-1">{errors.participants.message}</p>
                 )}
               </div>
 
@@ -255,15 +336,53 @@ const KenyanExperiencesProgram = () => {
               </div>
 
               <div>
-                <Label htmlFor="dates" className="text-base font-medium">Preferred Dates *</Label>
-                <Input
-                  id="dates"
-                  {...register('dates')}
-                  className="mt-2"
-                  placeholder="e.g., July 15-19, 2024"
-                />
-                {errors.dates && (
-                  <p className="text-destructive text-sm mt-1">{errors.dates.message}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-base font-medium">Preferred Dates * (5-day program)</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => appendDate({ date: undefined as any })}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Date
+                  </Button>
+                </div>
+                
+                <div className="space-y-3">
+                  {dateFields.map((field, index) => (
+                    <div key={field.id} className="flex gap-3 items-start">
+                      <div className="flex-1">
+                        <Controller
+                          name={`preferredDates.${index}.date`}
+                          control={control}
+                          render={({ field }) => (
+                            <DatePickerField
+                              label=""
+                              placeholder="Select start date of 5-day program"
+                              value={field.value}
+                              onChange={field.onChange}
+                              error={errors.preferredDates?.[index]?.date?.message}
+                            />
+                          )}
+                        />
+                      </div>
+                      
+                      {dateFields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => removeDate(index)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {errors.preferredDates && typeof errors.preferredDates.message === 'string' && (
+                  <p className="text-destructive text-sm mt-1">{errors.preferredDates.message}</p>
                 )}
               </div>
 
