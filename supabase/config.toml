@@ -1,1 +1,4 @@
-project_id = "owvcurouyozinftivsoc"
+project_id = "aoabmibxidpowfltjvvt"
+
+[functions."setup-marketing-system"]
+verify_jwt = false

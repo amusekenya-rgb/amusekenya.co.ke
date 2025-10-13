@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, ArrowDown } from 'lucide-react';
-import campingImage from '@/assets/camping.jpg';
-import schoolsImage from '@/assets/schools.jpg';
+import { cmsService } from '@/services/cmsService';
 import adventureImage from '@/assets/adventure.jpg';
+import schoolsImage from '@/assets/schools.jpg';
+import campingImage from '@/assets/camping.jpg';
 import birthdayImage from '@/assets/birthday.jpg';
-import dailyActivitiesImage from '@/assets/daily-activities.jpg';
 
-const slides = [
+const defaultSlides = [
   {
     id: 1,
     title: "Mountain Biking",
-    subtitle: "Experience the thrill of mountain biking through scenic trails. Navigate challenging terrains, build endurance, and discover the joy of cycling in nature.",
+    subtitle: "Experience the thrill of mountain biking through scenic trails",
     description: "Exhilarating", 
     image: adventureImage,
     buttonText: "Book Now",
@@ -20,7 +20,7 @@ const slides = [
   {
     id: 2,
     title: "Orienteering",
-    subtitle: "Master the art of navigation while exploring the great outdoors. Learn map reading, compass skills, and strategic thinking through exciting orienteering challenges.",
+    subtitle: "Master the art of navigation while exploring the great outdoors",
     description: "Challenging",
     image: schoolsImage,
     buttonText: "Learn More",
@@ -29,7 +29,7 @@ const slides = [
   {
     id: 3,
     title: "Obstacle Course",
-    subtitle: "Test your strength, agility, and determination on our exciting obstacle courses. Build confidence, teamwork, and resilience through fun physical challenges.",
+    subtitle: "Test your strength, agility, and determination on our exciting obstacle courses",
     description: "Thrilling",
     image: campingImage,
     buttonText: "Take the Challenge",
@@ -38,35 +38,42 @@ const slides = [
   {
     id: 4,
     title: "Little Explorer",
-    subtitle: "Nurturing sensory exploration and early development for children aged three and below. Gentle outdoor experiences designed for our youngest adventurers.",
+    subtitle: "Nurturing sensory exploration and early development for children aged three and below",
     description: "Nurturing",
     image: birthdayImage,
     buttonText: "Explore Program",
     badge: "Ages 0-3",
     link: "/programs/little-forest"
   }
-  // {
-  //   id: 5,
-  //   title: "Daily Activities",
-  //   subtitle: "Join Amuse Kenya at Karura Forest, Sigiria Ridge (Gate F) Monday to Sunday from 8:00 AM to 5:00 PM for a full range of forest activities for your children to enjoy.",
-  //   description: "Engaging",
-  //   image: dailyActivitiesImage,
-  //   buttonText: "Join Today",
-  //   badge: "Every Day"
-  // }
 ];
 
 const InteractiveHero = () => {
+  const [slides, setSlides] = useState(defaultSlides);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
+    const loadSlides = async () => {
+      const cmsSlides = await cmsService.getHeroSlides();
+      if (cmsSlides.length > 0) {
+        setSlides(cmsSlides.map((item, index) => ({
+          id: index + 1,
+          title: item.title,
+          subtitle: item.metadata?.subtitle || '',
+          description: item.content || item.title,
+          image: item.metadata?.imageUrl || adventureImage,
+          buttonText: item.metadata?.buttonText || 'Book Now',
+          badge: item.metadata?.badge || '',
+          link: item.metadata?.link
+        })));
+      }
+    };
+    loadSlides();
     setIsLoaded(true);
   }, []);
 
-  // Auto-advance slides every 5 seconds
   useEffect(() => {
     if (isPaused) return;
     
@@ -77,204 +84,219 @@ const InteractiveHero = () => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isTransitioning, isPaused]);
+  }, [isTransitioning, isPaused, slides.length]);
 
   const nextSlide = () => {
-    if (isTransitioning) return;
-    setIsPaused(true);
-    setIsTransitioning(true);
-    setCurrentSlide((prev) => (prev + 1) % slides.length);
-    setTimeout(() => {
-      setIsTransitioning(false);
-      setTimeout(() => setIsPaused(false), 3000); // Resume auto-advance after 3 seconds
-    }, 600);
-  };
-
-  const prevSlide = () => {
-    if (isTransitioning) return;
-    setIsPaused(true);
-    setIsTransitioning(true);
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-    setTimeout(() => {
-      setIsTransitioning(false);
-      setTimeout(() => setIsPaused(false), 3000); // Resume auto-advance after 3 seconds
-    }, 600);
-  };
-
-  const goToSlide = (index: number) => {
-    if (isTransitioning || index === currentSlide) return;
-    setIsPaused(true);
-    setIsTransitioning(true);
-    setCurrentSlide(index);
-    setTimeout(() => {
-      setIsTransitioning(false);
-      setTimeout(() => setIsPaused(false), 3000); // Resume auto-advance after 3 seconds
-    }, 600);
-  };
-
-  const handleRegisterClick = () => {
-    if (current.link) {
-      window.location.href = current.link;
-    } else {
-      const contactSection = document.getElementById('contact');
-      contactSection?.scrollIntoView({ behavior: 'smooth' });
+    if (!isTransitioning) {
+      setIsTransitioning(true);
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
+      setIsPaused(true);
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 700);
     }
   };
 
-  const current = slides[currentSlide];
+  const prevSlide = () => {
+    if (!isTransitioning) {
+      setIsTransitioning(true);
+      setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+      setIsPaused(true);
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 700);
+    }
+  };
+
+  const goToSlide = (index: number) => {
+    if (index !== currentSlide && !isTransitioning) {
+      setIsTransitioning(true);
+      setCurrentSlide(index);
+      setIsPaused(true);
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 700);
+    }
+  };
+
+  const handleRegisterClick = () => {
+    const currentSlideData = slides[currentSlide];
+    if (currentSlideData.link) {
+      window.location.href = currentSlideData.link;
+    } else {
+      const contactSection = document.getElementById('contact');
+      if (contactSection) {
+        contactSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  };
+
+  const scrollToNextSection = () => {
+    const heroHeight = window.innerHeight;
+    window.scrollTo({
+      top: heroHeight,
+      behavior: 'smooth'
+    });
+  };
+
+  const getCardPosition = (index: number) => {
+    const diff = index - currentSlide;
+    const normalizedDiff = diff > slides.length / 2 
+      ? diff - slides.length 
+      : diff < -slides.length / 2 
+      ? diff + slides.length 
+      : diff;
+    
+    return normalizedDiff;
+  };
 
   return (
-    <section id="home" className="relative h-screen w-full overflow-hidden">
-      {/* Background Images */}
+    <div className="relative w-full h-screen overflow-hidden">
       {slides.map((slide, index) => (
-        <div 
+        <div
           key={slide.id}
-          className="absolute inset-0 w-full h-full"
+          className={cn(
+            "absolute inset-0 w-full h-full transition-all duration-700 ease-in-out",
+            index === currentSlide 
+              ? "opacity-100 scale-100 z-10" 
+              : "opacity-0 scale-105 z-0 pointer-events-none"
+          )}
         >
-          <img 
-            src={slide.image}
-            alt={`${slide.title} background`}
-            className={cn(
-              "w-full h-full object-cover transition-all duration-700 ease-in-out",
-              index === currentSlide && isLoaded 
-                ? "opacity-100 scale-100" 
-                : "opacity-0 scale-105"
-            )}
-            loading={index === 0 ? "eager" : "lazy"}
-          />
-          <div className="absolute inset-0 bg-black/40"></div>
-        </div>
-      ))}
+          <div 
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${slide.image})` }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/30" />
+          </div>
 
-      {/* Main Content */}
-      <div className="relative h-full w-full flex items-center justify-between px-4 lg:px-12">
-        {/* Left Content Area */}
-        <div className="flex-1 max-w-2xl">
-          <div className={cn(
-            "transition-all duration-500 ease-in-out transform",
-            isTransitioning ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0"
-          )}>
-            <span className="inline-block text-white bg-forest-500/80 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium uppercase tracking-wider mb-6">
-              {current.badge}
-            </span>
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 drop-shadow-lg">
-              {current.title}
-            </h1>
-            <p className="text-lg md:text-xl text-white/90 mb-8 drop-shadow-md leading-relaxed">
-              {current.subtitle}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button 
-                onClick={handleRegisterClick}
-                className="bg-forest-500 hover:bg-forest-600 text-white px-8 py-3 rounded-lg font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-              >
-                {current.buttonText}
-              </button>
-              <a 
-                href="#programs" 
-                className="bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white px-8 py-3 rounded-lg font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-              >
-                View All Programs
-              </a>
+          <div className="relative h-full container mx-auto px-4 md:px-8 lg:px-12 flex items-center z-20">
+            <div className="max-w-2xl">
+              <div className={cn(
+                "transition-all duration-700 delay-100",
+                isLoaded && index === currentSlide
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-8 opacity-0"
+              )}>
+                {slide.badge && (
+                  <div className="mb-6">
+                    <span className="inline-block bg-primary text-white px-6 py-2 rounded-full text-sm font-semibold uppercase tracking-wide">
+                      {slide.badge}
+                    </span>
+                  </div>
+                )}
+
+                <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 text-white">
+                  {slide.title}
+                </h1>
+                
+                <p className="text-lg md:text-xl mb-8 text-white/90 leading-relaxed">
+                  {slide.subtitle}
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button 
+                    onClick={handleRegisterClick}
+                    className="px-8 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 transition-all shadow-lg"
+                  >
+                    {slide.buttonText}
+                  </button>
+                  <button 
+                    onClick={() => window.location.href = '/programs'}
+                    className="px-8 py-3 bg-white/10 backdrop-blur-sm border-2 border-white/50 text-white rounded-lg font-semibold hover:bg-white/20 transition-all"
+                  >
+                    View All Programs
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden lg:flex absolute right-8 top-1/2 -translate-y-1/2 h-[600px] items-center justify-center z-30">
+              <div className="relative w-80 h-full flex items-center justify-center">
+                {slides.map((slide, index) => {
+                  const position = getCardPosition(index);
+                  const isActive = position === 0;
+                  const isPrev = position === -1;
+                  const isNext = position === 1;
+                  const isVisible = Math.abs(position) <= 1;
+
+                  return (
+                    <button
+                      key={slide.id}
+                      onClick={() => goToSlide(index)}
+                      className={cn(
+                        "absolute overflow-hidden rounded-xl transition-all duration-700 ease-in-out",
+                        isActive && "w-80 h-56 ring-4 ring-white shadow-2xl z-20",
+                        !isActive && "w-64 h-44 ring-2 ring-white/30 hover:ring-white/60 shadow-lg",
+                        !isVisible && "opacity-0 pointer-events-none"
+                      )}
+                      style={{
+                        transform: `translateY(${position * 140}px) scale(${isActive ? 1 : 0.85})`,
+                        opacity: isVisible ? 1 : 0,
+                        zIndex: isActive ? 20 : isVisible ? 10 : 0,
+                      }}
+                    >
+                      <img 
+                        src={slide.image} 
+                        alt={slide.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+                      <div className="absolute bottom-4 left-4 right-4 text-white">
+                        <h3 className={cn("font-bold mb-1", isActive ? "text-xl" : "text-lg")}>{slide.title}</h3>
+                        <p className="text-sm text-white/80">{slide.description}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
+      ))}
 
-        {/* Right Preview Cards - Centered Rotating Carousel */}
-        <div className="hidden lg:block ml-8 relative h-96 w-72">
-          {slides.map((slide, index) => {
-            // Calculate position relative to current slide
-            let position = index - currentSlide;
-            if (position < -2) position += slides.length;
-            if (position > 2) position -= slides.length;
-            
-            // Don't render slides that are too far from center
-            if (Math.abs(position) > 2) return null;
-            
-            const isCenter = position === 0;
-            const translateY = position * 80; // 80px spacing between slides
-            const scale = isCenter ? 1 : 0.8;
-            const opacity = isCenter ? 1 : Math.max(0.3, 1 - Math.abs(position) * 0.3);
-            const zIndex = isCenter ? 20 : 10 - Math.abs(position);
-            
-            return (
-              <div 
-                key={slide.id}
-                onClick={() => goToSlide(index)}
-                className="absolute left-1/2 top-1/2 cursor-pointer transition-all duration-700 ease-out"
-                style={{
-                  transform: `translate(-50%, calc(-50% + ${translateY}px)) scale(${scale})`,
-                  opacity,
-                  zIndex
-                }}
-              >
-                <div className={cn(
-                  "relative w-72 h-40 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300",
-                  isCenter 
-                    ? "ring-4 ring-white/50 shadow-2xl hover:scale-105" 
-                    : "hover:scale-95"
-                )}>
-                  <img 
-                    src={slide.image}
-                    alt={slide.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <h3 className="text-white font-semibold text-lg mb-1">{slide.title}</h3>
-                    <p className="text-white/80 text-sm">{slide.description}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Navigation Arrows */}
-      <button 
+      <button
         onClick={prevSlide}
-        disabled={isTransitioning}
-        className="absolute left-6 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 text-white p-3 rounded-full transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+        className="absolute left-6 top-1/2 -translate-y-1/2 z-30 bg-black/30 backdrop-blur-sm text-white p-4 rounded-full hover:bg-black/50 transition-all group"
+        aria-label="Previous slide"
       >
-        <ChevronLeft size={24} />
-      </button>
-      
-      <button 
-        onClick={nextSlide}
-        disabled={isTransitioning}
-        className="absolute right-6 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 text-white p-3 rounded-full transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed z-10"
-      >
-        <ChevronRight size={24} />
+        <ChevronLeft className="w-8 h-8 group-hover:-translate-x-1 transition-transform" />
       </button>
 
-      {/* Slide Indicators */}
-      <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 flex gap-3 z-10">
+      <button
+        onClick={nextSlide}
+        className="absolute right-6 top-1/2 -translate-y-1/2 z-30 bg-black/30 backdrop-blur-sm text-white p-4 rounded-full hover:bg-black/50 transition-all group lg:hidden"
+        aria-label="Next slide"
+      >
+        <ChevronRight className="w-8 h-8 group-hover:translate-x-1 transition-transform" />
+      </button>
+
+      <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 flex gap-2 z-30">
         {slides.map((_, index) => (
           <button
             key={index}
             onClick={() => goToSlide(index)}
             className={cn(
               "w-3 h-3 rounded-full transition-all duration-300",
-              index === currentSlide 
-                ? "bg-white shadow-lg" 
-                : "bg-white/40 hover:bg-white/60"
+              index === currentSlide
+                ? "bg-white w-8"
+                : "bg-white/50 hover:bg-white/75"
             )}
+            aria-label={`Go to slide ${index + 1}`}
           />
         ))}
       </div>
 
-      {/* Scroll Down Indicator */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-float">
-        <a 
-          href="#about" 
-          className="flex flex-col items-center text-white/80 hover:text-white transition-colors duration-300"
+      <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 z-30 flex flex-col items-center text-white">
+        <span className="text-sm mb-2">Scroll Down</span>
+        <button
+          onClick={scrollToNextSection}
+          className="animate-bounce"
+          aria-label="Scroll to next section"
         >
-          <span className="text-sm mb-2">Scroll Down</span>
-          <ArrowDown size={20} />
-        </a>
+          <ArrowDown className="w-6 h-6" />
+        </button>
       </div>
-    </section>
+    </div>
   );
 };
 

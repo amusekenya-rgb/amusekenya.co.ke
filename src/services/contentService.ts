@@ -1,20 +1,18 @@
-import { supabase, isSupabaseAvailable } from './supabaseService';
+import { supabase } from '@/integrations/supabase/client';
 
+// This uses the same ContentItem as cmsService for consistency
 export interface ContentItem {
   id: string;
-  section: string;
-  key: string;
   title: string;
-  content: string;
-  content_type: 'text' | 'html' | 'markdown';
-  status: 'draft' | 'published' | 'scheduled';
-  scheduled_at?: string;
-  meta_title?: string;
-  meta_description?: string;
-  og_image?: string;
-  version: number;
-  lastModified: string;
-  modifiedBy: string;
+  slug: string;
+  content?: string;
+  content_type: 'page' | 'post' | 'announcement' | 'campaign' | 'hero_slide' | 'program' | 'site_settings' | 'testimonial' | 'team_member';
+  status: 'draft' | 'published' | 'archived';
+  author_id?: string;
+  published_at?: string;
+  metadata?: any;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SectionConfig {
@@ -37,147 +35,70 @@ class ContentService {
     return ContentService.instance;
   }
 
-  private checkSupabaseAvailable() {
-    if (!isSupabaseAvailable() || !supabase) {
-      console.warn('Supabase not configured, using localStorage fallback');
-      return false;
-    }
-    return true;
-  }
-
-  async getContent(section?: string): Promise<ContentItem[]> {
-    if (this.checkSupabaseAvailable()) {
-      try {
-        let query = supabase!.from('content_items').select('*');
-        
-        if (section) {
-          query = query.eq('section', section);
-        }
-        
-        const { data, error } = await query
-          .eq('status', 'published')
-          .order('title');
-        
-        if (error) throw error;
-        return data || [];
-      } catch (error) {
-        console.error('Error fetching content:', error);
+  async getContent(contentType?: string): Promise<ContentItem[]> {
+    try {
+      let query = (supabase as any).from('content_items').select('*');
+      
+      if (contentType) {
+        query = query.eq('content_type', contentType);
       }
+      
+      const { data, error } = await query
+        .eq('status', 'published')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching content:', error);
+      return [];
     }
-
-    // Fallback to localStorage
-    const stored = localStorage.getItem('site-content');
-    const allContent = stored ? JSON.parse(stored) : this.getDefaultContent();
-    
-    if (section) {
-      return allContent.filter((item: ContentItem) => item.section === section);
-    }
-    
-    return allContent;
   }
 
-  async getContentByKey(section: string, key: string): Promise<ContentItem | null> {
-    const content = await this.getContent(section);
-    return content.find(item => item.key === key) || null;
+  async getContentByKey(contentType: string, slug: string): Promise<ContentItem | null> {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('content_items')
+        .select('*')
+        .eq('content_type', contentType)
+        .eq('slug', slug)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching content by key:', error);
+      return null;
+    }
   }
 
-  async saveContent(content: Omit<ContentItem, 'lastModified' | 'version'> & { id?: string }): Promise<ContentItem> {
-    const now = new Date().toISOString();
-    const newContent: ContentItem = {
-      ...content,
-      id: content.id || crypto.randomUUID(),
-      version: 1,
-      lastModified: now
-    };
+  async saveContent(content: Partial<ContentItem>): Promise<ContentItem | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const contentData = {
+        ...content,
+        author_id: user?.id,
+        published_at: content.status === 'published' ? new Date().toISOString() : null
+      };
 
-    if (this.checkSupabaseAvailable()) {
-      try {
-        const { data, error } = await supabase!
-          .from('content_items')
-          .upsert([newContent])
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      } catch (error) {
-        console.error('Error saving content:', error);
-      }
+      const { data, error } = await (supabase as any)
+        .from('content_items')
+        .upsert([contentData])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error saving content:', error);
+      return null;
     }
-
-    // Fallback to localStorage
-    const allContent = await this.getContent();
-    const existingIndex = allContent.findIndex(item => item.id === newContent.id);
-    
-    if (existingIndex >= 0) {
-      allContent[existingIndex] = { ...newContent, version: allContent[existingIndex].version + 1 };
-    } else {
-      allContent.push(newContent);
-    }
-    
-    localStorage.setItem('site-content', JSON.stringify(allContent));
-    return newContent;
   }
 
   async getSectionConfig(): Promise<SectionConfig[]> {
-    if (this.checkSupabaseAvailable()) {
-      try {
-        const { data, error } = await supabase!
-          .from('section_config')
-          .select('*')
-          .eq('isActive', true)
-          .order('order');
-        
-        if (error) throw error;
-        return data || [];
-      } catch (error) {
-        console.error('Error fetching section config:', error);
-      }
-    }
-
-    // Fallback to default sections
+    // Return default sections (no database table for this yet)
     return this.getDefaultSections();
-  }
-
-  private getDefaultContent(): ContentItem[] {
-    return [
-      {
-        id: 'hero-heading',
-        section: 'hero',
-        key: 'heading',
-        title: 'Hero Heading',
-        content: "Discover Nature's Wonder at Amuse.Ke",
-        content_type: 'text',
-        status: 'published',
-        version: 1,
-        lastModified: new Date().toISOString(),
-        modifiedBy: 'system',
-      },
-      {
-        id: 'hero-subheading',
-        section: 'hero',
-        key: 'subheading',
-        title: 'Hero Subheading',
-        content: "An unforgettable journey of exploration, friendship, and growth in the heart of Karura Forest.",
-        content_type: 'text',
-        status: 'published',
-        version: 1,
-        lastModified: new Date().toISOString(),
-        modifiedBy: 'system',
-      },
-      {
-        id: 'about-heading',
-        section: 'about',
-        key: 'heading',
-        title: 'About Us Heading',
-        content: "Connecting Children With Nature",
-        content_type: 'text',
-        status: 'published',
-        version: 1,
-        lastModified: new Date().toISOString(),
-        modifiedBy: 'system',
-      }
-    ];
   }
 
   private getDefaultSections(): SectionConfig[] {

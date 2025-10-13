@@ -157,14 +157,15 @@ const Index = () => {
       </div>
 
       {secretVisible && (
-        <div className="fixed bottom-24 right-6 z-10">
+        <div className="fixed bottom-24 right-6 z-10 space-y-2">
           <Button 
             variant="outline" 
-            className="bg-white text-forest-700 border-forest-500 shadow-lg"
+            className="bg-white text-forest-700 border-forest-500 shadow-lg block w-full"
             onClick={handleAdminAccess}
           >
             Admin Access
           </Button>
+         
         </div>
       )}
     </div>

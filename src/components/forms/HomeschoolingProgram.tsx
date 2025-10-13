@@ -14,6 +14,7 @@ import { Clock, Users, Target, CheckCircle, ArrowLeft, Plus, X } from 'lucide-re
 import { Link } from 'react-router-dom';
 import schoolsImage from '@/assets/schools.jpg';
 import { ConsentDialog } from './ConsentDialog';
+import { leadsService } from '@/services/leadsService';
 
 const currentYear = new Date().getFullYear();
 const birthYears = Array.from({ length: 18 }, (_, i) => currentYear - i - 3);
@@ -116,9 +117,17 @@ const HomeschoolingProgram = () => {
           {/* Program Information */}
           <div className="space-y-8">
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold text-primary mb-4">
-                Homeschooling Outdoor Experiences
-              </h1>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-primary/10 rounded-full p-3">
+                  <Users className="w-8 h-8 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-4xl md:text-5xl font-bold text-primary">
+                    Homeschooling Outdoor Experiences
+                  </h1>
+                  <p className="text-lg text-muted-foreground">(All Ages)</p>
+                </div>
+              </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
                 Structured integration of physical education and nature immersion. Sports modules include mini athletics, relay races, and cooperative games to build physical literacy.
               </p>

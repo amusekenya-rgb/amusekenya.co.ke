@@ -130,9 +130,13 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
   };
   
   const getEventsByDay = (day: Date) => {
-    return events.filter(event => 
-      isSameDay(event.start instanceof Date ? event.start : new Date(event.start), day)
-    );
+    return events.filter(event => {
+      const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
+      const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
+      // Show event on every day within its date range
+      return day >= new Date(eventStart.getFullYear(), eventStart.getMonth(), eventStart.getDate()) && 
+             day <= new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate());
+    });
   };
   
   const getEventTimeDisplay = (event: Event) => {
@@ -176,8 +180,12 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
 
   const getEventsByMonth = (monthIndex: number) => {
     return events.filter(event => {
-      const eventDate = event.start instanceof Date ? event.start : new Date(event.start);
-      return getMonth(eventDate) === monthIndex && eventDate.getFullYear() === currentDate.getFullYear();
+      const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
+      const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
+      const monthStart = new Date(currentDate.getFullYear(), monthIndex, 1);
+      const monthEnd = new Date(currentDate.getFullYear(), monthIndex + 1, 0);
+      // Include events that overlap with this month
+      return eventEnd >= monthStart && eventStart <= monthEnd;
     });
   };
 
@@ -296,8 +304,10 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
                       <div className="grid grid-cols-7 gap-px">
                         {monthDays.map((day, index) => {
                           const dayEvents = events.filter(event => {
-                            const eventDate = event.start instanceof Date ? event.start : new Date(event.start);
-                            return isSameDay(eventDate, day);
+                            const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
+                            const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
+                            return day >= new Date(eventStart.getFullYear(), eventStart.getMonth(), eventStart.getDate()) && 
+                                   day <= new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate());
                           });
                           const isCurrentDay = isToday(day);
                           const inMonth = isSameMonth(day, monthDate);
@@ -579,81 +589,6 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
                 </p>
               </div>
               
-              {showAgeGroups && selectedEvent.ageGroups && selectedEvent.ageGroups.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Age Groups:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedEvent.ageGroups.map((group, index) => (
-                      <Badge 
-                        key={index}
-                        variant={selectedAgeGroup === group.name ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => setSelectedAgeGroup(selectedAgeGroup === group.name ? null : group.name)}
-                      >
-                        {group.name}
-                      </Badge>
-                    ))}
-                  </div>
-                  
-                  {selectedAgeGroup && (
-                    <div className="bg-slate-50 p-3 rounded-md text-sm mt-2">
-                      {selectedEvent.ageGroups.find(g => g.name === selectedAgeGroup)?.description || (
-                        <span>Activities designed for {selectedEvent.ageGroups.find(g => g.name === selectedAgeGroup)?.ageRange}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {selectedEvent.pricing && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Pricing:</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>Morning Session: <span className="font-medium">{selectedEvent.pricing.morning} KES</span></div>
-                    <div>Afternoon Session: <span className="font-medium">{selectedEvent.pricing.afternoon} KES</span></div>
-                    <div>Full Day: <span className="font-medium">{selectedEvent.pricing.fullDay} KES</span></div>
-                    {selectedEvent.isWeeklong && selectedEvent.pricing.weeklong && (
-                      <div>Full Week: <span className="font-medium">{selectedEvent.pricing.weeklong} KES</span></div>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              {selectedEvent.enableDefaultActivities && selectedEvent.defaultActivities && selectedEvent.defaultActivities.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Optional Activities:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedEvent.defaultActivities.map((activity, index) => (
-                      <Badge 
-                        key={index}
-                        variant={selectedActivity?.id === activity.id ? "default" : "outline"}
-                        className="cursor-pointer"
-                        onClick={() => setSelectedActivity(selectedActivity?.id === activity.id ? null : activity)}
-                      >
-                        {activity.name}
-                      </Badge>
-                    ))}
-                  </div>
-                  
-                  {selectedActivity && (
-                    <div className="bg-slate-50 p-3 rounded-md text-sm mt-2">
-                      <div className="flex items-center justify-between">
-                        <span>{selectedActivity.description || selectedActivity.name}</span>
-                        <div className="flex items-center text-foreground">
-                          <Tag className="h-3.5 w-3.5 mr-1" />
-                          <span className="font-medium">{selectedActivity.price} KES</span>
-                          {selectedActivity.specialPricing && (
-                            <span className="ml-2 text-xs text-gray-600">
-                              ({selectedActivity.specialPricing.condition}: {selectedActivity.specialPricing.price} KES)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              
               {selectedEvent.maxAttendees && (
                 <div className="text-sm">
                   <span className="font-medium">Maximum Attendees:</span> {selectedEvent.maxAttendees}
@@ -692,16 +627,28 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
                   </div>
                 ) : (
                   <div className="space-x-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      asChild
-                    >
-                      <Link to={`/register/${selectedEvent.id}`}>
-                        Register
-                      </Link>
-                    </Button>
-                    {showPdfDownload && (
+                    {selectedEvent.registrationUrl ? (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        asChild
+                      >
+                        <Link to={selectedEvent.registrationUrl}>
+                          Register Now
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        asChild
+                      >
+                        <Link to="/programs">
+                          View Programs
+                        </Link>
+                      </Button>
+                    )}
+                    {selectedEvent.programPdf && (
                       <Button
                         variant="outline"
                         className="gap-1.5"
@@ -709,7 +656,7 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
                         onClick={() => downloadProgram(selectedEvent)}
                       >
                         <FileText className="h-4 w-4" />
-                        {selectedEvent.programPdf ? "Download Brochure" : "Program Details"}
+                        Download Brochure
                       </Button>
                     )}
                   </div>

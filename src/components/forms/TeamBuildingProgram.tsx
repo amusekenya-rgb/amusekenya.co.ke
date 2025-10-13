@@ -130,18 +130,6 @@ const TeamBuildingProgram = () => {
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <div className="bg-white/90 rounded-lg p-4">
-                  <h3 className="font-semibold text-primary mb-2">Key Outcomes</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {['Team Communication', 'Problem-Solving', 'Leadership Skills', 'Fun Memories'].map((outcome) => (
-                      <span key={outcome} className="bg-primary/10 text-primary text-sm px-3 py-1 rounded-full">
-                        {outcome}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Package Details */}

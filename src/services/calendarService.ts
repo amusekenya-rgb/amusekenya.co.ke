@@ -29,9 +29,13 @@ export interface Event {
   color: string;
   location?: string;
   maxAttendees?: number;
+  programType?: string; // Maps to program type from programMappingService
+  registrationUrl?: string; // Direct link to registration form
+  programPdf?: string; // URL or path to PDF
+  eventType?: 'camp' | 'program' | 'workshop' | 'other';
+  // Legacy fields - kept for backward compatibility
   programId?: string;
   isWeeklong?: boolean;
-  eventType?: 'camp' | 'program' | 'workshop' | 'other';
   ageGroups?: AgeGroup[];
   pricing?: {
     morning: number;
@@ -39,7 +43,6 @@ export interface Event {
     fullDay: number;
     weeklong?: number;
   };
-  programPdf?: string; // URL or path to PDF
   enableDefaultActivities?: boolean;
   defaultActivities?: Activity[];
 }

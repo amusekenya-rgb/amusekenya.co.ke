@@ -12,7 +12,7 @@ const Login = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
   const { toast } = useToast();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -21,8 +21,8 @@ const Login = () => {
     setLoginError(null);
     
     try {
-      console.log('Attempting login with:', username, password);
-      const success = await login(username, password);
+      console.log('Attempting login with:', email);
+      const success = await login(email, password);
       
       if (success) {
         toast({
@@ -54,108 +54,6 @@ const Login = () => {
     navigate('/');
   };
 
-  // For demo purposes, initialize the local storage with admin users if they don't exist
-  useEffect(() => {
-    const adminUsers = localStorage.getItem('adminUsersData');
-    if (!adminUsers) {
-      const initialAdmins = [
-        {
-          id: '1',
-          username: 'admin',
-          password: 'password', 
-          email: 'admin@example.com',
-          role: 'ADMIN',
-          companyId: 'company-1',
-          department: 'Administration',
-          permissions: ['manage_users', 'system_config', 'manage_roles'],
-          isSuperAdmin: true,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '2',
-          username: 'user',
-          password: 'password', 
-          email: 'user@example.com',
-          role: 'COACH',
-          companyId: 'company-1',
-          department: 'Programs',
-          permissions: ['manage_programs', 'view_student_data', 'manage_schedules'],
-          isSuperAdmin: false,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '3',
-          username: 'ceo',
-          password: 'password', 
-          email: 'ceo@example.com',
-          role: 'CEO',
-          companyId: 'company-1',
-          department: 'Executive',
-          permissions: ['view_all_data', 'approve_expenses', 'view_financial_data'],
-          isSuperAdmin: true,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '4',
-          username: 'marketing',
-          password: 'password', 
-          email: 'marketing@example.com',
-          role: 'MARKETING',
-          companyId: 'company-1',
-          department: 'Marketing',
-          permissions: ['manage_customers', 'view_customer_data', 'manage_campaigns'],
-          isSuperAdmin: false,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '5',
-          username: 'hr',
-          password: 'password', 
-          email: 'hr@example.com',
-          role: 'HR',
-          companyId: 'company-1',
-          department: 'Human Resources',
-          permissions: ['manage_employees', 'view_hr_reports', 'manage_recruitment'],
-          isSuperAdmin: false,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '6',
-          username: 'accounts',
-          password: 'password', 
-          email: 'accounts@example.com',
-          role: 'ACCOUNTS',
-          companyId: 'company-1',
-          department: 'Finance',
-          permissions: ['view_financial_data', 'manage_invoices'],
-          isSuperAdmin: false,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '7',
-          username: 'governance',
-          password: 'password', 
-          email: 'governance@example.com',
-          role: 'GOVERNANCE',
-          companyId: 'company-1',
-          department: 'Risk & Compliance',
-          permissions: ['manage_policies', 'manage_compliance', 'manage_risk', 'view_audit_trails', 'manage_data_governance'],
-          isSuperAdmin: false,
-          createdAt: new Date().toISOString()
-        }
-      ];
-      localStorage.setItem('adminUsersData', JSON.stringify(initialAdmins));
-      console.log('Demo admin accounts created:', initialAdmins);
-    } else {
-      console.log('Existing admin accounts found in localStorage');
-      try {
-        const parsedAdmins = JSON.parse(adminUsers);
-        console.log('Current admin accounts:', parsedAdmins);
-      } catch (e) {
-        console.error('Error parsing admin accounts:', e);
-      }
-    }
-  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-forest-50 px-4 relative">
@@ -170,7 +68,8 @@ const Login = () => {
       </Button>
       
       <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-md">
-        <h2 className="text-2xl font-bold text-center mb-6">Admin Login</h2>
+        <h2 className="text-2xl font-bold text-center mb-2">Portal Login</h2>
+        <p className="text-center text-sm text-gray-600 mb-6">Please login to access your portal dashboard</p>
         <form onSubmit={handleLogin} className="space-y-4">
           {loginError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
@@ -184,14 +83,15 @@ const Login = () => {
             </div>
           )}
           <div>
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="email">Username</Label>
             <Input 
               type="text" 
-              id="username" 
-              placeholder="Enter your username" 
+              id="email" 
+              placeholder="Enter your email" 
               required 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
             />
           </div>
           <div>
@@ -203,35 +103,33 @@ const Login = () => {
               required 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
             />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Logging in...' : 'Log In'}
+            {isLoading ? 'Logging in...' : 'Login'}
           </Button>
-          <p className="text-center text-sm text-gray-600 mt-2">
-            Demo accounts available with different roles
+          <p className="text-center text-sm text-gray-600 mt-4">
+            Demo Accounts (all use password: 'password')
           </p>
-          <div className="grid grid-cols-2 gap-2 mt-4">
+          <div className="grid grid-cols-2 gap-2 mt-2">
             <div className="text-xs px-3 py-2 bg-gray-100 rounded text-center">
-              CEO Portal: ceo/password
+              <strong>CEO:</strong> ceo
             </div>
             <div className="text-xs px-3 py-2 bg-gray-100 rounded text-center">
-              Admin Portal: admin/password
+              <strong>Admin:</strong> admin
             </div>
             <div className="text-xs px-3 py-2 bg-gray-100 rounded text-center">
-              HR Portal: hr/password
+              <strong>HR:</strong> hr
             </div>
             <div className="text-xs px-3 py-2 bg-gray-100 rounded text-center">
-              Marketing: marketing/password
+              <strong>Marketing:</strong> marketing
             </div>
             <div className="text-xs px-3 py-2 bg-gray-100 rounded text-center">
-              Accounts: accounts/password
+              <strong>Accounts:</strong> accounts
             </div>
             <div className="text-xs px-3 py-2 bg-gray-100 rounded text-center">
-              Coach Portal: user/password
-            </div>
-            <div className="text-xs px-3 py-2 bg-gray-100 rounded text-center">
-              Governance: governance/password
+              <strong>Coach:</strong> user
             </div>
           </div>
         </form>

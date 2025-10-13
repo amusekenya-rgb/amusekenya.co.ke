@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Edit, FileText, Globe, Clock } from 'lucide-react';
-import { ContentItem } from '@/services/contentService';
+import { ContentItem } from '@/services/cmsService';
 
 interface ContentItemListProps {
   content: ContentItem[];
@@ -26,8 +26,8 @@ const ContentItemList: React.FC<ContentItemListProps> = ({
         return <Globe className="h-4 w-4 text-green-600" />;
       case 'draft':
         return <Edit className="h-4 w-4 text-yellow-600" />;
-      case 'scheduled':
-        return <Clock className="h-4 w-4 text-blue-600" />;
+      case 'archived':
+        return <Clock className="h-4 w-4 text-gray-600" />;
       default:
         return <FileText className="h-4 w-4 text-gray-600" />;
     }
@@ -37,7 +37,7 @@ const ContentItemList: React.FC<ContentItemListProps> = ({
     const variants = {
       published: 'default',
       draft: 'secondary',
-      scheduled: 'outline'
+      archived: 'outline'
     } as const;
     
     return (
@@ -59,7 +59,7 @@ const ContentItemList: React.FC<ContentItemListProps> = ({
     return (
       <div className="flex flex-col items-center justify-center h-40 text-center text-muted-foreground">
         <FileText className="h-10 w-10 mb-2" />
-        <p>No content items found in this section</p>
+        <p>No content items found</p>
         <Button onClick={onAddNew} variant="outline" className="mt-4">
           Add Content
         </Button>
@@ -81,19 +81,21 @@ const ContentItemList: React.FC<ContentItemListProps> = ({
                     {getStatusIcon(item.status)}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Last modified: {new Date(item.lastModified).toLocaleDateString()} by {item.modifiedBy}
+                    Last updated: {new Date(item.updated_at).toLocaleDateString()}
                   </p>
-                  <div 
-                    className="mt-2 text-sm prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                      __html: item.content.length > 150 
-                        ? item.content.substring(0, 150) + '...' 
-                        : item.content 
-                    }}
-                  />
-                  {item.meta_title && (
+                  {item.content && (
+                    <div 
+                      className="mt-2 text-sm prose prose-sm max-w-none line-clamp-2"
+                      dangerouslySetInnerHTML={{ 
+                        __html: item.content.length > 150 
+                          ? item.content.substring(0, 150) + '...' 
+                          : item.content 
+                      }}
+                    />
+                  )}
+                  {item.metadata?.description && (
                     <p className="text-xs text-muted-foreground">
-                      SEO Title: {item.meta_title}
+                      {item.metadata.description}
                     </p>
                   )}
                 </div>

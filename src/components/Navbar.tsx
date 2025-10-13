@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from "@/lib/utils";
-import { Menu, X, ChevronDown } from "lucide-react";
+import { Menu, X, ChevronDown, Download } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import amuseLogo from "@/assets/amuse-logo.png";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 const Navbar = () => {
   const location = useLocation();
@@ -11,6 +13,7 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>(null);
+  const [scheduleUrl, setScheduleUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,6 +28,39 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    loadScheduleUrl();
+  }, []);
+
+  const loadScheduleUrl = async () => {
+    try {
+      const { data } = await (supabase as any)
+        .from('content_items')
+        .select('metadata')
+        .eq('type', 'site_settings')
+        .eq('status', 'published')
+        .maybeSingle();
+
+      if (data?.metadata?.schedule_url) {
+        setScheduleUrl(data.metadata.schedule_url);
+      }
+    } catch (err) {
+      console.error('Error loading schedule URL:', err);
+    }
+  };
+
+  const handleScheduleDownload = () => {
+    if (scheduleUrl) {
+      window.open(scheduleUrl, '_blank');
+    } else {
+      toast({
+        title: "Schedule Not Available",
+        description: "The schedule is currently being updated. Please check back soon.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
@@ -38,19 +74,29 @@ const Navbar = () => {
   };
 
   const programDropdowns = {
-    camps: [
-      // { name: 'Summer Camps', path: '/camps/summer' },
-      { name: '5-Day Kenyan Experiences', path: '/camps/kenyan-experiences' },
-      { name: 'Nairobi Day Camps', path: '/programs/day-camps' }
-    ],
+    camps: {
+      'Holiday Camps': [
+        { name: 'Easter Camp', path: '/camps/easter' },
+        { name: 'Summer Camp', path: '/camps/summer' },
+        { name: 'End Year Camp', path: '/camps/end-year' }
+      ],
+      'Mid-Term Camps': [
+        { name: 'Feb/March Camp', path: '/camps/mid-term/feb-march' },
+        { name: 'May/June Camp', path: '/camps/mid-term/may-june' },
+        { name: 'October Camp', path: '/camps/mid-term/october' }
+      ],
+      'Day Camps': [
+        { name: 'Nairobi Day Camps', path: '/camps/day-camps' }
+      ]
+    },
     schools: [
       { name: 'Homeschooling Program', path: '/programs/homeschooling' },
       { name: 'Little Forest Explorers', path: '/programs/little-forest' },
       { name: 'School Experience', path: '/programs/school-experience' }
     ],
     groups: [
-      { name: 'Team Building', path: '/programs/team-building' },
-      { name: 'Kenyan Experiences', path: '/programs/kenyan-experiences' }
+      { name: 'Team Building', path: '/group-activities/team-building' },
+      { name: 'Parties', path: '/group-activities/parties' }
     ],
     about: [
       { name: 'Meet Our Team', path: '/about/team' },
@@ -78,7 +124,7 @@ const Navbar = () => {
             />
           </Link>
 
-          <ul className="hidden md:flex items-center space-x-8">
+          <ul className="hidden lg:flex items-center space-x-6">
             <li>
               <Link 
                 to="/" 
@@ -139,7 +185,7 @@ const Navbar = () => {
               </div>
             </li>
             
-            {/* Camps Dropdown */}
+            {/* Camps Mega Menu */}
             <li className="relative group">
               <button 
                 className={cn(
@@ -155,22 +201,46 @@ const Navbar = () => {
               </button>
               <div 
                 className={cn(
-                  "absolute top-full left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border opacity-0 invisible transition-all duration-200 z-50",
+                  "absolute top-full left-0 mt-2 w-[600px] bg-white rounded-lg shadow-lg border opacity-0 invisible transition-all duration-200 z-50",
                   activeDropdown === 'camps' && "opacity-100 visible"
                 )}
                 onMouseEnter={() => setActiveDropdown('camps')}
                 onMouseLeave={() => setActiveDropdown(null)}
               >
-                {programDropdowns.camps.map((item) => (
-                  <Link 
-                    key={item.path}
-                    to={item.path}
-                    className="block px-4 py-3 text-gray-700 hover:bg-forest-50 hover:text-forest-600 first:rounded-t-lg last:rounded-b-lg"
-                  >
-                    {item.name}
-                  </Link>
-                ))}
+                <div className="grid grid-cols-3 gap-4 p-4">
+                  {Object.entries(programDropdowns.camps).map(([category, items]) => (
+                    <div key={category}>
+                      <h3 className="font-semibold text-gray-900 mb-2 px-2">{category}</h3>
+                      <div className="space-y-1">
+                        {items.map((item) => (
+                          <Link 
+                            key={item.path}
+                            to={item.path}
+                            className="block px-2 py-2 text-sm text-gray-700 hover:bg-forest-50 hover:text-forest-600 rounded"
+                          >
+                            {item.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
+            </li>
+
+            {/* Experiences Link */}
+            <li>
+              <Link 
+                to="/experiences/kenyan-experiences" 
+                className={cn(
+                  "font-medium hover-lift",
+                  isScrolled || !isHomePage
+                    ? "text-gray-700 hover:text-forest-600" 
+                    : "text-white hover:text-forest-100"
+                )}
+              >
+                Experiences
+              </Link>
             </li>
 
             {/* Schools Dropdown */}
@@ -267,11 +337,25 @@ const Navbar = () => {
                 Contact
               </Link>
             </li>
+            <li>
+              <button
+                onClick={handleScheduleDownload}
+                className={cn(
+                  "font-medium hover-lift flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
+                  isScrolled || !isHomePage
+                    ? "bg-forest-600 text-white hover:bg-forest-700" 
+                    : "bg-white/20 text-white hover:bg-white/30 border border-white/40"
+                )}
+              >
+                <Download size={16} />
+                Download Schedules
+              </button>
+            </li>
           </ul>
 
           <div className="flex items-center">
             <button 
-              className="md:hidden"
+              className="lg:hidden"
               onClick={toggleMobileMenu}
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
@@ -285,7 +369,7 @@ const Navbar = () => {
         </div>
 
         <div className={cn(
-          "md:hidden absolute left-0 right-0 top-full px-4 py-2 transition-all duration-300 ease-in-out transform origin-top",
+          "lg:hidden absolute left-0 right-0 top-full px-4 py-2 transition-all duration-300 ease-in-out transform origin-top",
           mobileMenuOpen 
             ? "opacity-100 scale-y-100" 
             : "opacity-0 scale-y-0 pointer-events-none",
@@ -359,19 +443,35 @@ const Navbar = () => {
               </button>
               <div className={cn(
                 "overflow-hidden transition-all duration-200",
-                mobileExpandedSection === 'camps' ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                mobileExpandedSection === 'camps' ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
               )}>
-                {programDropdowns.camps.map((item) => (
-                  <Link 
-                    key={item.path}
-                    to={item.path}
-                    className="block py-2 px-8 text-sm text-gray-700 hover:text-forest-600 hover:bg-gray-50 rounded-md"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.name}
-                  </Link>
+                {Object.entries(programDropdowns.camps).map(([category, items]) => (
+                  <div key={category} className="ml-4 mb-2">
+                    <div className="px-4 py-1 text-xs font-semibold text-gray-500 uppercase">{category}</div>
+                    {items.map((item) => (
+                      <Link 
+                        key={item.path}
+                        to={item.path}
+                        className="block py-2 px-8 text-sm text-gray-700 hover:text-forest-600 hover:bg-gray-50 rounded-md"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {item.name}
+                      </Link>
+                    ))}
+                  </div>
                 ))}
               </div>
+            </li>
+
+            {/* Experiences */}
+            <li>
+              <Link 
+                to="/experiences/kenyan-experiences" 
+                className="block py-2 px-4 font-medium text-gray-800 hover:text-forest-600 hover:bg-gray-50 rounded-md"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Experiences
+              </Link>
             </li>
 
             {/* Schools Submenu */}
@@ -455,6 +555,18 @@ const Navbar = () => {
               >
                 Contact
               </Link>
+            </li>
+            <li>
+              <button
+                onClick={() => {
+                  handleScheduleDownload();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-2 py-2 px-4 font-medium bg-forest-600 text-white hover:bg-forest-700 rounded-md"
+              >
+                <Download size={16} />
+                Download Schedules
+              </button>
             </li>
           </ul>
         </div>

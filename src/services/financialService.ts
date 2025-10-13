@@ -70,145 +70,70 @@ export class FinancialService {
     return FinancialService.instance;
   }
 
-  private checkSupabaseAvailable() {
-    if (!isSupabaseAvailable() || !supabase) {
-      throw new Error('Supabase is not configured. Please set up your Supabase connection first.');
-    }
-  }
-
-  // Invoice Management
+  // STUB: Tables not created yet - returning mock data
   async getInvoices(): Promise<Invoice[]> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('invoices')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    console.warn('invoices table not created yet');
+    return [];
   }
 
   async createInvoice(invoice: Omit<Invoice, 'id' | 'created_at' | 'updated_at'>): Promise<Invoice> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('invoices')
-      .insert([invoice])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    console.warn('invoices table not created yet');
+    return { 
+      ...invoice, 
+      id: 'mock-id', 
+      created_at: new Date().toISOString(), 
+      updated_at: new Date().toISOString() 
+    } as Invoice;
   }
 
   async updateInvoice(id: string, updates: Partial<Invoice>): Promise<Invoice> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('invoices')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    console.warn('invoices table not created yet');
+    return { id, ...updates, updated_at: new Date().toISOString() } as Invoice;
   }
 
-  // Payment Management
   async getPayments(): Promise<Payment[]> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('payments')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    console.warn('payments table not created yet');
+    return [];
   }
 
   async createPayment(payment: Omit<Payment, 'id' | 'created_at'>): Promise<Payment> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('payments')
-      .insert([payment])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    console.warn('payments table not created yet');
+    return { ...payment, id: 'mock-id', created_at: new Date().toISOString() } as Payment;
   }
 
-  // Budget Management
   async getBudgets(): Promise<Budget[]> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('budgets')
-      .select('*')
-      .order('period_start', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    console.warn('budgets table not created yet');
+    return [];
   }
 
   async createBudget(budget: Omit<Budget, 'id' | 'created_at' | 'updated_at'>): Promise<Budget> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('budgets')
-      .insert([budget])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    console.warn('budgets table not created yet');
+    return { 
+      ...budget, 
+      id: 'mock-id', 
+      created_at: new Date().toISOString(), 
+      updated_at: new Date().toISOString() 
+    } as Budget;
   }
 
-  // Expense Management
   async getExpenses(): Promise<Expense[]> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('expenses')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    console.warn('expenses table not created yet');
+    return [];
   }
 
   async createExpense(expense: Omit<Expense, 'id' | 'created_at'>): Promise<Expense> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('expenses')
-      .insert([expense])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    console.warn('expenses table not created yet');
+    return { ...expense, id: 'mock-id', created_at: new Date().toISOString() } as Expense;
   }
 
   async approveExpense(id: string, approvedBy: string): Promise<Expense> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('expenses')
-      .update({ 
-        status: 'approved', 
-        approved_by: approvedBy 
-      })
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    console.warn('expenses table not created yet');
+    return { 
+      id, 
+      approved_by: approvedBy, 
+      status: 'approved', 
+      created_at: new Date().toISOString() 
+    } as Expense;
   }
 }
 

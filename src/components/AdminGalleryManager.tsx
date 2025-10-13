@@ -1,10 +1,10 @@
 
-import React, { useState } from 'react';
-import { toast } from '@/components/ui/use-toast';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import React, { useState, useEffect } from 'react';
+import { toast } from '@/hooks/use-toast';
 import { GalleryUploadForm } from './gallery/GalleryUploadForm';
 import { GalleryGrid } from './gallery/GalleryGrid';
 import { GalleryEditDialog } from './gallery/GalleryEditDialog';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ImageItem {
   id: string;
@@ -19,11 +19,53 @@ interface AdminGalleryManagerProps {
 }
 
 const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminUsername }) => {
-  const [images, setImages] = useLocalStorage<ImageItem[]>('site-images', []);
+  const [images, setImages] = useState<ImageItem[]>([]);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [editDialogOpen, setEditDialogOpen] = useState<boolean>(false);
   const [currentImage, setCurrentImage] = useState<ImageItem | null>(null);
   const [newImageAlt, setNewImageAlt] = useState<string>('');
+
+  // Load images from Supabase on mount
+  useEffect(() => {
+    loadGalleryImages();
+  }, []);
+
+  const loadGalleryImages = async () => {
+    try {
+      const { data: files, error } = await supabase.storage
+        .from('marketing-assets')
+        .list('gallery-images', {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+      if (error) throw error;
+
+      const imageItems: ImageItem[] = files.map(file => {
+        const { data: { publicUrl } } = supabase.storage
+          .from('marketing-assets')
+          .getPublicUrl(`gallery-images/${file.name}`);
+
+        return {
+          id: file.id,
+          url: publicUrl,
+          alt: file.name.replace(/\.[^/.]+$/, ''),
+          section: 'gallery',
+          uploadedAt: file.created_at || new Date().toISOString()
+        };
+      });
+
+      setImages(imageItems);
+    } catch (error) {
+      console.error('Error loading gallery images:', error);
+      toast({
+        title: 'Failed to load images',
+        description: 'Could not load gallery images',
+        variant: 'destructive'
+      });
+    }
+  };
 
   // Filter only gallery images
   const galleryImages = images.filter(img => img.section === 'gallery');
@@ -32,17 +74,38 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
     setIsUploading(true);
 
     try {
-      const imageUrl = URL.createObjectURL(file);
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: 'Invalid file type',
+          description: 'Please upload an image file',
+          variant: 'destructive'
+        });
+        return;
+      }
 
-      const newImage: ImageItem = {
-        id: `gallery_${Date.now()}`,
-        url: imageUrl,
-        alt: caption,
-        section: 'gallery',
-        uploadedAt: new Date().toISOString(),
-      };
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: 'Please upload an image smaller than 5MB',
+          variant: 'destructive'
+        });
+        return;
+      }
 
-      setImages([...images, newImage]);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${caption.replace(/\s+/g, '-')}.${fileExt}`;
+      const filePath = `gallery-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('marketing-assets')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Reload images
+      await loadGalleryImages();
       
       toast({
         title: "Gallery image added",
@@ -50,7 +113,7 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
       });
 
       // Log the action for audit purposes
-      console.log(`Admin ${currentAdminUsername} added gallery image: ${newImage.id}`);
+      console.log(`Admin ${currentAdminUsername} added gallery image: ${fileName}`);
     } catch (error) {
       console.error('Error uploading image:', error);
       toast({
@@ -63,26 +126,44 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this gallery image?')) {
-      // Find the image to get its URL before removing
-      const imageToDelete = images.find(img => img.id === id);
-      
-      // Filter out the deleted image
-      setImages(images.filter(img => img.id !== id));
-      
-      // Clean up blob URL if applicable
-      if (imageToDelete?.url.startsWith('blob:')) {
-        URL.revokeObjectURL(imageToDelete.url);
-      }
-      
-      toast({
-        title: "Image deleted",
-        description: "The image has been removed from the gallery",
-      });
+      try {
+        // Find the image to get its path
+        const imageToDelete = images.find(img => img.id === id);
+        
+        if (imageToDelete) {
+          // Extract file name from URL
+          const fileName = imageToDelete.url.split('/').pop();
+          if (fileName) {
+            const filePath = `gallery-images/${fileName}`;
+            
+            const { error } = await supabase.storage
+              .from('marketing-assets')
+              .remove([filePath]);
 
-      // Log the action for audit purposes
-      console.log(`Admin ${currentAdminUsername} deleted gallery image: ${id}`);
+            if (error) throw error;
+          }
+        }
+        
+        // Reload images
+        await loadGalleryImages();
+        
+        toast({
+          title: "Image deleted",
+          description: "The image has been removed from the gallery",
+        });
+
+        // Log the action for audit purposes
+        console.log(`Admin ${currentAdminUsername} deleted gallery image: ${id}`);
+      } catch (error) {
+        console.error('Error deleting image:', error);
+        toast({
+          title: "Delete failed",
+          description: "Could not delete the image",
+          variant: "destructive"
+        });
+      }
     }
   };
 

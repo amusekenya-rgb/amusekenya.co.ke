@@ -1,8 +1,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { authService, supabase } from '@/services/supabaseService';
-import { migrationService } from '@/services/migrationService';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -24,18 +23,9 @@ export const SupabaseAuthProvider = ({ children }: { children: ReactNode }) => {
     // Get initial session
     const getInitialSession = async () => {
       try {
-        const session = await authService.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user || null);
-
-        // Run migration if user is authenticated and migration hasn't been done
-        if (session?.user) {
-          try {
-            await migrationService.runFullMigration();
-          } catch (error) {
-            console.error('Migration failed:', error);
-          }
-        }
       } catch (error) {
         console.error('Failed to get initial session:', error);
       } finally {
@@ -52,14 +42,6 @@ export const SupabaseAuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(session);
         setUser(session?.user || null);
         setIsLoading(false);
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          try {
-            await migrationService.runFullMigration();
-          } catch (error) {
-            console.error('Migration failed on sign in:', error);
-          }
-        }
       }
     );
 
@@ -69,8 +51,9 @@ export const SupabaseAuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      const result = await authService.signIn(email, password);
-      return !!result.user;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return !!data.user;
     } catch (error) {
       console.error('Sign in failed:', error);
       return false;
@@ -82,7 +65,7 @@ export const SupabaseAuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async (): Promise<void> => {
     setIsLoading(true);
     try {
-      await authService.signOut();
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Sign out failed:', error);
     } finally {

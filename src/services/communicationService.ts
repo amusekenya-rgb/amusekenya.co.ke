@@ -36,7 +36,7 @@ export interface Notification {
   user_id: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: 'info' | 'success' | 'warning' | 'error' | 'message' | 'task';
   action_url?: string;
   read: boolean;
   created_at: string;
@@ -52,165 +52,57 @@ export class CommunicationService {
     return CommunicationService.instance;
   }
 
-  private checkSupabaseAvailable() {
-    if (!isSupabaseAvailable() || !supabase) {
-      throw new Error('Supabase is not configured. Please set up your Supabase connection first.');
-    }
-  }
-
-  // Message Management
+  // STUB: Tables not created yet - returning mock data
   async getMessages(userId: string): Promise<Message[]> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('messages')
-      .select('*')
-      .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    console.warn('messages table not created yet');
+    return [];
   }
 
   async sendMessage(message: Omit<Message, 'id' | 'created_at' | 'read_at'>): Promise<Message> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('messages')
-      .insert([message])
-      .select()
-      .single();
-    
-    if (error) throw error;
-
-    // Create notification for recipient
-    await this.createNotification({
-      user_id: message.recipient_id,
-      title: 'New Message',
-      message: `New message from ${message.sender_id}: ${message.subject}`,
-      type: 'info',
-      read: false
-    });
-
-    return data;
+    console.warn('messages table not created yet');
+    return { ...message, id: 'mock-id', created_at: new Date().toISOString() } as Message;
   }
 
   async markMessageAsRead(messageId: string): Promise<void> {
-    this.checkSupabaseAvailable();
-    
-    const { error } = await supabase!
-      .from('messages')
-      .update({ 
-        status: 'read', 
-        read_at: new Date().toISOString() 
-      })
-      .eq('id', messageId);
-    
-    if (error) throw error;
+    console.warn('messages table not created yet');
   }
 
-  // Task Management
   async getTasks(userId: string): Promise<Task[]> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('tasks')
-      .select('*')
-      .or(`assigned_to.eq.${userId},assigned_by.eq.${userId}`)
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    console.warn('tasks table not created yet');
+    return [];
   }
 
   async createTask(task: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Promise<Task> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('tasks')
-      .insert([task])
-      .select()
-      .single();
-    
-    if (error) throw error;
-
-    // Create notification for assignee
-    await this.createNotification({
-      user_id: task.assigned_to,
-      title: 'New Task Assigned',
-      message: `You have been assigned a new task: ${task.title}`,
-      type: 'info',
-      read: false
-    });
-
-    return data;
+    console.warn('tasks table not created yet');
+    return { 
+      ...task, 
+      id: 'mock-id', 
+      created_at: new Date().toISOString(), 
+      updated_at: new Date().toISOString() 
+    } as Task;
   }
 
   async updateTaskStatus(taskId: string, status: Task['status']): Promise<Task> {
-    this.checkSupabaseAvailable();
-    
-    const updates: any = { 
-      status, 
-      updated_at: new Date().toISOString() 
-    };
-    
-    if (status === 'completed') {
-      updates.completed_at = new Date().toISOString();
-    }
-
-    const { data, error } = await supabase!
-      .from('tasks')
-      .update(updates)
-      .eq('id', taskId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    console.warn('tasks table not created yet');
+    return { id: taskId, status, updated_at: new Date().toISOString() } as Task;
   }
 
-  // Notification Management
   async getNotifications(userId: string): Promise<Notification[]> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    
-    if (error) throw error;
-    return data || [];
+    console.warn('notifications table not created yet');
+    return [];
   }
 
   async createNotification(notification: Omit<Notification, 'id' | 'created_at'>): Promise<Notification> {
-    this.checkSupabaseAvailable();
-    
-    const { data, error } = await supabase!
-      .from('notifications')
-      .insert([notification])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
+    console.warn('notifications table not created yet');
+    return { ...notification, id: 'mock-id', created_at: new Date().toISOString() } as Notification;
   }
 
   async markNotificationAsRead(notificationId: string): Promise<void> {
-    this.checkSupabaseAvailable();
-    
-    const { error } = await supabase!
-      .from('notifications')
-      .update({ read: true })
-      .eq('id', notificationId);
-    
-    if (error) throw error;
+    console.warn('notifications table not created yet');
   }
 
-  // Email Templates
   async sendEmailNotification(to: string, template: string, data: any): Promise<void> {
-    // This would integrate with the email service
-    console.log(`Sending email to ${to} with template ${template}`, data);
+    console.log(`Email notification stub: ${to} - ${template}`, data);
   }
 }
 

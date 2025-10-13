@@ -32,6 +32,7 @@ import {
 import { getAvailablePrograms, calculateProgramCost } from "@/services/calendarService";
 import { addRegistration } from "@/services/dataService";
 import { Registration, ChildRegistration } from '@/types/registration';
+import { leadsService } from '@/services/leadsService';
 import { Badge } from "@/components/ui/badge";
 import { Calendar, CalendarIcon, Download, Info } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -126,7 +127,7 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
     setTotalCost(currentTotal);
   }, [watchChildren]);
 
-  const onSubmit = (data: FormValues) => {
+  const onSubmit = async (data: FormValues) => {
     try {
       const totalAmount = calculateTotal(data);
       
@@ -160,7 +161,25 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
         paymentStatus: 'pending'
       };
       
+      // Save to localStorage for backward compatibility
       addRegistration(registration);
+      
+      // Create lead in Supabase for marketing tracking
+      const firstProgram = availablePrograms.find(p => p.id === children[0]?.programId);
+      await leadsService.createLead({
+        full_name: data.parentName,
+        email: data.email,
+        phone: data.phone,
+        program_type: 'program_registration',
+        program_name: firstProgram?.title || 'Unknown Program',
+        form_data: {
+          children,
+          totalAmount,
+          paymentMethod: data.paymentMethod,
+          registrationDate: new Date().toISOString(),
+          source: 'website_registration_form'
+        }
+      });
       
       toast({
         title: "Registration Successful",
@@ -169,6 +188,7 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
       
       navigate('/');
     } catch (error: any) {
+      console.error('Registration error:', error);
       toast({
         title: "Registration Failed",
         description: error.message || "An error occurred during registration.",

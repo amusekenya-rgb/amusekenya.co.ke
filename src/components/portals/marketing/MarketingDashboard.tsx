@@ -1,13 +1,43 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, Mail, TrendingUp, Target, Plus } from "lucide-react";
-import { getCustomers } from '@/services/customerService';
+import { leadsService } from '@/services/leadsService';
 
 const MarketingDashboard: React.FC = () => {
-  const customers = getCustomers();
+  const [metrics, setMetrics] = useState({
+    totalLeads: 0,
+    conversionRate: 0,
+    activeCampaigns: 0,
+    emailOpenRate: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadMetrics();
+  }, []);
+
+  const loadMetrics = async () => {
+    try {
+      const leads = await leadsService.getAllLeads();
+      const safeLeads = Array.isArray(leads) ? leads : [];
+      const convertedLeads = safeLeads.filter(l => l.status === 'converted');
+      const conversionRate = safeLeads.length > 0 ? (convertedLeads.length / safeLeads.length) * 100 : 0;
+
+      setMetrics({
+        totalLeads: safeLeads.length,
+        conversionRate: Math.round(conversionRate),
+        activeCampaigns: 3, // TODO: Fetch from campaigns table
+        emailOpenRate: 68 // TODO: Implement email tracking
+      });
+    } catch (error) {
+      console.error('Error loading metrics:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -19,9 +49,11 @@ const MarketingDashboard: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{customers.length}</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : metrics.totalLeads}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Active customer base
+              From website forms
             </p>
           </CardContent>
         </Card>
@@ -32,9 +64,11 @@ const MarketingDashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">68.2%</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : `${metrics.conversionRate}%`}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +12% from last month
+              Leads to customers
             </p>
           </CardContent>
         </Card>
@@ -45,9 +79,11 @@ const MarketingDashboard: React.FC = () => {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : metrics.activeCampaigns}
+            </div>
             <p className="text-xs text-muted-foreground">
-              2 ending this week
+              Currently running
             </p>
           </CardContent>
         </Card>
@@ -58,9 +94,11 @@ const MarketingDashboard: React.FC = () => {
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">24.8%</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : `${metrics.emailOpenRate}%`}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Industry average: 21%
+              Industry avg: 21%
             </p>
           </CardContent>
         </Card>

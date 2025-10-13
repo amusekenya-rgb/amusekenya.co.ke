@@ -69,11 +69,11 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
       case ROLES.MARKETING:
         return [
           ...baseTabs,
+          { id: 'leads', label: 'Leads (CRM)', icon: Target },
+          { id: 'content', label: 'Content (CMS)', icon: FileText },
           { id: 'customers', label: 'Customers', icon: Users },
           { id: 'campaigns', label: 'Campaigns', icon: Megaphone },
-          { id: 'content', label: 'Content', icon: FileText },
           { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-          { id: 'leads', label: 'Leads', icon: Target },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       

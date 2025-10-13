@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Bell, ChevronRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { getAnnouncements } from "@/services/dataService";
+import { cmsService } from "@/services/cmsService";
 import {
   Carousel,
   CarouselContent,
@@ -42,68 +42,24 @@ const Announcements = () => {
   const [documents, setDocuments] = useState<MediaItem[]>([]);
   
   useEffect(() => {
-    const fetchAnnouncements = () => {
+    const fetchAnnouncements = async () => {
       try {
-        const announcementsData = getAnnouncements() || [];
-        if (announcementsData && announcementsData.length > 0) {
-          setAnnouncements(announcementsData);
-          
-          console.log("Fetched announcements:", announcementsData);
-          
-          // Filter announcements with posters
-          const withPosters = announcementsData.filter(
-            announcement => announcement.poster && announcement.poster.length > 0
-          );
-
-          console.log("Announcements with posters:", withPosters);
+        const cmsAnnouncements = await cmsService.getPublishedAnnouncements();
+        
+        const formattedAnnouncements = cmsAnnouncements.map(item => ({
+          id: item.id,
+          title: item.title,
+          content: item.content || '',
+          date: new Date(item.published_at || item.created_at).toLocaleDateString(),
+          priority: item.metadata?.priority || 'medium',
+          poster: item.metadata?.posterUrl || ''
+        }));
+        
+        setAnnouncements(formattedAnnouncements);
+        const withPosters = formattedAnnouncements.filter(a => a.poster);
           
           // Check if we have announcement images in the image library
-          const announcementImages = galleryImages.filter(img => 
-            img.section === 'announcements' && img.type === 'image'
-          );
-          
-          console.log("Announcement images from gallery:", announcementImages);
-          
-          if (announcementImages.length > 0) {
-            // Add images from the library to announcements that don't have posters
-            const enhancedAnnouncements = [...withPosters];
-            
-            announcementImages.forEach(image => {
-              // Check if this image is not already used in an announcement
-              const existingAnnouncement = enhancedAnnouncements.find(
-                a => a.poster === image.url
-              );
-              
-              if (!existingAnnouncement) {
-                // Find if there's an announcement that matches the image alt text
-                const matchingAnnouncement = announcementsData.find(
-                  a => !a.poster && a.title.toLowerCase().includes(image.alt.toLowerCase())
-                );
-                
-                if (matchingAnnouncement) {
-                  // Update the existing announcement with the image
-                  const updatedAnnouncement = {...matchingAnnouncement, poster: image.url};
-                  enhancedAnnouncements.push(updatedAnnouncement);
-                } else {
-                  // Create a placeholder announcement with the image
-                  enhancedAnnouncements.push({
-                    id: `img_${image.id}`,
-                    title: image.alt,
-                    content: '',
-                    date: new Date().toLocaleDateString(),
-                    priority: 'medium',
-                    poster: image.url
-                  });
-                }
-              }
-            });
-            
-            console.log("Enhanced announcements:", enhancedAnnouncements);
-            setPostersWithAnnouncements(enhancedAnnouncements);
-          } else {
-            setPostersWithAnnouncements(withPosters);
-          }
-        }
+        setPostersWithAnnouncements(withPosters);
         
         // Get PDF documents
         const docs = galleryImages.filter(item => 
@@ -118,7 +74,7 @@ const Announcements = () => {
     };
     
     fetchAnnouncements();
-  }, [galleryImages]);
+  }, []);
   
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);

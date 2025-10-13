@@ -1,15 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Users, Calendar, MapPin, Baby, GraduationCap, PartyPopper, Mountain } from 'lucide-react';
+import { ArrowRight, Users, Calendar, Baby, GraduationCap, PartyPopper, Mountain } from 'lucide-react';
+import { cmsService } from '@/services/cmsService';
 import homeschoolingImage from '@/assets/schools.jpg';
 import dailyActivitiesImage from '@/assets/daily-activities.jpg';
 import adventureImage from '@/assets/adventure.jpg';
 import birthdayImage from '@/assets/birthday.jpg';
+import * as LucideIcons from 'lucide-react';
 
-const ProgramsOverview = () => {
-  const programs = [
+const defaultPrograms = [
     {
       id: 'homeschooling',
       title: 'Homeschooling Outdoor Experiences',
@@ -71,6 +72,28 @@ const ProgramsOverview = () => {
       highlights: ['Karura Gate F', 'Age-Appropriate', 'Life Skills', 'Nature Connection']
     }
   ];
+
+const ProgramsOverview = () => {
+  const [programs, setPrograms] = useState(defaultPrograms);
+
+  useEffect(() => {
+    const loadPrograms = async () => {
+      const cmsPrograms = await cmsService.getPrograms();
+      if (cmsPrograms.length > 0) {
+        setPrograms(cmsPrograms.map(item => ({
+          id: item.slug,
+          title: item.title,
+          description: item.content || '',
+          image: item.metadata?.imageUrl || homeschoolingImage,
+          icon: (LucideIcons as any)[item.metadata?.icon || 'GraduationCap'] || GraduationCap,
+          ageRange: item.metadata?.ageRange || 'All ages',
+          duration: item.metadata?.duration || 'Varies',
+          highlights: item.metadata?.highlights || []
+        })));
+      }
+    };
+    loadPrograms();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">

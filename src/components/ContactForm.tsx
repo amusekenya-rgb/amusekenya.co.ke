@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { cn } from "@/lib/utils";
-import { Mail, Phone, MapPin, Send } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, MessageCircle } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { leadsService } from '@/services/leadsService';
 const ContactForm = () => {
   const {
     toast
@@ -24,7 +25,7 @@ const ContactForm = () => {
       [name]: value
     }));
   };
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
@@ -39,22 +40,47 @@ const ContactForm = () => {
       return;
     }
 
-    // Simulate form submission
-    setTimeout(() => {
-      toast({
-        title: "Message Sent!",
-        description: "Thank you for your message. We'll get back to you soon."
+    try {
+      // Create lead in Supabase
+      const lead = await leadsService.createLead({
+        full_name: formData.name,
+        email: formData.email,
+        phone: '',
+        program_type: 'contact',
+        program_name: formData.subject,
+        form_data: {
+          subject: formData.subject,
+          message: formData.message,
+          source: 'website_contact_form'
+        }
       });
 
-      // Reset form
-      setFormData({
-        name: '',
-        email: '',
-        subject: '',
-        message: ''
+      if (lead) {
+        toast({
+          title: "Message Sent!",
+          description: "Thank you for your message. We'll get back to you soon."
+        });
+
+        // Reset form
+        setFormData({
+          name: '',
+          email: '',
+          subject: '',
+          message: ''
+        });
+      } else {
+        throw new Error('Failed to submit message');
+      }
+    } catch (error) {
+      console.error('Error submitting contact form:', error);
+      toast({
+        title: "Submission Failed",
+        description: "There was an error submitting your message. Please try again.",
+        variant: "destructive"
       });
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+    }
   };
   return <section id="contact" className="py-24 px-4 bg-earth-50 relative overflow-hidden">
       {/* Background Element */}
@@ -95,8 +121,25 @@ const ContactForm = () => {
                     <Phone size={20} />
                   </div>
                   <div>
-                    <h4 className="font-medium">Get In touch</h4>
+                    <h4 className="font-medium">Call Us</h4>
                     <p className="text-forest-100">0114 705 763</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <div className="bg-green-500 p-2 rounded mr-4">
+                    <MessageCircle size={20} />
+                  </div>
+                  <div>
+                    <h4 className="font-medium">WhatsApp</h4>
+                    <a 
+                      href="https://api.whatsapp.com/send/?phone=254114705763&text=Hello! I need assistance from Amuse Kenya&type=phone_number"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-forest-100 hover:text-white transition-colors"
+                    >
+                      Chat with us
+                    </a>
                   </div>
                 </div>
               </div>

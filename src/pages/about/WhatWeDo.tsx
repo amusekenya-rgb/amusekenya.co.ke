@@ -1,43 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import SEOHead from '@/components/SEOHead';
 import { Card, CardContent } from '@/components/ui/card';
-import { GraduationCap, Baby, School, Tent, Users, MapPin } from 'lucide-react';
+import { GraduationCap, Baby, School, Tent, Users, MapPin, Target, Heart, Lightbulb, TreePine } from 'lucide-react';
+import { cmsService, ContentItem } from '@/services/cmsService';
+
+const iconMap: Record<string, any> = {
+  GraduationCap,
+  Baby,
+  School,
+  Tent,
+  Users,
+  MapPin,
+  Target,
+  Heart,
+  Lightbulb,
+  TreePine,
+};
 
 const WhatWeDo = () => {
-  const programs = [
-    {
-      icon: GraduationCap,
-      title: "Homeschooling Outdoor Experiences",
-      description: "Structured programs integrating physical education and nature immersion."
-    },
-    {
-      icon: Baby,
-      title: "Little Forest Explorers",
-      description: "Nurturing sensory exploration and early development for children aged three and below."
-    },
-    {
-      icon: School,
-      title: "School Experience Packages",
-      description: "Tailored trips and clubs to complement school curriculum."
-    },
-    {
-      icon: Tent,
-      title: "Day and Overnight Camps",
-      description: "Progressive experiences that build resilience and confidence."
-    },
-    {
-      icon: Users,
-      title: "Group Activities",
-      description: "Customized parties and team-building events with a focus on fun and tangible outcomes."
-    },
-    {
-      icon: MapPin,
-      title: "Kenyan Experiences",
-      description: "Multi-day adventures across various regions of Kenya to build teamwork and cultural awareness."
+  const [services, setServices] = useState<ContentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadContent();
+  }, []);
+
+  const loadContent = async () => {
+    try {
+      const data = await cmsService.getServiceItems();
+      setServices(data);
+    } catch (error) {
+      console.error('Error loading service items:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,33 +50,41 @@ const WhatWeDo = () => {
           <div className="max-w-4xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">What We Do</h1>
             
-            <div className="prose prose-lg max-w-none mb-12">
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                We design and deliver a wide range of programs that complement and enhance learning 
-                through immersive, experiential activities. Our offerings include:
-              </p>
-            </div>
+            {loading ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">Loading...</p>
+              </div>
+            ) : (
+              <>
+                <div className="prose prose-lg max-w-none mb-12">
+                  <p className="text-lg text-muted-foreground leading-relaxed">
+                    We design and deliver a wide range of programs that complement and enhance learning 
+                    through immersive, experiential activities. Our offerings include:
+                  </p>
+                </div>
 
-            <div className="grid gap-6 md:grid-cols-2 mb-12">
-              {programs.map((program, index) => {
-                const Icon = program.icon;
-                return (
-                  <Card key={index} className="border-primary/20 hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="flex items-start gap-4">
-                        <div className="p-3 bg-primary/10 rounded-lg flex-shrink-0">
-                          <Icon className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-foreground mb-2">{program.title}</h3>
-                          <p className="text-muted-foreground">{program.description}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                <div className="grid gap-6 md:grid-cols-2 mb-12">
+                  {services.map((service, index) => {
+                    const IconComponent = iconMap[service.metadata?.icon || 'GraduationCap'];
+                    return (
+                      <Card key={service.id || index} className="border-primary/20 hover:shadow-lg transition-shadow">
+                        <CardContent className="pt-6">
+                          <div className="flex items-start gap-4">
+                            <div className="p-3 bg-primary/10 rounded-lg flex-shrink-0">
+                              {IconComponent && <IconComponent className="h-6 w-6 text-primary" />}
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold text-foreground mb-2">{service.title}</h3>
+                              <p className="text-muted-foreground">{service.content}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>

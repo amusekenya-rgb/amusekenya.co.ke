@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useInView } from '@/hooks/useInView';
@@ -6,6 +5,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { TeamMemberCard } from '@/components/team/TeamMemberCard';
 import { TeamMemberModal } from '@/components/team/TeamMemberModal';
 import { TeamRecruitmentSection } from '@/components/team/TeamRecruitmentSection';
+import { cmsService } from '@/services/cmsService';
 
 interface TeamMember {
   id: string;
@@ -27,12 +27,30 @@ const TeamSection = () => {
   const isInView = useInView(sectionRef, { once: true, threshold: 0.1 });
   
   const [content] = useLocalStorage<any[]>('site-content', []);
-  const [teamMembers] = useLocalStorage<TeamMember[]>('team-members', []);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [localTeamMembers] = useLocalStorage<TeamMember[]>('team-members', []);
   const [siteImages] = useLocalStorage<any[]>('site-images', []);
   
   useEffect(() => {
-    console.log("Team members from local storage:", teamMembers);
-  }, [teamMembers]);
+    loadTeamMembers();
+  }, []);
+
+  const loadTeamMembers = async () => {
+    const data = await cmsService.getTeamMembers();
+    const formatted = data.map(item => ({
+      id: item.id,
+      name: item.title,
+      role: item.metadata?.role || '',
+      bio: item.content || '',
+      shortDescription: item.metadata?.short_description,
+      image: item.metadata?.image_url || '',
+      specialization: item.metadata?.specialization || '',
+      icon: item.metadata?.icon || 'User'
+    }));
+    
+    // Use CMS data if available, otherwise fallback to localStorage
+    setTeamMembers(formatted.length > 0 ? formatted : localTeamMembers);
+  };
   
   const headingContent = content.find(item => item.section === 'team' && item.key === 'heading')?.content || 
     "Meet The Nature Enthusiasts";

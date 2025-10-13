@@ -5,6 +5,8 @@ import MessageCenter from '../communication/MessageCenter';
 import AnalyticsDashboard from '../analytics/AnalyticsDashboard';
 import MarketingDashboard from './marketing/MarketingDashboard';
 import CustomerManagement from './marketing/CustomerManagement';
+import LeadsManagement from './marketing/LeadsManagement';
+import ContentManagement from './marketing/ContentManagement';
 import { CampaignsTab, LeadGenerationTab, ReportsTab } from './marketing/MarketingTabs';
 
 interface MarketingPortalProps {
@@ -16,10 +18,12 @@ const MarketingPortal: React.FC<MarketingPortalProps> = ({ activeTab }) => {
     switch (activeTab) {
       case 'customers':
         return <CustomerManagement />;
+      case 'leads':
+        return <LeadsManagement />;
+      case 'content':
+        return <ContentManagement />;
       case 'campaigns':
         return <CampaignsTab />;
-      case 'leads':
-        return <LeadGenerationTab />;
       case 'analytics':
         return <AnalyticsDashboard />;
       case 'communication':

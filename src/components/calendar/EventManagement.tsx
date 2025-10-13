@@ -8,14 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, addDays, isSameDay, differenceInDays } from "date-fns";
-import { CalendarIcon, Clock, Plus, Trash2, Calendar as CalendarFullIcon, Upload } from "lucide-react";
+import { format, differenceInDays } from "date-fns";
+import { CalendarIcon, Clock, Plus, Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Event, defaultCampAgeGroups, AgeGroup, defaultActivities, Activity } from '@/services/calendarService';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Event } from '@/services/calendarService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { programTypes, getProgramsByCategory, getProgramUrl } from '@/services/programMappingService';
 
 interface EventManagementProps {
   onAddEvent?: (event: Event) => void;
@@ -35,31 +34,19 @@ const EventManagement: React.FC<EventManagementProps> = ({
   const [location, setLocation] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("20");
   const [color, setColor] = useState("bg-forest-500");
-  const [isWeeklong, setIsWeeklong] = useState(false);
   const [eventType, setEventType] = useState<'camp' | 'program' | 'workshop' | 'other'>('program');
-  const [ageGroups, setAgeGroups] = useState<AgeGroup[]>([]);
-  const [showAgeGroups, setShowAgeGroups] = useState(false);
-  const [morningPrice, setMorningPrice] = useState("1500");
-  const [afternoonPrice, setAfternoonPrice] = useState("1500");
-  const [fullDayPrice, setFullDayPrice] = useState("2500");
-  const [weeklongPrice, setWeeklongPrice] = useState("12000");
   const [programPdf, setProgramPdf] = useState<string>("");
   const [activeTab, setActiveTab] = useState("basicDetails");
-  
-  // New state for default activities
-  const [enableDefaultActivities, setEnableDefaultActivities] = useState(false);
-  const [selectedActivities, setSelectedActivities] = useState<Activity[]>([...defaultActivities]);
+  const [programType, setProgramType] = useState<string>("");
+  const [registrationUrl, setRegistrationUrl] = useState<string>("");
 
-  // Reset or initialize age groups based on event type
+  // Auto-populate registration URL when program type changes
   useEffect(() => {
-    if (eventType === 'camp') {
-      setAgeGroups([...defaultCampAgeGroups]);
-      setShowAgeGroups(true);
-    } else if (ageGroups.length === 0) {
-      // Initialize with a single empty age group for other event types
-      setAgeGroups([{ name: '', ageRange: '', capacity: 20 }]);
+    if (programType) {
+      const url = getProgramUrl(programType);
+      setRegistrationUrl(url);
     }
-  }, [eventType]);
+  }, [programType]);
 
   // Handle start date change
   const handleStartDateChange = (date: Date | undefined) => {
@@ -74,43 +61,6 @@ const EventManagement: React.FC<EventManagementProps> = ({
   const handleEndDateChange = (date: Date | undefined) => {
     if (date && eventStartDate && date >= eventStartDate) {
       setEventEndDate(date);
-      
-      // If multi-day event, automatically set isWeeklong if it spans more than 4 days
-      const daysDiff = differenceInDays(date, eventStartDate);
-      if (daysDiff >= 4) {
-        setIsWeeklong(true);
-      }
-    }
-  };
-
-  // Handle adding a new age group
-  const handleAddAgeGroup = () => {
-    setAgeGroups([...ageGroups, { name: '', ageRange: '', capacity: 20 }]);
-  };
-
-  // Handle removing an age group
-  const handleRemoveAgeGroup = (index: number) => {
-    const updatedGroups = [...ageGroups];
-    updatedGroups.splice(index, 1);
-    setAgeGroups(updatedGroups);
-  };
-
-  // Handle updating an age group
-  const handleAgeGroupChange = (index: number, field: keyof AgeGroup, value: string | number) => {
-    const updatedGroups = [...ageGroups];
-    updatedGroups[index] = { ...updatedGroups[index], [field]: value };
-    setAgeGroups(updatedGroups);
-  };
-  
-  // Toggle activity selection
-  const toggleActivity = (activity: Activity, isChecked: boolean) => {
-    if (isChecked) {
-      // Make sure activity isn't already in the list
-      if (!selectedActivities.some(a => a.id === activity.id)) {
-        setSelectedActivities([...selectedActivities, activity]);
-      }
-    } else {
-      setSelectedActivities(selectedActivities.filter(a => a.id !== activity.id));
     }
   };
 
@@ -127,11 +77,6 @@ const EventManagement: React.FC<EventManagementProps> = ({
     const endDate = new Date(eventEndDate);
     endDate.setHours(endHour, endMinute);
     
-    // Only include non-empty age groups
-    const filteredAgeGroups = showAgeGroups 
-      ? ageGroups.filter(group => group.name.trim() !== '') 
-      : [];
-    
     const newEvent: Event = {
       id: Date.now().toString(),
       title,
@@ -141,18 +86,10 @@ const EventManagement: React.FC<EventManagementProps> = ({
       color,
       location,
       maxAttendees: parseInt(maxAttendees, 10),
-      isWeeklong: isWeeklong,
       eventType: eventType,
-      ageGroups: filteredAgeGroups.length > 0 ? filteredAgeGroups : undefined,
-      pricing: {
-        morning: parseInt(morningPrice, 10),
-        afternoon: parseInt(afternoonPrice, 10),
-        fullDay: parseInt(fullDayPrice, 10),
-        weeklong: isWeeklong ? parseInt(weeklongPrice, 10) : undefined
-      },
+      programType: programType || undefined,
+      registrationUrl: registrationUrl || undefined,
       programPdf: programPdf || undefined,
-      enableDefaultActivities: enableDefaultActivities,
-      defaultActivities: enableDefaultActivities ? selectedActivities : undefined
     };
     
     if (onAddEvent) {
@@ -166,17 +103,10 @@ const EventManagement: React.FC<EventManagementProps> = ({
     setMaxAttendees("20");
     setStartTime("09:00");
     setEndTime("17:00");
-    setIsWeeklong(false);
     setEventType('program');
-    setShowAgeGroups(false);
-    setAgeGroups([]);
     setProgramPdf("");
-    setMorningPrice("1500");
-    setAfternoonPrice("1500");
-    setFullDayPrice("2500");
-    setWeeklongPrice("12000");
-    setEnableDefaultActivities(false);
-    setSelectedActivities([...defaultActivities]);
+    setProgramType("");
+    setRegistrationUrl("");
   };
 
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,9 +149,6 @@ const EventManagement: React.FC<EventManagementProps> = ({
         <div className="px-6">
           <TabsList className="w-full">
             <TabsTrigger value="basicDetails">Basic Details</TabsTrigger>
-            <TabsTrigger value="pricing">Pricing</TabsTrigger>
-            <TabsTrigger value="activities">Activities</TabsTrigger>
-            <TabsTrigger value="ageGroups">Age Groups</TabsTrigger>
             <TabsTrigger value="programMaterials">Program Materials</TabsTrigger>
           </TabsList>
         </div>
@@ -237,6 +164,34 @@ const EventManagement: React.FC<EventManagementProps> = ({
                   value={title} 
                   onChange={(e) => setTitle(e.target.value)} 
                 />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Program Type</Label>
+                <Select value={programType} onValueChange={setProgramType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select program type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(getProgramsByCategory()).map(([category, programs]) => (
+                      <React.Fragment key={category}>
+                        <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                          {category}
+                        </div>
+                        {programs.map((program) => (
+                          <SelectItem key={program.value} value={program.value}>
+                            {program.label}
+                          </SelectItem>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {registrationUrl && (
+                  <p className="text-xs text-muted-foreground">
+                    Registration URL: {registrationUrl}
+                  </p>
+                )}
               </div>
               
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
@@ -276,15 +231,6 @@ const EventManagement: React.FC<EventManagementProps> = ({
               </div>
               
               <div className="space-y-2">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Checkbox
-                    id="weeklong"
-                    checked={isWeeklong}
-                    onCheckedChange={(checked) => setIsWeeklong(checked === true)}
-                  />
-                  <Label htmlFor="weeklong">Week-long Event</Label>
-                </div>
-                
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Start Date</Label>
@@ -405,212 +351,6 @@ const EventManagement: React.FC<EventManagementProps> = ({
                   rows={4} 
                 />
               </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="pricing">
-            <div className="space-y-6">
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="morningPrice">Morning Rate (KES)</Label>
-                  <Input 
-                    id="morningPrice" 
-                    type="number" 
-                    value={morningPrice} 
-                    onChange={(e) => setMorningPrice(e.target.value)} 
-                    min="0"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="afternoonPrice">Afternoon Rate (KES)</Label>
-                  <Input 
-                    id="afternoonPrice" 
-                    type="number" 
-                    value={afternoonPrice} 
-                    onChange={(e) => setAfternoonPrice(e.target.value)} 
-                    min="0"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="fullDayPrice">Full Day Rate (KES)</Label>
-                  <Input 
-                    id="fullDayPrice" 
-                    type="number" 
-                    value={fullDayPrice} 
-                    onChange={(e) => setFullDayPrice(e.target.value)} 
-                    min="0"
-                  />
-                </div>
-                
-                {isWeeklong && (
-                  <div className="space-y-2">
-                    <Label htmlFor="weeklongPrice">Week-long Rate (KES)</Label>
-                    <Input 
-                      id="weeklongPrice" 
-                      type="number" 
-                      value={weeklongPrice} 
-                      onChange={(e) => setWeeklongPrice(e.target.value)} 
-                      min="0"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="activities">
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2">
-                <Switch 
-                  id="enableActivities" 
-                  checked={enableDefaultActivities} 
-                  onCheckedChange={setEnableDefaultActivities}
-                />
-                <Label htmlFor="enableActivities">Enable Default Activities</Label>
-              </div>
-              
-              {enableDefaultActivities && (
-                <div className="space-y-4 mt-4">
-                  <h3 className="text-sm font-medium">Select Available Activities:</h3>
-                  
-                  <div className="grid gap-4">
-                    {defaultActivities.map((activity) => (
-                      <div key={activity.id} className="border rounded-md p-3 bg-slate-50">
-                        <div className="flex items-start">
-                          <Checkbox
-                            id={`activity-${activity.id}`}
-                            checked={selectedActivities.some(a => a.id === activity.id)}
-                            onCheckedChange={(checked) => toggleActivity(activity, checked === true)}
-                            className="mt-1"
-                          />
-                          <div className="ml-3 space-y-1 flex-1">
-                            <Label 
-                              htmlFor={`activity-${activity.id}`}
-                              className="font-medium"
-                            >
-                              {activity.name}
-                            </Label>
-                            <div className="text-sm text-gray-600">
-                              {activity.price} KES
-                              {activity.specialPricing && (
-                                <span className="ml-2">
-                                  ({activity.specialPricing.condition}: {activity.specialPricing.price} KES)
-                                </span>
-                              )}
-                            </div>
-                            {activity.description && (
-                              <div className="text-xs text-gray-500">
-                                {activity.description}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="text-sm text-gray-600 mt-2">
-                    <p>Activities are charged separately when selected by participants.</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="ageGroups">
-            <div className="space-y-6">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="showAgeGroups"
-                  checked={showAgeGroups || eventType === 'camp'} 
-                  onCheckedChange={(checked) => setShowAgeGroups(checked === true)}
-                  disabled={eventType === 'camp'} // Always enabled for camps
-                />
-                <Label htmlFor="showAgeGroups">
-                  Define Specific Age Groups
-                  {eventType === 'camp' && <span className="ml-2 text-sm text-muted-foreground">(Required for camps)</span>}
-                </Label>
-              </div>
-              
-              {(showAgeGroups || eventType === 'camp') && (
-                <>
-                  <div className="space-y-4">
-                    {ageGroups.map((group, index) => (
-                      <div key={index} className="border rounded-md p-4 space-y-4 relative">
-                        {ageGroups.length > 1 && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="absolute top-2 right-2 h-7 w-7" 
-                            onClick={() => handleRemoveAgeGroup(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                        
-                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor={`groupName-${index}`}>Group Name</Label>
-                            <Input 
-                              id={`groupName-${index}`} 
-                              placeholder="e.g., Neem Campers" 
-                              value={group.name} 
-                              onChange={(e) => handleAgeGroupChange(index, 'name', e.target.value)}
-                            />
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor={`ageRange-${index}`}>Age Range</Label>
-                            <Input 
-                              id={`ageRange-${index}`} 
-                              placeholder="e.g., 3-5 years" 
-                              value={group.ageRange} 
-                              onChange={(e) => handleAgeGroupChange(index, 'ageRange', e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor={`capacity-${index}`}>Capacity</Label>
-                            <Input 
-                              id={`capacity-${index}`} 
-                              type="number" 
-                              placeholder="20" 
-                              value={group.capacity} 
-                              onChange={(e) => handleAgeGroupChange(index, 'capacity', parseInt(e.target.value))}
-                              min="1"
-                            />
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor={`description-${index}`}>Description (Optional)</Label>
-                            <Input 
-                              id={`description-${index}`} 
-                              placeholder="Activities for this age group" 
-                              value={group.description || ''} 
-                              onChange={(e) => handleAgeGroupChange(index, 'description', e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={handleAddAgeGroup}
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Add Another Age Group
-                  </Button>
-                </>
-              )}
             </div>
           </TabsContent>
           
