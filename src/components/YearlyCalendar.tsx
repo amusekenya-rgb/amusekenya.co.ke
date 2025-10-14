@@ -13,18 +13,22 @@ const YearlyCalendar = () => {
   const [events, setEvents] = useState<Event[]>([]);
   
   useEffect(() => {
-    // Load events when component mounts and initialize with proper dates
-    const loadedEvents = loadEvents();
-    console.log('YearlyCalendar loaded events:', loadedEvents.length);
+    const fetchEvents = async () => {
+      // Load events when component mounts and initialize with proper dates
+      const loadedEvents = await loadEvents();
+      console.log('YearlyCalendar loaded events:', loadedEvents.length);
+      
+      // Ensure all events have proper Date objects
+      const formattedEvents = loadedEvents.map(event => ({
+        ...event,
+        start: event.start instanceof Date ? event.start : new Date(event.start),
+        end: event.end instanceof Date ? event.end : new Date(event.end)
+      }));
+      
+      setEvents(formattedEvents);
+    };
     
-    // Ensure all events have proper Date objects
-    const formattedEvents = loadedEvents.map(event => ({
-      ...event,
-      start: event.start instanceof Date ? event.start : new Date(event.start),
-      end: event.end instanceof Date ? event.end : new Date(event.end)
-    }));
-    
-    setEvents(formattedEvents);
+    fetchEvents();
     
     const sectionTitle = document.querySelector('.fade-in-element');
     if (sectionTitle) {

@@ -74,13 +74,13 @@ export const ProgramEditor: React.FC<ProgramEditorProps> = ({ isOpen, onClose, p
       const filePath = `program-images/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('marketing-assets')
+        .from('content-images')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('marketing-assets')
+        .from('content-images')
         .getPublicUrl(filePath);
 
       setFormData({ ...formData, imageUrl: publicUrl });

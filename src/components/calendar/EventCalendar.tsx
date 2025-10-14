@@ -41,7 +41,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from '@/components/ui/badge';
-import { Event, Activity, loadEvents, createProgramDownload } from '@/services/calendarService';
+import { Event, Activity, loadEvents, createProgramDownload, updateEvent, deleteEvent } from '@/services/calendarService';
+import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
 import { Link } from 'react-router-dom';
 
@@ -73,12 +74,15 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   
   useEffect(() => {
-    if (externalEvents) {
-      setEvents(externalEvents);
-    } else {
-      const loadedEvents = loadEvents();
-      setEvents(loadedEvents);
-    }
+    const fetchEvents = async () => {
+      if (externalEvents) {
+        setEvents(externalEvents);
+      } else {
+        const loadedEvents = await loadEvents();
+        setEvents(loadedEvents);
+      }
+    };
+    fetchEvents();
   }, [externalEvents]);
   
   const getDays = () => {
@@ -157,9 +161,17 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
     return isSameMonth(day, currentDate);
   };
 
-  const handleDeleteEvent = (eventId: string) => {
-    if (onDeleteEvent) {
-      onDeleteEvent(eventId);
+  const handleDeleteEvent = async (eventId: string) => {
+    const success = await deleteEvent(eventId);
+    if (success) {
+      toast.success('Event deleted successfully');
+      setEvents(events.filter(e => e.id !== eventId));
+      setIsEventDialogOpen(false);
+      if (onDeleteEvent) {
+        onDeleteEvent(eventId);
+      }
+    } else {
+      toast.error('Failed to delete event');
     }
   };
   

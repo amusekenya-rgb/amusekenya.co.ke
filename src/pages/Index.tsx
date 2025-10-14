@@ -19,11 +19,15 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const data = loadFromLocalStorage();
-    console.log('Data loaded on Index page:', data);
+    const fetchData = async () => {
+      const data = loadFromLocalStorage();
+      console.log('Data loaded on Index page:', data);
+      
+      const events = await loadEvents();
+      console.log('Calendar events loaded:', events.length);
+    };
     
-    const events = loadEvents();
-    console.log('Calendar events loaded:', events.length);
+    fetchData();
     
     const lazyImages = document.querySelectorAll('.lazy-image');
     
@@ -165,7 +169,7 @@ const Index = () => {
           >
             Admin Access
           </Button>
-         
+          
         </div>
       )}
     </div>

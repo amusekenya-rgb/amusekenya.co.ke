@@ -18,7 +18,7 @@ import SeedCMSButton from '@/components/admin/SeedCMSButton';
 import AdminGalleryManager from '@/components/AdminGalleryManager';
 import EventManagement from '@/components/calendar/EventManagement';
 import EventCalendar from '@/components/calendar/EventCalendar';
-import { loadEvents, saveEvents, Event } from '@/services/calendarService';
+import { loadEvents, Event } from '@/services/calendarService';
 
 type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | null;
 
@@ -40,15 +40,13 @@ const ContentManagement = () => {
     loadCalendarEvents();
   }, []);
 
-  const loadCalendarEvents = () => {
-    const events = loadEvents();
+  const loadCalendarEvents = async () => {
+    const events = await loadEvents();
     setCalendarEvents(events);
   };
 
   const handleAddCalendarEvent = (event: Event) => {
-    const updatedEvents = [...calendarEvents, event];
-    saveEvents(updatedEvents);
-    setCalendarEvents(updatedEvents);
+    setCalendarEvents([...calendarEvents, event]);
     toast({ title: 'Calendar event added successfully' });
   };
 

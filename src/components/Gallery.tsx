@@ -3,10 +3,18 @@ import { cn } from "@/lib/utils";
 import { X } from 'lucide-react';
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useInView } from "@/hooks/useInView";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { supabase } from '@/integrations/supabase/client';
+
+interface GalleryImage {
+  src: string;
+  alt: string;
+  caption: string;
+}
+
 const Gallery = () => {
   const [activeImage, setActiveImage] = useState<number | null>(null);
   const [loadedImages, setLoadedImages] = useState<number[]>([]);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const sectionRef = useRef<HTMLElement>(null);
   const isMobile = useIsMobile();
   const isInView = useInView(sectionRef, {
@@ -14,15 +22,39 @@ const Gallery = () => {
     once: true
   });
 
-  // Get gallery images from localStorage
-  const [siteImages] = useLocalStorage<any[]>('site-images', []);
+  useEffect(() => {
+    loadGalleryImages();
+  }, []);
 
-  // Filter only gallery images
-  const galleryImages = siteImages.filter(img => img.section === 'gallery').map(img => ({
-    src: img.url,
-    alt: img.alt,
-    caption: img.alt
-  }));
+  const loadGalleryImages = async () => {
+    try {
+      const { data: files, error } = await supabase.storage
+        .from('marketing-assets')
+        .list('gallery-images', {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+      if (error) throw error;
+
+      const images = files.map(file => {
+        const { data: { publicUrl } } = supabase.storage
+          .from('marketing-assets')
+          .getPublicUrl(`gallery-images/${file.name}`);
+        
+        return {
+          src: publicUrl,
+          alt: file.name.replace(/\.[^/.]+$/, '').replace(/-/g, ' '),
+          caption: file.name.replace(/\.[^/.]+$/, '').replace(/-/g, ' ')
+        };
+      });
+
+      setGalleryImages(images);
+    } catch (error) {
+      console.error('Error loading gallery images:', error);
+    }
+  };
 
   // Use default images if no gallery images are found
   const images = galleryImages.length > 0 ? galleryImages : [{

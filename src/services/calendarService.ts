@@ -94,35 +94,141 @@ const ensureDateObjects = (events: Event[]): Event[] => {
   }));
 };
 
-// Save events to local storage
-export const saveEvents = (events: Event[]): void => {
-  const eventsToSave = events.map(event => ({
-    ...event,
-    start: event.start instanceof Date ? event.start.toISOString() : event.start,
-    end: event.end instanceof Date ? event.end.toISOString() : event.end,
-  }));
-  
-  localStorage.setItem('calendar_events', JSON.stringify(eventsToSave));
-  console.log('Events saved to localStorage:', eventsToSave.length);
+import { supabase } from '@/integrations/supabase/client';
+
+// Save event to database
+export const saveEvent = async (event: Event): Promise<Event | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await (supabase as any)
+      .from('calendar_events')
+      .insert({
+        title: event.title,
+        start_date: event.start instanceof Date ? event.start.toISOString() : event.start,
+        end_date: event.end instanceof Date ? event.end.toISOString() : event.end,
+        description: event.description,
+        color: event.color,
+        location: event.location,
+        max_attendees: event.maxAttendees,
+        program_type: event.programType,
+        registration_url: event.registrationUrl,
+        program_pdf: event.programPdf,
+        event_type: event.eventType,
+        created_by: user.id
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data ? {
+      id: (data as any).id,
+      title: (data as any).title,
+      start: new Date((data as any).start_date),
+      end: new Date((data as any).end_date),
+      description: (data as any).description || '',
+      color: (data as any).color || 'bg-forest-500',
+      location: (data as any).location,
+      maxAttendees: (data as any).max_attendees,
+      programType: (data as any).program_type,
+      registrationUrl: (data as any).registration_url,
+      programPdf: (data as any).program_pdf,
+      eventType: (data as any).event_type as 'camp' | 'program' | 'workshop' | 'other'
+    } : null;
+  } catch (error) {
+    console.error('Failed to save event:', error);
+    return null;
+  }
 };
 
-// Load events from local storage
-export const loadEvents = (): Event[] => {
-  const storedEvents = localStorage.getItem('calendar_events');
-  
-  if (storedEvents) {
-    try {
-      const parsedEvents: Event[] = JSON.parse(storedEvents);
-      console.log('Events loaded from localStorage:', parsedEvents.length);
-      return ensureDateObjects(parsedEvents);
-    } catch (error) {
-      console.error('Failed to parse stored events:', error);
-      return [];
-    }
+// Load events from database
+export const loadEvents = async (): Promise<Event[]> => {
+  try {
+    const { data, error } = await (supabase as any)
+      .from('calendar_events')
+      .select('*')
+      .order('start_date', { ascending: true });
+
+    if (error) throw error;
+
+    return data ? data.map((event: any) => ({
+      id: event.id,
+      title: event.title,
+      start: new Date(event.start_date),
+      end: new Date(event.end_date),
+      description: event.description || '',
+      color: event.color || 'bg-forest-500',
+      location: event.location,
+      maxAttendees: event.max_attendees,
+      programType: event.program_type,
+      registrationUrl: event.registration_url,
+      programPdf: event.program_pdf,
+      eventType: event.event_type as 'camp' | 'program' | 'workshop' | 'other'
+    })) : [];
+  } catch (error) {
+    console.error('Failed to load events:', error);
+    return [];
   }
-  
-  console.log('No events found in localStorage');
-  return [];
+};
+
+// Update event in database
+export const updateEvent = async (event: Event): Promise<Event | null> => {
+  try {
+    const { data, error } = await (supabase as any)
+      .from('calendar_events')
+      .update({
+        title: event.title,
+        start_date: event.start instanceof Date ? event.start.toISOString() : event.start,
+        end_date: event.end instanceof Date ? event.end.toISOString() : event.end,
+        description: event.description,
+        color: event.color,
+        location: event.location,
+        max_attendees: event.maxAttendees,
+        program_type: event.programType,
+        registration_url: event.registrationUrl,
+        program_pdf: event.programPdf,
+        event_type: event.eventType
+      })
+      .eq('id', event.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data ? {
+      id: (data as any).id,
+      title: (data as any).title,
+      start: new Date((data as any).start_date),
+      end: new Date((data as any).end_date),
+      description: (data as any).description || '',
+      color: (data as any).color || 'bg-forest-500',
+      location: (data as any).location,
+      maxAttendees: (data as any).max_attendees,
+      programType: (data as any).program_type,
+      registrationUrl: (data as any).registration_url,
+      programPdf: (data as any).program_pdf,
+      eventType: (data as any).event_type as 'camp' | 'program' | 'workshop' | 'other'
+    } : null;
+  } catch (error) {
+    console.error('Failed to update event:', error);
+    return null;
+  }
+};
+
+// Delete event from database
+export const deleteEvent = async (eventId: string): Promise<boolean> => {
+  try {
+    const { error } = await (supabase as any)
+      .from('calendar_events')
+      .delete()
+      .eq('id', eventId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Failed to delete event:', error);
+    return false;
+  }
 };
 
 // Create program download
@@ -201,8 +307,8 @@ Contact: info@amuseke.com | (123) 456-7890
 };
 
 // Get available programs from events for registration
-export const getAvailablePrograms = () => {
-  const events = loadEvents();
+export const getAvailablePrograms = async () => {
+  const events = await loadEvents();
   const now = new Date();
   
   // Only return events that are in the future
@@ -233,13 +339,13 @@ export const getAvailablePrograms = () => {
 };
 
 // Calculate cost for a selected program based on timeSlot and ageGroup
-export const calculateProgramCost = (
+export const calculateProgramCost = async (
   programId: string, 
   timeSlot: 'morning' | 'afternoon' | 'fullDay' | 'weeklong',
   ageGroup?: string,
   selectedActivities?: string[]
-): number => {
-  const events = loadEvents();
+): Promise<number> => {
+  const events = await loadEvents();
   const event = events.find(e => e.id === programId);
   
   if (!event || !event.pricing) {
@@ -284,8 +390,10 @@ export const calculateProgramCost = (
 };
 
 export default {
-  saveEvents,
+  saveEvent,
   loadEvents,
+  updateEvent,
+  deleteEvent,
   createProgramDownload,
   getAvailablePrograms,
   calculateProgramCost,

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import EventCalendar from '@/components/calendar/EventCalendar';
 import EventManagement from '@/components/calendar/EventManagement';
-import { Event, saveEvents, loadEvents } from '@/services/calendarService';
+import { Event, saveEvent, loadEvents, deleteEvent } from '@/services/calendarService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlusCircle, CalendarDays } from 'lucide-react';
 import { format } from 'date-fns';
@@ -21,25 +21,26 @@ const AdminCalendar: React.FC = () => {
   const [activeTab, setActiveTab] = useState("calendar");
   
   useEffect(() => {
-    const loadedEvents = loadEvents();
-    if (loadedEvents.length > 0) {
-      // Ensure all events have proper Date objects
-      const formattedEvents = loadedEvents.map(event => ({
-        ...event,
-        start: event.start instanceof Date ? event.start : new Date(event.start),
-        end: event.end instanceof Date ? event.end : new Date(event.end)
-      }));
-      setEvents(formattedEvents);
-      console.log('AdminCalendar loaded events:', formattedEvents.length);
-    } else {
-      console.log('AdminCalendar: No events found');
-    }
+    const fetchEvents = async () => {
+      const loadedEvents = await loadEvents();
+      if (loadedEvents.length > 0) {
+        // Ensure all events have proper Date objects
+        const formattedEvents = loadedEvents.map(event => ({
+          ...event,
+          start: event.start instanceof Date ? event.start : new Date(event.start),
+          end: event.end instanceof Date ? event.end : new Date(event.end)
+        }));
+        setEvents(formattedEvents);
+        console.log('AdminCalendar loaded events:', formattedEvents.length);
+      } else {
+        console.log('AdminCalendar: No events found');
+      }
+    };
+    fetchEvents();
   }, []);
   
   const handleAddEvent = (newEvent: Event) => {
-    const updatedEvents = [...events, newEvent];
-    setEvents(updatedEvents);
-    saveEvents(updatedEvents);
+    setEvents([...events, newEvent]);
     toast({
       title: "Event Added",
       description: `"${newEvent.title}" has been added to the calendar.`,
@@ -49,16 +50,17 @@ const AdminCalendar: React.FC = () => {
     console.log('Event added and saved:', newEvent.title);
   };
   
-  const handleDeleteEvent = (eventId: string) => {
-    const updatedEvents = events.filter(event => event.id !== eventId);
-    setEvents(updatedEvents);
-    saveEvents(updatedEvents);
-    toast({
-      title: "Event Deleted",
-      description: "The event has been removed from the calendar.",
-      duration: 3000,
-    });
-    console.log('Event deleted:', eventId);
+  const handleDeleteEvent = async (eventId: string) => {
+    const success = await deleteEvent(eventId);
+    if (success) {
+      setEvents(events.filter(event => event.id !== eventId));
+      toast({
+        title: "Event Deleted",
+        description: "The event has been removed from the calendar.",
+        duration: 3000,
+      });
+      console.log('Event deleted:', eventId);
+    }
   };
 
   return (

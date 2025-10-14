@@ -73,17 +73,20 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
   const [totalCost, setTotalCost] = useState<number>(0);
   
   useEffect(() => {
-    // Load available programs from calendar events
-    const programs = getAvailablePrograms();
-    setAvailablePrograms(programs);
-    
-    // If an initial program ID is provided, set it as the selected program
-    if (initialProgramId) {
-      const program = programs.find(p => p.id === initialProgramId);
-      if (program) {
-        setSelectedProgram(program);
+    const fetchPrograms = async () => {
+      // Load available programs from calendar events
+      const programs = await getAvailablePrograms();
+      setAvailablePrograms(programs);
+      
+      // If an initial program ID is provided, set it as the selected program
+      if (initialProgramId) {
+        const program = programs.find(p => p.id === initialProgramId);
+        if (program) {
+          setSelectedProgram(program);
+        }
       }
-    }
+    };
+    fetchPrograms();
   }, [initialProgramId]);
   
   const form = useForm<FormValues>({
@@ -113,30 +116,35 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
   });
 
   // Calculate total amount based on selected program and time slots
-  const calculateTotal = (formData: FormValues) => {
-    return formData.children.reduce((total, child) => {
+  const calculateTotal = async (formData: FormValues) => {
+    let total = 0;
+    for (const child of formData.children) {
       // Calculate cost based on program and time slot
-      const cost = calculateProgramCost(child.programId, child.timeSlot as any);
-      return total + cost;
-    }, 0);
+      const cost = await calculateProgramCost(child.programId, child.timeSlot as any);
+      total += cost;
+    }
+    return total;
   };
   
   // Update total cost when form values change
   useEffect(() => {
-    const currentTotal = calculateTotal(form.getValues());
-    setTotalCost(currentTotal);
+    const updateTotal = async () => {
+      const currentTotal = await calculateTotal(form.getValues());
+      setTotalCost(currentTotal);
+    };
+    updateTotal();
   }, [watchChildren]);
 
   const onSubmit = async (data: FormValues) => {
     try {
-      const totalAmount = calculateTotal(data);
+      const totalAmount = await calculateTotal(data);
       
-      const children: ChildRegistration[] = data.children.map(child => {
+      const children: ChildRegistration[] = await Promise.all(data.children.map(async child => {
         // Get the program for this child
         const selectedProgram = availablePrograms.find(p => p.id === child.programId);
         
         // Calculate amount based on program and time slot
-        const amount = calculateProgramCost(child.programId, child.timeSlot as any);
+        const amount = await calculateProgramCost(child.programId, child.timeSlot as any);
         
         return {
           childName: child.childName,
@@ -147,7 +155,7 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
           ageGroup: child.ageGroup,
           amount
         };
-      });
+      }));
       
       // Use the first child's programId as the main programId for the registration
       const registration: Omit<Registration, 'id' | 'createdAt'> = {

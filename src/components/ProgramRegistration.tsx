@@ -17,10 +17,10 @@ const ProgramRegistration = () => {
   const { programId } = useParams();
 
   useEffect(() => {
-    const loadProgram = () => {
+    const loadProgram = async () => {
       try {
         // Get available programs from calendar events
-        const availablePrograms = getAvailablePrograms();
+        const availablePrograms = await getAvailablePrograms();
         
         if (programId && availablePrograms.length > 0) {
           const foundProgram = availablePrograms.find((p: any) => p.id === programId);

@@ -87,7 +87,7 @@ const TeamSection = () => {
     <section 
       id="team" 
       ref={sectionRef}
-      className="py-24 px-4 bg-gradient-to-b from-white to-forest-50"
+      className="relative py-24 px-4 bg-gradient-to-b from-white to-forest-50"
     >
       <div className="container mx-auto">
         <div className="max-w-3xl mx-auto text-center mb-16 fade-in-element opacity-0 transform translate-y-10 transition-all duration-700">

@@ -73,13 +73,13 @@ export const HeroSlideEditor: React.FC<HeroSlideEditorProps> = ({ isOpen, onClos
       const filePath = `hero-images/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('marketing-assets')
+        .from('content-images')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('marketing-assets')
+        .from('content-images')
         .getPublicUrl(filePath);
 
       setFormData({ ...formData, imageUrl: publicUrl });

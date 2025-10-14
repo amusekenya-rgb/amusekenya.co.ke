@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format, differenceInDays } from "date-fns";
 import { CalendarIcon, Clock, Plus, Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Event } from '@/services/calendarService';
+import { Event, saveEvent } from '@/services/calendarService';
+import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { programTypes, getProgramsByCategory, getProgramUrl } from '@/services/programMappingService';
@@ -64,7 +65,7 @@ const EventManagement: React.FC<EventManagementProps> = ({
     }
   };
 
-  const handleAddEvent = () => {
+  const handleAddEvent = async () => {
     if (!title || !eventStartDate || !eventEndDate) return;
     
     // Create the event start and end dates by combining the date with the times
@@ -92,21 +93,28 @@ const EventManagement: React.FC<EventManagementProps> = ({
       programPdf: programPdf || undefined,
     };
     
-    if (onAddEvent) {
-      onAddEvent(newEvent);
-    }
+    const savedEvent = await saveEvent(newEvent);
     
-    // Reset form
-    setTitle("");
-    setDescription("");
-    setLocation("");
-    setMaxAttendees("20");
-    setStartTime("09:00");
-    setEndTime("17:00");
-    setEventType('program');
-    setProgramPdf("");
-    setProgramType("");
-    setRegistrationUrl("");
+    if (savedEvent) {
+      toast.success('Event created successfully');
+      if (onAddEvent) {
+        onAddEvent(savedEvent);
+      }
+      
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setLocation("");
+      setMaxAttendees("20");
+      setStartTime("09:00");
+      setEndTime("17:00");
+      setEventType('program');
+      setProgramPdf("");
+      setProgramType("");
+      setRegistrationUrl("");
+    } else {
+      toast.error('Failed to create event');
+    }
   };
 
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
