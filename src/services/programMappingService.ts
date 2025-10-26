@@ -49,7 +49,7 @@ export const programTypes: ProgramType[] = [
   // Day Camps
   { 
     value: 'day-camps', 
-    label: 'Day Camps', 
+    label: 'Nairobi Day Camps', 
     url: '/camps/day-camps', 
     category: 'Day Programs' 
   },

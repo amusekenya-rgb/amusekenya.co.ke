@@ -56,12 +56,12 @@ const CEODashboardMain = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Executive Dashboard</h1>
-          <p className="text-gray-600">Company overview and key performance indicators</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Executive Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-600">Company overview and key performance indicators</p>
         </div>
-        <Badge variant="outline" className="text-lg px-3 py-1">
+        <Badge variant="outline" className="text-sm sm:text-base px-3 py-1 w-fit">
           Q1 2024
         </Badge>
       </div>

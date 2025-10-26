@@ -17,41 +17,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Helmet } from 'react-helmet-async';
-
-const faqData = [
-  {
-    question: "What age groups do you cater for?",
-    answer: "We welcome children aged 3-17 years. Our programs are designed with age-appropriate activities to ensure every child has a safe and engaging experience in nature."
-  },
-  {
-    question: "Where are your activities located?",
-    answer: "All our programs take place at the beautiful Karura Forest in Nairobi. This urban forest provides the perfect setting for outdoor education and adventure activities."
-  },
-  {
-    question: "What should my child bring for activities?",
-    answer: "We recommend comfortable outdoor clothing, closed shoes, a water bottle, and sun protection. We provide all necessary equipment for activities. Detailed packing lists are sent before each program."
-  },
-  {
-    question: "Do you offer birthday party packages?",
-    answer: "Yes! We create memorable birthday celebrations in nature with age-appropriate games, forest exploration, and adventure activities. Contact us to customize a party package for your child."
-  },
-  {
-    question: "What safety measures do you have in place?",
-    answer: "Safety is our top priority. All our instructors are trained in first aid, we maintain low instructor-to-child ratios, and we follow strict safety protocols for all activities in the forest environment."
-  },
-  {
-    question: "How do I register for programs?",
-    answer: "You can register through our website, call us directly, or visit us at Karura Forest. We recommend booking in advance as our programs often fill up quickly."
-  },
-  {
-    question: "Do you offer school group programs?",
-    answer: "Absolutely! We provide educational outdoor programs for schools, including curriculum-aligned activities that combine learning with adventure in the forest setting."
-  },
-  {
-    question: "What happens if it rains?",
-    answer: "Light rain doesn't stop the adventure! We have covered areas and rain-appropriate activities. In case of heavy rain or unsafe weather, we'll reschedule your program."
-  }
-];
+import { faqService, type FAQItem } from '@/services/faqService';
 
 interface Message {
   id: string;
@@ -71,7 +37,23 @@ const FloatingFAQ: React.FC = () => {
     }
   ]);
   const [inputValue, setInputValue] = useState('');
+  const [faqData, setFaqData] = useState<FAQItem[]>([]);
+  const [popularQuestions, setPopularQuestions] = useState<FAQItem[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadFAQs();
+  }, []);
+
+  const loadFAQs = async () => {
+    try {
+      const data = await faqService.getPublishedFAQs();
+      setFaqData(data);
+      setPopularQuestions(data.filter(faq => faq.is_popular));
+    } catch (error) {
+      console.error('Error loading FAQs:', error);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -133,7 +115,7 @@ const FloatingFAQ: React.FC = () => {
         setTimeout(() => {
           const contactMessage: Message = {
             id: (Date.now() + 2).toString(),
-            text: "You can reach us through our contact form on this website, or call us directly. Click the 'Contact Us' button below to get started!",
+            text: "You can reach us through our contact form on this website, or call us directly. Click the 'Contact Our Team' button below to get started!",
             isBot: true,
             timestamp: new Date()
           };
@@ -143,6 +125,26 @@ const FloatingFAQ: React.FC = () => {
     }, 500);
 
     setInputValue('');
+  };
+
+  const handleQuestionClick = (faq: FAQItem) => {
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: faq.question,
+      isBot: false,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
+    setTimeout(() => {
+      const botResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: faq.answer,
+        isBot: true,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, botResponse]);
+    }, 500);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -208,47 +210,9 @@ const FloatingFAQ: React.FC = () => {
               </SheetDescription>
             </SheetHeader>
 
-            {/* Default Questions */}
-            {messages.length === 1 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-sm text-muted-foreground mb-3">Popular questions:</p>
-                <div className="space-y-2">
-                  {faqData.slice(0, 4).map((faq, index) => (
-                    <Button
-                      key={index}
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-left text-xs h-auto p-3 whitespace-normal justify-start"
-                      onClick={() => {
-                        const userMessage: Message = {
-                          id: Date.now().toString(),
-                          text: faq.question,
-                          isBot: false,
-                          timestamp: new Date()
-                        };
-                        setMessages(prev => [...prev, userMessage]);
-                        
-                        setTimeout(() => {
-                          const botResponse: Message = {
-                            id: (Date.now() + 1).toString(),
-                            text: faq.answer,
-                            isBot: true,
-                            timestamp: new Date()
-                          };
-                          setMessages(prev => [...prev, botResponse]);
-                        }, 500);
-                      }}
-                    >
-                      {faq.question}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Chat Messages */}
             <div className="flex-1 mt-4 mb-4 overflow-y-auto space-y-3 max-h-[60vh]">
-              {messages.slice(1).map((message) => (
+              {messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex gap-2 ${message.isBot ? 'justify-start' : 'justify-end'}`}
@@ -274,6 +238,34 @@ const FloatingFAQ: React.FC = () => {
                   )}
                 </div>
               ))}
+              
+              {/* Popular Questions - shown inline after messages */}
+              {popularQuestions.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <div className="flex gap-2 justify-start">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Bot className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="max-w-[80%] p-3 rounded-lg text-sm bg-secondary/20 text-foreground">
+                      <p className="text-sm text-muted-foreground mb-3">You might also want to know:</p>
+                      <div className="space-y-2">
+                        {popularQuestions.map((faq) => (
+                          <Button
+                            key={faq.id}
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-left text-xs h-auto p-2 whitespace-normal justify-start hover:bg-primary/10"
+                            onClick={() => handleQuestionClick(faq)}
+                          >
+                            {faq.question}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div ref={messagesEndRef} />
             </div>
 

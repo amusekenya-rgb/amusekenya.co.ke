@@ -3,26 +3,27 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Link, useParams } from 'react-router-dom';
 import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react';
-import dailyActivitiesImage from '@/assets/daily-activities.jpg';
 import HolidayCampForm from '@/components/forms/HolidayCampForm';
+import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 
 const MidTermCamp = () => {
   const { period } = useParams<{ period: string }>();
-  
-  const getPeriodDetails = () => {
-    switch(period) {
-      case 'feb-march':
-        return { title: 'Feb/March Mid-Term Camp', duration: 'February/March break' };
-      case 'may-june':
-        return { title: 'May/June Mid-Term Camp', duration: 'May/June break' };
-      case 'october':
-        return { title: 'October Mid-Term Camp', duration: 'October break' };
-      default:
-        return { title: 'Mid-Term Camp', duration: 'Mid-term break' };
-    }
-  };
+  const campType = period ? `mid-term-${period}` : 'mid-term-feb-march';
+  const { config, isLoading } = useCampPageConfig(campType);
 
-  const details = getPeriodDetails();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-24 text-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!config) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -46,21 +47,20 @@ const MidTermCamp = () => {
                 </div>
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-primary">
-                    {details.title}
+                    {config.title}
                   </h1>
                   <p className="text-lg text-muted-foreground">Mid-Term Break Adventure</p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Our mid-term camps provide the perfect break from routine with engaging outdoor activities, 
-                nature exploration, and fun learning experiences. A great way to recharge during the school term!
+                {config.description}
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
               <img 
-                src={dailyActivitiesImage} 
-                alt={`Children enjoying ${details.title} activities`}
+                src={config.heroImage} 
+                alt={`Children enjoying ${config.title} activities`}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -74,7 +74,7 @@ const MidTermCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Duration</h3>
-                  <p className="text-muted-foreground">3-Day Camp Program</p>
+                  <p className="text-muted-foreground">{config.duration}</p>
                 </div>
               </div>
 
@@ -84,7 +84,7 @@ const MidTermCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Age Group</h3>
-                  <p className="text-muted-foreground">3-17 years</p>
+                  <p className="text-muted-foreground">{config.ageGroup}</p>
                 </div>
               </div>
 
@@ -94,7 +94,7 @@ const MidTermCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Location</h3>
-                  <p className="text-muted-foreground">Karura Forest & Ngong Sanctuary</p>
+                  <p className="text-muted-foreground">{config.location}</p>
                 </div>
               </div>
 
@@ -104,7 +104,7 @@ const MidTermCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Time</h3>
-                  <p className="text-muted-foreground">8:30 AM - 3:00 PM</p>
+                  <p className="text-muted-foreground">{config.time}</p>
                 </div>
               </div>
             </div>
@@ -113,44 +113,18 @@ const MidTermCamp = () => {
             <div>
               <h3 className="text-2xl font-bold text-primary mb-4">Camp Highlights</h3>
               <ul className="space-y-2 text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Nature walks and outdoor games
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Team building activities
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Creative workshops
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Environmental education
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Sports and physical activities
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Art and craft sessions
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Healthy snacks and meals
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Qualified and caring supervision
-                </li>
+                {config.highlights.map((highlight, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-primary mt-1">•</span>
+                    {highlight}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
 
           {/* Registration Form */}
-          <HolidayCampForm campType={period || 'mid-term'} campTitle={details.title} />
+          <HolidayCampForm campType={campType} campTitle={config.title} />
         </div>
       </div>
       

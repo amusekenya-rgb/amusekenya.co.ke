@@ -3,10 +3,36 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react';
-import campingImage from '@/assets/camping.jpg';
 import HolidayCampForm from '@/components/forms/HolidayCampForm';
+import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 
 const EasterCamp = () => {
+  const { config, isLoading } = useCampPageConfig('easter');
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8 pt-24 text-center">
+          <p className="text-muted-foreground">Loading camp information...</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!config) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8 pt-24 text-center">
+          <p className="text-destructive">Failed to load camp information.</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -29,21 +55,20 @@ const EasterCamp = () => {
                 </div>
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-primary">
-                    Easter Camp
+                    {config.title}
                   </h1>
                   <p className="text-lg text-muted-foreground">Holiday Adventure</p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Join us for an unforgettable Easter holiday filled with adventure, learning, and fun! 
-                Our Easter Camp combines outdoor activities with educational experiences in nature.
+                {config.description}
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
               <img 
-                src={campingImage} 
-                alt="Children enjoying Easter camp activities" 
+                src={config.heroImage} 
+                alt={`Children enjoying ${config.title} activities`}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -57,7 +82,7 @@ const EasterCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Duration</h3>
-                  <p className="text-muted-foreground">5-Day Camp Program</p>
+                  <p className="text-muted-foreground">{config.duration}</p>
                 </div>
               </div>
 
@@ -67,7 +92,7 @@ const EasterCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Age Group</h3>
-                  <p className="text-muted-foreground">3-17 years</p>
+                  <p className="text-muted-foreground">{config.ageGroup}</p>
                 </div>
               </div>
 
@@ -77,7 +102,7 @@ const EasterCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Location</h3>
-                  <p className="text-muted-foreground">Karura Forest & Ngong Sanctuary</p>
+                  <p className="text-muted-foreground">{config.location}</p>
                 </div>
               </div>
 
@@ -87,7 +112,7 @@ const EasterCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Time</h3>
-                  <p className="text-muted-foreground">8:30 AM - 3:30 PM</p>
+                  <p className="text-muted-foreground">{config.time}</p>
                 </div>
               </div>
             </div>
@@ -96,44 +121,18 @@ const EasterCamp = () => {
             <div>
               <h3 className="text-2xl font-bold text-primary mb-4">Camp Highlights</h3>
               <ul className="space-y-2 text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Nature hikes and wildlife exploration
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Team building games and activities
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Easter-themed treasure hunts
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Outdoor cooking and campfire sessions
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Arts and crafts with natural materials
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Environmental education workshops
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Swimming and water activities
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Experienced supervision and safety protocols
-                </li>
+                {config.highlights.map((highlight, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-primary mt-1">•</span>
+                    {highlight}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
 
           {/* Registration Form */}
-          <HolidayCampForm campType="easter" campTitle="Easter Camp" />
+          <HolidayCampForm campType="easter" campTitle={config.title} />
         </div>
       </div>
       

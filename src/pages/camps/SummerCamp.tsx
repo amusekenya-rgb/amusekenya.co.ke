@@ -3,10 +3,26 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react';
-import adventureImage from '@/assets/adventure.jpg';
 import HolidayCampForm from '@/components/forms/HolidayCampForm';
+import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 
 const SummerCamp = () => {
+  const { config, isLoading } = useCampPageConfig('summer');
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-24 text-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!config) return null;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -29,21 +45,20 @@ const SummerCamp = () => {
                 </div>
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-primary">
-                    Summer Camp
+                    {config.title}
                   </h1>
                   <p className="text-lg text-muted-foreground">Adventure-Packed Holiday</p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Experience the ultimate summer adventure with our comprehensive outdoor program. 
-                From nature exploration to exciting team challenges, every day brings new discoveries and friendships.
+                {config.description}
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
               <img 
-                src={adventureImage} 
-                alt="Children enjoying summer camp activities" 
+                src={config.heroImage} 
+                alt={`Children enjoying ${config.title} activities`}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -57,7 +72,7 @@ const SummerCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Duration</h3>
-                  <p className="text-muted-foreground">2-Week Camp Program</p>
+                  <p className="text-muted-foreground">{config.duration}</p>
                 </div>
               </div>
 
@@ -67,7 +82,7 @@ const SummerCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Age Group</h3>
-                  <p className="text-muted-foreground">3-17 years</p>
+                  <p className="text-muted-foreground">{config.ageGroup}</p>
                 </div>
               </div>
 
@@ -77,7 +92,7 @@ const SummerCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Location</h3>
-                  <p className="text-muted-foreground">Karura Forest & Ngong Sanctuary</p>
+                  <p className="text-muted-foreground">{config.location}</p>
                 </div>
               </div>
 
@@ -87,7 +102,7 @@ const SummerCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Time</h3>
-                  <p className="text-muted-foreground">8:00 AM - 4:00 PM</p>
+                  <p className="text-muted-foreground">{config.time}</p>
                 </div>
               </div>
             </div>
@@ -96,44 +111,18 @@ const SummerCamp = () => {
             <div>
               <h3 className="text-2xl font-bold text-primary mb-4">Camp Highlights</h3>
               <ul className="space-y-2 text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Rock climbing and rappelling
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Kayaking and water sports
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Nature trails and bird watching
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Leadership development programs
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Creative arts and performances
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Science experiments in nature
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Overnight camping experiences
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Cultural exchange activities
-                </li>
+                {config.highlights.map((highlight, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-primary mt-1">•</span>
+                    {highlight}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
 
           {/* Registration Form */}
-          <HolidayCampForm campType="summer" campTitle="Summer Camp" />
+          <HolidayCampForm campType="summer" campTitle={config.title} />
         </div>
       </div>
       

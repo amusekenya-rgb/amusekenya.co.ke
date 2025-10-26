@@ -13,17 +13,15 @@ import { toast } from 'sonner';
 import { Clock, Users, Target, CheckCircle, ArrowLeft, Plus, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import schoolsImage from '@/assets/schools.jpg';
+import DatePickerField from './DatePickerField';
 import { ConsentDialog } from './ConsentDialog';
 import { leadsService } from '@/services/leadsService';
-
-const currentYear = new Date().getFullYear();
-const birthYears = Array.from({ length: 18 }, (_, i) => currentYear - i - 3);
 
 const homeschoolingSchema = z.object({
   parentName: z.string().min(1, 'Parent name is required').max(100),
   children: z.array(z.object({
     name: z.string().min(1, 'Child name is required').max(100),
-    birthYear: z.string().min(1, 'Birth year is required')
+    dateOfBirth: z.date({ required_error: 'Date of birth is required' })
   })).min(1, 'Please add at least one child'),
   package: z.enum(['1-day-discovery', 'weekly-pod', 'project-based']),
   focus: z.array(z.string()).min(1, 'Please select at least one focus area'),
@@ -48,7 +46,7 @@ const HomeschoolingProgram = () => {
   } = useForm<HomeschoolingFormData>({
     resolver: zodResolver(homeschoolingSchema),
     defaultValues: {
-      children: [{ name: '', birthYear: '' }],
+      children: [{ name: '', dateOfBirth: undefined }],
       focus: [],
       transport: false,
       meal: false,
@@ -194,66 +192,63 @@ const HomeschoolingProgram = () => {
                 <Label className="text-base font-medium mb-2 block">Children *</Label>
                 <div className="space-y-4">
                   {fields.map((field, index) => (
-                    <div key={field.id} className="flex gap-3 items-start">
-                      <div className="flex-1">
+                    <div key={field.id} className="border rounded-lg p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">Child {index + 1}</h4>
+                        {fields.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => remove(index)}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <Label className="text-sm">Child Name</Label>
                         <Input
                           {...register(`children.${index}.name`)}
-                          placeholder="Child's name"
-                          className="w-full"
+                          placeholder="Enter child's full name"
+                          className="mt-1"
                         />
                         {errors.children?.[index]?.name && (
                           <p className="text-destructive text-sm mt-1">{errors.children[index]?.name?.message}</p>
                         )}
                       </div>
-                      <div className="w-32">
-                        <Controller
-                          name={`children.${index}.birthYear`}
-                          control={control}
-                          render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Birth year" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {birthYears.map((year) => (
-                                  <SelectItem key={year} value={year.toString()}>
-                                    {year}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                        {errors.children?.[index]?.birthYear && (
-                          <p className="text-destructive text-sm mt-1">{errors.children[index]?.birthYear?.message}</p>
+                      
+                      <Controller
+                        name={`children.${index}.dateOfBirth`}
+                        control={control}
+                        render={({ field }) => (
+                          <DatePickerField
+                            label="Date of Birth"
+                            placeholder="Select date of birth"
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={errors.children?.[index]?.dateOfBirth?.message}
+                            required
+                          />
                         )}
-                      </div>
-                      {fields.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => remove(index)}
-                          className="shrink-0"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
+                      />
                     </div>
                   ))}
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => append({ name: '', birthYear: '' })}
+                    onClick={() => append({ name: '', dateOfBirth: undefined })}
                     className="w-full"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Child
                   </Button>
-                  {errors.children && typeof errors.children.message === 'string' && (
-                    <p className="text-destructive text-sm mt-1">{errors.children.message}</p>
-                  )}
                 </div>
+                {errors.children && typeof errors.children.message === 'string' && (
+                  <p className="text-destructive text-sm mt-1">{errors.children.message}</p>
+                )}
               </div>
 
               <div>

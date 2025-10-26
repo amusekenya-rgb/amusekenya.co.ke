@@ -74,7 +74,7 @@ const Parties = () => {
               </div>
 
               <div className="pt-6">
-                <Link to="/contact">
+                <Link to="/group-activities/parties/booking">
                   <Button size="lg" className="bg-forest-600 hover:bg-forest-700">
                     Book Your Party
                   </Button>

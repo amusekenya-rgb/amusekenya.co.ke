@@ -1,364 +1,596 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Card } from '@/components/ui/card';
+import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Users, Clock, MapPin, ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import dailyActivitiesImage from '@/assets/daily-activities.jpg';
+import DatePickerField from './DatePickerField';
 import { ConsentDialog } from './ConsentDialog';
+import { CalendarDays, MapPin, Clock, Users, Trash2, Plus } from 'lucide-react';
+import { campRegistrationService } from '@/services/campRegistrationService';
+import { qrCodeService } from '@/services/qrCodeService';
+import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
+import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
+
 const childSchema = z.object({
-  childName: z.string().min(1, 'Child name is required').max(100),
-  ageRange: z.enum(['3-below', '4-6', '7-10', '11-13', '14-17'], { required_error: 'Age range is required' }),
-  specialNeeds: z.string().max(500).optional()
+  childName: z.string().min(1, 'Child name is required'),
+  dateOfBirth: z.date({ required_error: 'Date of birth is required' }),
+  ageRange: z.string(),
+  numberOfDays: z.string().min(1, 'Number of days is required'),
+  campLocation: z.string().min(1, 'Camp location is required'),
+  dailySessions: z.array(z.enum(['half', 'full'])),
+  price: z.number(),
 });
 
 const dayCampsSchema = z.object({
-  parentName: z.string().min(1, 'Parent name is required').max(100),
+  parentName: z.string().min(1, 'Parent name is required'),
   children: z.array(childSchema).min(1, 'At least one child is required'),
-  duration: z.enum(['day', 'week', 'month'], { required_error: 'Duration is required' }),
-  location: z.enum(['karura-f', 'ngong'], { required_error: 'Location is required' }),
-  emergencyContact: z.string().min(1, 'Emergency contact is required').max(100),
+  emergencyContact: z.string().min(1, 'Emergency contact is required'),
   email: z.string().email('Invalid email address'),
-  phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().refine(val => val === true, 'Consent is required')
+  phone: z.string().min(10, 'Valid phone number is required'),
+  consentGiven: z.boolean().refine((val) => val === true, {
+    message: 'You must accept the terms and conditions',
+  }),
 });
+
 type DayCampsFormData = z.infer<typeof dayCampsSchema>;
+
+const calculateAgeRange = (dateOfBirth: Date): string => {
+  const today = new Date();
+  const age = today.getFullYear() - dateOfBirth.getFullYear();
+  const monthDiff = today.getMonth() - dateOfBirth.getMonth();
+  const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateOfBirth.getDate()) ? age - 1 : age;
+
+  if (actualAge >= 3 && actualAge <= 5) return '3-5 years';
+  if (actualAge >= 6 && actualAge <= 9) return '6-9 years';
+  if (actualAge >= 10 && actualAge <= 13) return '10-13 years';
+  return 'Other';
+};
+
+const calculatePrice = (dailySessions: Array<'half' | 'full'>): number => {
+  const halfDayPrice = 2000;
+  const fullDayPrice = 3500;
+  
+  return dailySessions.reduce((total, session) => {
+    return total + (session === 'full' ? fullDayPrice : halfDayPrice);
+  }, 0);
+};
+
 const DayCampsProgram = () => {
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    control,
-    formState: {
-      errors,
-      isSubmitting
-    }
-  } = useForm<DayCampsFormData>({
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [registrationResult, setRegistrationResult] = useState<any>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [registrationType, setRegistrationType] = useState<'online_only' | 'online_paid'>('online_only');
+  const [submitType, setSubmitType] = useState<'register' | 'pay'>('register');
+
+  const { control, handleSubmit, watch, formState: { errors } } = useForm<DayCampsFormData>({
     resolver: zodResolver(dayCampsSchema),
     defaultValues: {
-      children: [{ childName: '', ageRange: '3-below' as const, specialNeeds: '' }],
-      consent: false
-    }
+      parentName: '',
+      children: [{
+        childName: '',
+        dateOfBirth: undefined,
+        ageRange: '',
+        numberOfDays: '1',
+        campLocation: '',
+        dailySessions: ['half'],
+        price: 2000,
+      }],
+      emergencyContact: '',
+      email: '',
+      phone: '',
+      consentGiven: false,
+    },
   });
 
-  const { fields: childrenFields, append: appendChild, remove: removeChild } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control,
-    name: 'children'
+    name: 'children',
   });
 
-  const consent = watch('consent');
+  const watchChildren = watch('children');
+
+  useEffect(() => {
+    watchChildren.forEach((child, index) => {
+      if (child.dateOfBirth) {
+        const ageRange = calculateAgeRange(child.dateOfBirth);
+        if (child.ageRange !== ageRange) {
+          control._formValues.children[index].ageRange = ageRange;
+        }
+      }
+
+      const numberOfDays = parseInt(child.numberOfDays || '1');
+      const currentSessions = child.dailySessions || [];
+      
+      if (currentSessions.length !== numberOfDays) {
+        const newSessions = Array(numberOfDays).fill('half') as Array<'half' | 'full'>;
+        control._formValues.children[index].dailySessions = newSessions;
+      }
+
+      const price = calculatePrice(child.dailySessions || []);
+      if (child.price !== price) {
+        control._formValues.children[index].price = price;
+      }
+    });
+  }, [watchChildren, control]);
+
   const onSubmit = async (data: DayCampsFormData) => {
+    const buttonType = submitType;
+    setIsSubmitting(true);
+    
     try {
-      console.log('Day Camps form submission:', data);
-      toast.success('Registration submitted successfully! We will contact you soon.');
+      const totalAmount = data.children.reduce((sum, child) => sum + child.price, 0);
+      
+      const registrationData = {
+        camp_type: 'day-camps' as const,
+        parent_name: data.parentName,
+        email: data.email,
+        phone: data.phone,
+        emergency_contact: data.emergencyContact,
+        children: data.children.map(child => ({
+          childName: child.childName,
+          dateOfBirth: child.dateOfBirth.toISOString(),
+          ageRange: child.ageRange,
+          specialNeeds: `Location: ${child.campLocation}, Days: ${child.numberOfDays}`,
+          selectedDays: child.dailySessions.map((_, idx) => `Day ${idx + 1}`),
+          selectedSessions: child.dailySessions,
+          price: child.price,
+        })),
+        total_amount: totalAmount,
+        payment_status: buttonType === 'pay' ? 'paid' as const : 'unpaid' as const,
+        payment_method: buttonType === 'pay' ? 'card' as const : 'pending' as const,
+        registration_type: buttonType === 'pay' ? 'online_paid' as const : 'online_only' as const,
+        qr_code_data: '',
+        consent_given: data.consentGiven,
+        status: 'active' as const,
+      };
+
+      const registration = await campRegistrationService.createRegistration(registrationData);
+      
+      if (!registration || !registration.id) {
+        throw new Error('Registration failed - no ID returned');
+      }
+      
+      const qrData = qrCodeService.generateQRCodeData(registration.id);
+      await campRegistrationService.updateRegistration(registration.id, { qr_code_data: qrData });
+      
+      const qrDataUrl = await qrCodeService.generateQRCode(qrData);
+      
+      setRegistrationResult({ ...registration, qr_code_data: qrData });
+      setQrCodeDataUrl(qrDataUrl);
+      setRegistrationType(buttonType === 'pay' ? 'online_paid' : 'online_only');
+      setShowQRModal(true);
+      
+      toast.success('Registration successful!');
     } catch (error) {
-      toast.error('Failed to submit registration. Please try again.');
+      console.error('Registration error:', error);
+      toast.error('Registration failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  const ageGroups = [{
-    age: '3 & Below',
-    locations: 'Karura Gate F, Tigoni',
-    schedule: '9:30 Songs • 10:00 Walk • 10:45 Snack • 11:15 Craft • 12:00 Story • 12:30 Close',
-    skills: 'Sensory, Language, Motor Skills',
-    color: 'bg-blue-50 border-blue-200'
-  }, {
-    age: '4–6',
-    locations: 'Karura Gate F, Tigoni',
-    schedule: '9:30 Warmup • 10:00 Bushcraft Basics • 11:30 Snack • 12:00 Games • 1:00 Creative Craft',
-    skills: 'Confidence, Social Play, Curiosity',
-    color: 'bg-green-50 border-green-200'
-  }, {
-    age: '7–10',
-    locations: 'Karura Gate F',
-    schedule: '8:30 Safety Brief • 9:00 Rope Course • 10:30 Orienteering • 12:00 Lunch • 2:00 Group Game',
-    skills: 'Survival Basics, Teamwork',
-    color: 'bg-yellow-50 border-yellow-200'
-  }, {
-    age: '11–13',
-    locations: 'Karura Gate A, Ngong',
-    schedule: '8:30 Navigation Skills • 10:30 Survival Task • 1:00 Leadership Challenge • 3:30 Reflection',
-    skills: 'Leadership, Resilience',
-    color: 'bg-orange-50 border-orange-200'
-  }, {
-    age: '14–17',
-    locations: 'Karura Gate A, Ngong',
-    schedule: '8:00 Expedition Simulation • 11:00 River Crossing • 2:00 Team Strategy Game',
-    skills: 'Problem-Solving, Decision Making',
-    color: 'bg-red-50 border-red-200'
-  }];
-  return <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
-            <ArrowLeft size={20} />
-            Back to Home
-          </Link>
+
+  const ageGroups = [
+    {
+      range: '3-5 Years',
+      schedule: '9:00 AM - 12:00 PM (Half Day) or 9:00 AM - 3:00 PM (Full Day)',
+      location: 'Karen',
+      skills: ['Basic motor skills', 'Social interaction', 'Creative play', 'Nature exploration']
+    },
+    {
+      range: '6-9 Years',
+      schedule: '9:00 AM - 12:00 PM (Half Day) or 9:00 AM - 3:00 PM (Full Day)',
+      location: 'Ngong Road',
+      skills: ['Team activities', 'Problem solving', 'Outdoor adventures', 'Arts & crafts']
+    },
+    {
+      range: '10-13 Years',
+      schedule: '9:00 AM - 12:00 PM (Half Day) or 9:00 AM - 3:00 PM (Full Day)',
+      location: 'Both Locations',
+      skills: ['Leadership', 'Advanced challenges', 'Sports', 'Technology projects']
+    }
+  ];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background py-12 px-4">
+      <div className="max-w-5xl mx-auto space-y-8">
+        {/* Program Header */}
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl font-bold text-primary">Nairobi Day Camps</h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Daily adventures in nature without leaving the city! Available throughout the year at convenient locations.
+          </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-12 items-start">
-          {/* Program Information */}
-          <div className="space-y-8">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="bg-primary/10 rounded-full p-3">
-                  <Users className="w-8 h-8 text-primary" />
+        {/* Program Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              Program Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-primary font-semibold">
+                  <MapPin className="h-4 w-4" />
+                  <span>Two Convenient Locations</span>
                 </div>
-                <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-primary">
-                    Day Camps
-                  </h1>
-                  <p className="text-lg text-muted-foreground">(Nairobi Circuit)</p>
-                </div>
+                <ul className="space-y-1 text-muted-foreground ml-6">
+                  <li>• Karen Location (3-5 years, 6-9 years)</li>
+                  <li>• Ngong Road Location (6-9 years, 10-13 years)</li>
+                </ul>
               </div>
-              <p className="text-xl text-muted-foreground leading-relaxed">
-                Structured daily experiences to build confidence, friendships, and life skills while reinforcing Amuse's mission of enriching kids through nature. Programs run across Karura Gate F and Ngong Sanctuary.
-              </p>
-            </div>
-
-            <div className="relative h-80 rounded-2xl overflow-hidden">
-              <img src={dailyActivitiesImage} alt="Children enjoying day camp activities" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <div className="bg-white/90 rounded-lg p-4">
-                  <h3 className="font-semibold text-primary mb-2">Locations</h3>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="bg-primary/10 text-primary text-sm px-3 py-1 rounded-full flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      Karura Gate F
-                    </span>
-                    
-                  </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-primary font-semibold">
+                  <Clock className="h-4 w-4" />
+                  <span>Flexible Schedule</span>
                 </div>
+                <ul className="space-y-1 text-muted-foreground ml-6">
+                  <li>• Half Day: 9:00 AM - 12:00 PM (KES 2,000/day)</li>
+                  <li>• Full Day: 9:00 AM - 3:00 PM (KES 3,500/day)</li>
+                </ul>
               </div>
             </div>
 
-            {/* Age Group Details */}
-            <div className="space-y-6">
-              <h3 className="text-2xl font-bold text-primary">Age Groups & Schedules</h3>
-              <div className="space-y-4">
-                {ageGroups.map((group, index) => <Card key={index} className={`p-6 border-2 ${group.color}`}>
-                    <div className="flex items-start gap-4">
-                      <div className="bg-primary/10 rounded-full p-2 flex-shrink-0">
-                        <Clock className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-3">
-                          <h4 className="text-xl font-semibold text-primary">Age {group.age}</h4>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <MapPin className="w-4 h-4" />
-                            <span>{group.locations}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div>
-                            <h5 className="font-medium text-sm text-primary mb-1">Daily Schedule:</h5>
-                            <p className="text-sm text-muted-foreground">{group.schedule}</p>
-                          </div>
-                          
-                          <div>
-                            <h5 className="font-medium text-sm text-primary mb-1">Key Skills:</h5>
-                            <div className="flex flex-wrap gap-1">
-                              {group.skills.split(', ').map(skill => <span key={skill} className="bg-white/80 text-primary text-xs px-2 py-1 rounded-full">
-                                  {skill}
-                                </span>)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>)}
+            <div className="pt-4 border-t">
+              <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Age Groups & Activities
+              </h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                {ageGroups.map((group, idx) => (
+                  <Card key={idx} className="border-primary/20">
+                    <CardHeader>
+                      <CardTitle className="text-base">{group.range}</CardTitle>
+                      <CardDescription className="text-sm">
+                        <MapPin className="inline h-3 w-3 mr-1" />
+                        {group.location}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-1 text-sm">
+                        {group.skills.map((skill, sidx) => (
+                          <li key={sidx}>• {skill}</li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </div>
 
-            {/* Special Note */}
-            <Card className="p-6 bg-primary/5">
-              <h4 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Users className="w-5 h-5 text-primary" />
-                Special Needs Accommodation
-              </h4>
-              <p className="text-muted-foreground">
-                We provide specialized support and adapted activities for children with special needs. Please indicate any requirements during registration so we can ensure the best possible experience for your child.
-              </p>
-            </Card>
-          </div>
+            <div className="bg-accent/50 p-4 rounded-lg">
+              <p className="text-sm font-medium mb-2">What's Included:</p>
+              <ul className="grid md:grid-cols-2 gap-2 text-sm text-muted-foreground">
+                <li>✓ Professional supervision</li>
+                <li>✓ All activity materials</li>
+                <li>✓ Snacks (Full Day includes lunch)</li>
+                <li>✓ Safety equipment</li>
+                <li>✓ Nature-based learning</li>
+                <li>✓ Small group sizes</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Registration Form */}
-          <Card className="p-8 sticky top-8">
-            <h3 className="text-2xl font-bold text-primary mb-6">Register for Day Camp</h3>
-            
+        {/* Special Needs Section */}
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle>Inclusive Environment</CardTitle>
+            <CardDescription>
+              We welcome children with special needs and provide accommodations to ensure everyone can participate safely and enjoyably.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+
+        {/* Registration Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Register for Day Camps</CardTitle>
+            <CardDescription>
+              Fill in the details below to register your child(ren) for our day camps
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <div>
-                <Label htmlFor="parentName" className="text-base font-medium">Parent Name *</Label>
-                <Input id="parentName" {...register('parentName')} className="mt-2" placeholder="Enter your full name" />
-                {errors.parentName && <p className="text-destructive text-sm mt-1">{errors.parentName.message}</p>}
+              {/* Parent Name */}
+              <div className="space-y-2">
+                <Label htmlFor="parentName">Parent/Guardian Name *</Label>
+                <Controller
+                  name="parentName"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="parentName"
+                      placeholder="Enter your full name"
+                      {...field}
+                    />
+                  )}
+                />
+                {errors.parentName && (
+                  <p className="text-sm text-destructive">{errors.parentName.message}</p>
+                )}
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-base font-medium">Children Information *</Label>
+              {/* Children Information */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base">Children Information *</Label>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => appendChild({ childName: '', ageRange: '3-below' as const, specialNeeds: '' })}
+                    onClick={() => append({
+                      childName: '',
+                      dateOfBirth: undefined,
+                      ageRange: '',
+                      numberOfDays: '1',
+                      campLocation: '',
+                      dailySessions: ['half'],
+                      price: 2000,
+                    })}
                   >
-                    <Plus className="w-4 h-4 mr-1" />
+                    <Plus className="h-4 w-4 mr-2" />
                     Add Child
                   </Button>
                 </div>
-                
-                <div className="space-y-6">
-                  {childrenFields.map((field, index) => (
-                    <div key={field.id} className="border rounded-lg p-4 space-y-4">
+
+                {fields.map((field, index) => (
+                  <Card key={field.id} className="p-4">
+                    <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-medium">Child {index + 1}</h4>
-                        {childrenFields.length > 1 && (
+                        <h4 className="font-semibold">Child {index + 1}</h4>
+                        {fields.length > 1 && (
                           <Button
                             type="button"
-                            variant="destructive"
+                            variant="ghost"
                             size="sm"
-                            onClick={() => removeChild(index)}
+                            onClick={() => remove(index)}
                           >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Remove
+                            <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}
                       </div>
-                      
-                      <div>
-                        <Label className="text-sm">Child Name</Label>
-                        <Input
-                          {...register(`children.${index}.childName`)}
-                          className="mt-1"
-                          placeholder="Enter child's full name"
-                        />
-                        {errors.children?.[index]?.childName && (
-                          <p className="text-destructive text-sm mt-1">{errors.children[index]?.childName?.message}</p>
-                        )}
+
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Child's Name *</Label>
+                          <Controller
+                            name={`children.${index}.childName`}
+                            control={control}
+                            render={({ field }) => (
+                              <Input placeholder="Enter child's name" {...field} />
+                            )}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Controller
+                            name={`children.${index}.dateOfBirth`}
+                            control={control}
+                            render={({ field }) => (
+                              <DatePickerField
+                                label="Date of Birth"
+                                value={field.value}
+                                onChange={field.onChange}
+                                required
+                              />
+                            )}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Number of Days *</Label>
+                          <Controller
+                            name={`children.${index}.numberOfDays`}
+                            control={control}
+                            render={({ field }) => (
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[1, 2, 3, 4, 5].map(num => (
+                                    <SelectItem key={num} value={num.toString()}>
+                                      {num} {num === 1 ? 'Day' : 'Days'}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Camp Location *</Label>
+                          <Controller
+                            name={`children.${index}.campLocation`}
+                            control={control}
+                            render={({ field }) => (
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select location" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="karen">Karen</SelectItem>
+                                  <SelectItem value="ngong-road">Ngong Road</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </div>
                       </div>
-                      
-                      <div>
-                        <Label className="text-sm">Age Range</Label>
-                        <Controller
-                          name={`children.${index}.ageRange`}
-                          control={control}
-                          render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Select age range" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="3-below">3 & Below</SelectItem>
-                                <SelectItem value="4-6">4-6 years</SelectItem>
-                                <SelectItem value="7-10">7-10 years</SelectItem>
-                                <SelectItem value="11-13">11-13 years</SelectItem>
-                                <SelectItem value="14-17">14-17 years</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                        {errors.children?.[index]?.ageRange && (
-                          <p className="text-destructive text-sm mt-1">{errors.children[index]?.ageRange?.message}</p>
-                        )}
+
+                      {/* Daily Sessions */}
+                      <div className="space-y-2">
+                        <Label>Daily Sessions *</Label>
+                        {Array.from({ length: parseInt(watchChildren[index]?.numberOfDays || '1') }).map((_, dayIdx) => (
+                          <div key={dayIdx} className="flex items-center gap-4">
+                            <span className="text-sm font-medium w-16">Day {dayIdx + 1}:</span>
+                            <Controller
+                              name={`children.${index}.dailySessions.${dayIdx}`}
+                              control={control}
+                              render={({ field }) => (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <SelectTrigger className="w-48">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="half">Half Day (KES 2,000)</SelectItem>
+                                    <SelectItem value="full">Full Day (KES 3,500)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                          </div>
+                        ))}
                       </div>
-                      
-                      <div>
-                        <Label className="text-sm">Special/Medical Needs (Optional)</Label>
-                        <Input
-                          {...register(`children.${index}.specialNeeds`)}
-                          className="mt-1"
-                          placeholder="Allergies, medical conditions, etc."
-                        />
+
+                      <div className="bg-accent/30 p-3 rounded">
+                        <p className="text-sm font-semibold">
+                          Subtotal for {watchChildren[index]?.childName || 'this child'}: KES {watchChildren[index]?.price?.toFixed(2) || '0.00'}
+                        </p>
                       </div>
                     </div>
-                  ))}
-                </div>
-                {errors.children && typeof errors.children.message === 'string' && (
-                  <p className="text-destructive text-sm mt-1">{errors.children.message}</p>
-                )}
+                  </Card>
+                ))}
               </div>
 
-              <div>
-                <Label className="text-base font-medium">Registration Duration *</Label>
+              {/* Emergency Contact */}
+              <div className="space-y-2">
+                <Label htmlFor="emergencyContact">Emergency Contact *</Label>
                 <Controller
-                  name="duration"
+                  name="emergencyContact"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="mt-2">
-                        <SelectValue placeholder="Select duration" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="day">Single Day</SelectItem>
-                        <SelectItem value="week">Week</SelectItem>
-                        <SelectItem value="month">Month</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      id="emergencyContact"
+                      placeholder="Emergency contact name and phone"
+                      {...field}
+                    />
                   )}
                 />
-                {errors.duration && (
-                  <p className="text-destructive text-sm mt-1">{errors.duration.message}</p>
+                {errors.emergencyContact && (
+                  <p className="text-sm text-destructive">{errors.emergencyContact.message}</p>
                 )}
               </div>
 
-              <div>
-                <Label className="text-base font-medium">Camp Location *</Label>
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
                 <Controller
-                  name="location"
+                  name="email"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="mt-2">
-                        <SelectValue placeholder="Select location" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="karura-f">Karura F</SelectItem>
-                        <SelectItem value="ngong">Ngong Sanctuary (Coming Soon)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="your.email@example.com"
+                      {...field}
+                    />
                   )}
                 />
-                {errors.location && (
-                  <p className="text-destructive text-sm mt-1">{errors.location.message}</p>
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email.message}</p>
                 )}
               </div>
 
-              <div>
-                <Label htmlFor="emergencyContact" className="text-base font-medium">Emergency Contact *</Label>
-                <Input id="emergencyContact" {...register('emergencyContact')} className="mt-2" placeholder="Emergency contact name and phone" />
-                {errors.emergencyContact && <p className="text-destructive text-sm mt-1">{errors.emergencyContact.message}</p>}
+              {/* Phone */}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number *</Label>
+                <Controller
+                  name="phone"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="phone"
+                      placeholder="+254 700 000 000"
+                      {...field}
+                    />
+                  )}
+                />
+                {errors.phone && (
+                  <p className="text-sm text-destructive">{errors.phone.message}</p>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="email" className="text-base font-medium">Email *</Label>
-                  <Input id="email" type="email" {...register('email')} className="mt-2" placeholder="your@email.com" />
-                  {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
-                </div>
-                <div>
-                  <Label htmlFor="phone" className="text-base font-medium">Phone Number *</Label>
-                  <Input id="phone" {...register('phone')} className="mt-2" placeholder="+254 700 000 000" />
-                  {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
-                </div>
+              {/* Total Amount */}
+              <div className="bg-primary/10 p-4 rounded-lg">
+                <p className="text-lg font-bold text-primary">
+                  Total Amount: KES {watchChildren.reduce((sum, child) => sum + (child.price || 0), 0).toFixed(2)}
+                </p>
               </div>
 
-              <ConsentDialog checked={consent} onCheckedChange={checked => setValue('consent', checked)} error={errors.consent?.message} />
+              {/* Payment Gateway Placeholder */}
+              <PaymentGatewayPlaceholder />
 
-              <Button type="submit" className="w-full h-12 text-base" disabled={isSubmitting}>
-                {isSubmitting ? 'Submitting...' : 'Register for Day Camp'}
-              </Button>
+              {/* Consent */}
+              <Controller
+                name="consentGiven"
+                control={control}
+                render={({ field }) => (
+                  <ConsentDialog
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
+              {errors.consentGiven && (
+                <p className="text-sm text-destructive">{errors.consentGiven.message}</p>
+              )}
+
+              {/* Submit Buttons */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setSubmitType('register');
+                    handleSubmit(onSubmit)();
+                  }}
+                >
+                  {isSubmitting ? 'Submitting...' : 'Register Only'}
+                </Button>
+
+                <Button
+                  type="button"
+                  className="w-full"
+                  size="lg"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setSubmitType('pay');
+                    handleSubmit(onSubmit)();
+                  }}
+                >
+                  {isSubmitting ? 'Processing...' : 'Register & Pay Now'}
+                </Button>
+              </div>
             </form>
-          </Card>
-        </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>;
+
+      {/* QR Code Modal */}
+      <QRCodeDownloadModal
+        open={showQRModal}
+        onOpenChange={setShowQRModal}
+        registration={registrationResult}
+        qrCodeDataUrl={qrCodeDataUrl}
+        registrationType={registrationType}
+      />
+    </div>
+  );
 };
+
 export default DayCampsProgram;

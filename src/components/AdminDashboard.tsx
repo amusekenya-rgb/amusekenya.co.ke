@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LayoutDashboard, Users, Settings, FileText, Shield, Building, Database, MessageSquare, BarChart3 } from "lucide-react";
 import SystemAdministration from './SystemAdministration';
+import { CampRegistrationsManager } from './portals/admin/CampRegistrationsManager';
 import MessageCenter from './communication/MessageCenter';
 import AnalyticsDashboard from './analytics/AnalyticsDashboard';
 import CustomerDashboard from './admin/CustomerDashboard';
+import UserManagement from './admin/UserManagement';
 
 interface AdminDashboardProps {
   activeTab: string;
@@ -16,7 +18,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab }) => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'users':
-        return renderUserManagement();
+        return <UserManagement />;
       case 'settings':
         return renderSystemSettings();
       case 'audit':
@@ -33,6 +35,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab }) => {
         return <AnalyticsDashboard />;
       case 'customers':
         return <CustomerDashboard />;
+      case 'camp-registrations':
+        return <CampRegistrationsManager />;
       default:
         return renderDashboard();
     }
@@ -123,46 +127,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab }) => {
     </div>
   );
 
-  const renderUserManagement = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">User Management</h2>
-        <p className="text-gray-600">Manage system users and permissions</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">28</div>
-            <p className="text-sm text-muted-foreground">Active accounts</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Admin Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">3</div>
-            <p className="text-sm text-muted-foreground">Administrator accounts</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Approvals</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">2</div>
-            <p className="text-sm text-muted-foreground">New user requests</p>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
 
   const renderSystemSettings = () => (
     <div className="space-y-6">

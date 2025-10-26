@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  signup: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
   isSuperAdmin: boolean;
@@ -132,12 +133,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (data.user) {
+        // Check approval status
+        const { data: profileData } = await (supabase as any)
+          .from('profiles')
+          .select('approval_status')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profileData && profileData.approval_status === 'pending') {
+          console.log('User account pending approval');
+          await supabase.auth.signOut();
+          throw new Error('Your account is pending admin approval. Please wait for confirmation.');
+        }
+
+        if (profileData && profileData.approval_status === 'rejected') {
+          console.log('User account rejected');
+          await supabase.auth.signOut();
+          throw new Error('Your account registration was rejected. Please contact support.');
+        }
+
         const userData = await fetchUserProfile(data.user.id);
         
         if (!userData?.role) {
           console.error('No role assigned to user');
           await supabase.auth.signOut();
-          return false;
+          throw new Error('No role assigned. Please contact an administrator.');
         }
 
         const userObject = {
@@ -165,6 +185,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const signup = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      console.log('Signup attempt for:', email);
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/admin`
+        }
+      });
+
+      if (error) {
+        console.error('Signup error:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        console.log('Signup successful:', data.user.email);
+        return { success: true };
+      }
+
+      return { success: false, error: 'Unknown error occurred' };
+    } catch (error) {
+      console.error('Signup failed:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -177,6 +226,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     session,
     isLoading,
     login,
+    signup,
     logout,
     isAuthenticated: !!user && !!session,
     isSuperAdmin

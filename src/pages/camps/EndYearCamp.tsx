@@ -3,10 +3,26 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react';
-import campingImage from '@/assets/camping.jpg';
 import HolidayCampForm from '@/components/forms/HolidayCampForm';
+import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 
 const EndYearCamp = () => {
+  const { config, isLoading } = useCampPageConfig('end-year');
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-24 text-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!config) return null;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -29,21 +45,20 @@ const EndYearCamp = () => {
                 </div>
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-primary">
-                    End Year Camp
+                    {config.title}
                   </h1>
                   <p className="text-lg text-muted-foreground">Year-End Celebration</p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                End the year on a high note with our special End Year Camp! A perfect blend of celebration, 
-                reflection, and adventure to mark the conclusion of an amazing year.
+                {config.description}
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
               <img 
-                src={campingImage} 
-                alt="Children enjoying end year camp activities" 
+                src={config.heroImage} 
+                alt={`Children enjoying ${config.title} activities`}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -57,7 +72,7 @@ const EndYearCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Duration</h3>
-                  <p className="text-muted-foreground">5-Day Camp Program</p>
+                  <p className="text-muted-foreground">{config.duration}</p>
                 </div>
               </div>
 
@@ -67,7 +82,7 @@ const EndYearCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Age Group</h3>
-                  <p className="text-muted-foreground">3-17 years</p>
+                  <p className="text-muted-foreground">{config.ageGroup}</p>
                 </div>
               </div>
 
@@ -77,7 +92,7 @@ const EndYearCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Location</h3>
-                  <p className="text-muted-foreground">Karura Forest & Ngong Sanctuary</p>
+                  <p className="text-muted-foreground">{config.location}</p>
                 </div>
               </div>
 
@@ -87,7 +102,7 @@ const EndYearCamp = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold text-primary">Time</h3>
-                  <p className="text-muted-foreground">8:30 AM - 3:30 PM</p>
+                  <p className="text-muted-foreground">{config.time}</p>
                 </div>
               </div>
             </div>
@@ -96,44 +111,18 @@ const EndYearCamp = () => {
             <div>
               <h3 className="text-2xl font-bold text-primary mb-4">Camp Highlights</h3>
               <ul className="space-y-2 text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Year-end celebration activities
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Goal setting for the new year
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Adventure challenges and competitions
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Bonfire storytelling sessions
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Team building exercises
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Nature conservation projects
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Holiday-themed games
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary mt-1">•</span>
-                  Achievement awards ceremony
-                </li>
+                {config.highlights.map((highlight, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-primary mt-1">•</span>
+                    {highlight}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
 
           {/* Registration Form */}
-          <HolidayCampForm campType="end-year" campTitle="End Year Camp" />
+          <HolidayCampForm campType="end-year" campTitle={config.title} />
         </div>
       </div>
       

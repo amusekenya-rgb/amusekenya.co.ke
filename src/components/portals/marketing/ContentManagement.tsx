@@ -3,7 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Edit, Trash2, CheckCircle, Settings } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from '@/hooks/use-toast';
 import { cmsService, ContentItem } from '@/services/cmsService';
 import { HeroSlideEditor } from './editors/HeroSlideEditor';
@@ -18,10 +20,14 @@ import { AnnouncementEditorDialog } from './editors/AnnouncementEditorDialog';
 import EventManagement from '@/components/calendar/EventManagement';
 import NavigationManager from './NavigationManager';
 import SeedCMSButton from '@/components/admin/SeedCMSButton';
+import { CampPageEditor } from './editors/CampPageEditor';
+import { CampFormEditor } from './editors/CampFormEditor';
 
-type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | null;
+type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | 'camp-page' | 'camp-form' | null;
 
 const ContentManagement = () => {
+  const isMobile = useIsMobile();
+  const [activeTab, setActiveTab] = useState('hero');
   const [heroSlides, setHeroSlides] = useState<ContentItem[]>([]);
   const [programs, setPrograms] = useState<ContentItem[]>([]);
   const [announcements, setAnnouncements] = useState<ContentItem[]>([]);
@@ -29,6 +35,8 @@ const ContentManagement = () => {
   const [teamMembers, setTeamMembers] = useState<ContentItem[]>([]);
   const [aboutSections, setAboutSections] = useState<ContentItem[]>([]);
   const [serviceItems, setServiceItems] = useState<ContentItem[]>([]);
+  const [campPages, setCampPages] = useState<ContentItem[]>([]);
+  const [campForms, setCampForms] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeEditor, setActiveEditor] = useState<EditorType>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -39,14 +47,16 @@ const ContentManagement = () => {
 
   const loadAllContent = async () => {
     setIsLoading(true);
-    const [heroData, programData, announcementData, testimonialData, teamData, aboutData, serviceData] = await Promise.all([
+    const [heroData, programData, announcementData, testimonialData, teamData, aboutData, serviceData, campPageData, campFormData] = await Promise.all([
       cmsService.getAllContent('hero_slide'),
       cmsService.getAllContent('program'),
       cmsService.getAllContent('announcement'),
       cmsService.getAllContent('testimonial'),
       cmsService.getAllContent('team_member'),
       cmsService.getAllContent('about_section'),
-      cmsService.getAllContent('service_item')
+      cmsService.getAllContent('service_item'),
+      cmsService.getAllContent('camp_page'),
+      cmsService.getAllContent('camp_form')
     ]);
     setHeroSlides(heroData);
     setPrograms(programData);
@@ -55,6 +65,8 @@ const ContentManagement = () => {
     setTeamMembers(teamData);
     setAboutSections(aboutData);
     setServiceItems(serviceData);
+    setCampPages(campPageData);
+    setCampForms(campFormData);
     setIsLoading(false);
   };
 
@@ -145,20 +157,43 @@ const ContentManagement = () => {
 
       <SeedCMSButton />
 
-      <Tabs defaultValue="hero" className="space-y-4">
-        <TabsList className="grid grid-cols-6 lg:grid-cols-11">
-          <TabsTrigger value="hero">Hero</TabsTrigger>
-          <TabsTrigger value="services">Services</TabsTrigger>
-          <TabsTrigger value="about">About</TabsTrigger>
-          <TabsTrigger value="testimonials">Testimonials</TabsTrigger>
-          <TabsTrigger value="team">Team</TabsTrigger>
-          <TabsTrigger value="programs">Programs</TabsTrigger>
-          <TabsTrigger value="gallery">Gallery</TabsTrigger>
-          <TabsTrigger value="announcements">Announcements</TabsTrigger>
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
-          <TabsTrigger value="navigation">Navigation</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        {isMobile ? (
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select content type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="hero">Hero Section</SelectItem>
+              <SelectItem value="services">Services</SelectItem>
+              <SelectItem value="about">About Us</SelectItem>
+              <SelectItem value="testimonials">Testimonials</SelectItem>
+              <SelectItem value="team">Team</SelectItem>
+              <SelectItem value="programs">Programs</SelectItem>
+              <SelectItem value="gallery">Gallery</SelectItem>
+              <SelectItem value="announcements">Announcements</SelectItem>
+              <SelectItem value="calendar">Calendar</SelectItem>
+              <SelectItem value="navigation">Navigation</SelectItem>
+              <SelectItem value="camps">Camp Management</SelectItem>
+              <SelectItem value="settings">Settings</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : (
+          <TabsList className="grid grid-cols-6 lg:grid-cols-12">
+            <TabsTrigger value="hero">Hero</TabsTrigger>
+            <TabsTrigger value="services">Services</TabsTrigger>
+            <TabsTrigger value="about">About</TabsTrigger>
+            <TabsTrigger value="testimonials">Testimonials</TabsTrigger>
+            <TabsTrigger value="team">Team</TabsTrigger>
+            <TabsTrigger value="programs">Programs</TabsTrigger>
+            <TabsTrigger value="gallery">Gallery</TabsTrigger>
+            <TabsTrigger value="announcements">Announcements</TabsTrigger>
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
+            <TabsTrigger value="navigation">Navigation</TabsTrigger>
+            <TabsTrigger value="camps">Camps</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+        )}
 
         <TabsContent value="hero" className="space-y-4">
           <Card>
@@ -271,6 +306,76 @@ const ContentManagement = () => {
           <NavigationManager />
         </TabsContent>
 
+        <TabsContent value="camps" className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Camp Pages</CardTitle>
+                <CardDescription>Manage camp page hero sections and details</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="text-center py-4">Loading...</div>
+                ) : (
+                  <div className="space-y-2">
+                    {campPages.map((page) => (
+                      <div key={page.id} className="flex justify-between items-center p-3 border rounded hover:bg-muted/50">
+                        <div>
+                          <p className="font-medium">{page.title}</p>
+                          <p className="text-xs text-muted-foreground">{page.slug}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setActiveEditor('camp-page');
+                            setEditingItem(page.slug);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Camp Forms</CardTitle>
+                <CardDescription>Manage camp registration form configurations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="text-center py-4">Loading...</div>
+                ) : (
+                  <div className="space-y-2">
+                    {campForms.map((form) => (
+                      <div key={form.id} className="flex justify-between items-center p-3 border rounded hover:bg-muted/50">
+                        <div>
+                          <p className="font-medium">{form.title}</p>
+                          <p className="text-xs text-muted-foreground">{form.slug}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setActiveEditor('camp-form');
+                            setEditingItem(form.slug);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
         <TabsContent value="settings" className="space-y-4">
           <Card>
             <CardHeader>
@@ -356,6 +461,24 @@ const ContentManagement = () => {
         <SiteSettingsEditor
           isOpen={true}
           onClose={closeEditor}
+          onSave={handleSave}
+        />
+      )}
+
+      {activeEditor === 'camp-page' && (
+        <CampPageEditor
+          isOpen={true}
+          onClose={closeEditor}
+          campSlug={editingItem}
+          onSave={handleSave}
+        />
+      )}
+
+      {activeEditor === 'camp-form' && (
+        <CampFormEditor
+          isOpen={true}
+          onClose={closeEditor}
+          formSlug={editingItem}
           onSave={handleSave}
         />
       )}

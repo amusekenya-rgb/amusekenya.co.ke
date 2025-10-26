@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
-import Login from "./pages/Login";
+
 import Contact from "./pages/Contact";
 import Gallery from "./pages/Gallery";
 import Programs from "./pages/Programs";
@@ -20,10 +20,12 @@ import DayCamps from "./pages/camps/DayCamps";
 import KenyanExperiencesPage from "./pages/experiences/KenyanExperiences";
 import TeamBuilding from "./pages/group-activities/TeamBuilding";
 import Parties from "./pages/group-activities/Parties";
+import PartiesBooking from "./pages/group-activities/PartiesBooking";
 import Team from "./pages/about/Team";
 import WhoWeAre from "./pages/about/WhoWeAre";
 import WhatWeDo from "./pages/about/WhatWeDo";
 import AnnouncementsPage from "./pages/Announcements";
+import RegistrationScan from "./pages/scan/RegistrationScan";
 
 import { AuthProvider } from "./hooks/useAuth";
 import ProgramRegistration from "./components/ProgramRegistration";
@@ -43,7 +45,6 @@ function App() {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/admin" element={<Admin />} />
-              <Route path="/login" element={<Login />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/gallery" element={<Gallery />} />
               <Route path="/programs/:programId" element={<ProgramDetail />} />
@@ -61,10 +62,14 @@ function App() {
               {/* Group Activities Routes */}
               <Route path="/group-activities/team-building" element={<TeamBuilding />} />
               <Route path="/group-activities/parties" element={<Parties />} />
+              <Route path="/group-activities/parties/booking" element={<PartiesBooking />} />
           <Route path="/about/team" element={<Team />} />
           <Route path="/about/who-we-are" element={<WhoWeAre />} />
           <Route path="/about/what-we-do" element={<WhatWeDo />} />
           <Route path="/announcements" element={<AnnouncementsPage />} />
+              
+              {/* Registration & Scanning */}
+              <Route path="/scan/:qrCode" element={<RegistrationScan />} />
               <Route path="/register/:programId" element={<ProgramRegistration />} />
               <Route path="/register" element={<ProgramRegistration />} />
               <Route path="*" element={<NotFound />} />

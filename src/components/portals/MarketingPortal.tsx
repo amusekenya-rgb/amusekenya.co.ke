@@ -8,6 +8,7 @@ import CustomerManagement from './marketing/CustomerManagement';
 import LeadsManagement from './marketing/LeadsManagement';
 import ContentManagement from './marketing/ContentManagement';
 import { CampaignsTab, LeadGenerationTab, ReportsTab } from './marketing/MarketingTabs';
+import { FAQManager } from './marketing/FAQManager';
 
 interface MarketingPortalProps {
   activeTab: string;
@@ -30,6 +31,8 @@ const MarketingPortal: React.FC<MarketingPortalProps> = ({ activeTab }) => {
         return <MessageCenter />;
       case 'reports':
         return <ReportsTab />;
+      case 'faq':
+        return <FAQManager />;
       default:
         return <MarketingDashboard />;
     }
@@ -37,9 +40,9 @@ const MarketingPortal: React.FC<MarketingPortalProps> = ({ activeTab }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Marketing & CRM Portal</h1>
-        <Badge variant="outline" className="text-lg px-3 py-1">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Marketing & CRM Portal</h1>
+        <Badge variant="outline" className="text-sm sm:text-base px-3 py-1 w-fit">
           Customer Relationship Management
         </Badge>
       </div>

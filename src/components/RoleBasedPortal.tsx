@@ -42,17 +42,15 @@ const RoleBasedPortal = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <PortalSidebar 
-        userRole={user.role}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        username={user.username}
-        department={user.department}
-      >
-        {renderPortalContent()}
-      </PortalSidebar>
-    </div>
+    <PortalSidebar 
+      userRole={user.role}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      username={user.username}
+      department={user.department}
+    >
+      {renderPortalContent()}
+    </PortalSidebar>
   );
 };
 

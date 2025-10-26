@@ -8,7 +8,7 @@ export interface ContentItem {
   title: string;
   slug: string;
   content?: string;
-  content_type: 'page' | 'post' | 'announcement' | 'campaign' | 'hero_slide' | 'program' | 'site_settings' | 'testimonial' | 'team_member' | 'about_section' | 'service_item';
+  content_type: 'page' | 'post' | 'announcement' | 'campaign' | 'hero_slide' | 'program' | 'site_settings' | 'testimonial' | 'team_member' | 'about_section' | 'service_item' | 'camp_page' | 'camp_form';
   status: 'draft' | 'published' | 'archived';
   author_id?: string;
   published_at?: string;
@@ -303,6 +303,159 @@ export const cmsService = {
     } catch (err) {
       console.error('Error fetching service items:', err);
       return [];
+    }
+  },
+
+  // Camp Page Management
+  async getCampPageConfig(campType: string): Promise<ContentItem | null> {
+    try {
+      const slug = `${campType}-page`;
+      console.log(`[CMS] Fetching camp page config for slug: ${slug}`);
+      
+      const { data, error } = await supabaseAny
+        .from('content_items')
+        .select('*')
+        .eq('content_type', 'camp_page')
+        .eq('slug', slug)
+        .eq('status', 'published')
+        .maybeSingle();
+
+      if (error) {
+        console.error(`[CMS] Error fetching ${slug}:`, error);
+        throw error;
+      }
+      
+      console.log(`[CMS] Query result for ${slug}:`, data);
+      return data || null;
+    } catch (err) {
+      console.error('Error fetching camp page config:', err);
+      return null;
+    }
+  },
+
+  async getAllCampPages(): Promise<ContentItem[]> {
+    try {
+      const { data, error } = await supabaseAny
+        .from('content_items')
+        .select('*')
+        .eq('content_type', 'camp_page')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching camp pages:', err);
+      return [];
+    }
+  },
+
+  async updateCampPageConfig(campType: string, config: any): Promise<ContentItem | null> {
+    try {
+      const slug = `${campType}-page`;
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Use upsert for reliable save - this will insert or update based on slug + content_type
+      const { data, error } = await supabaseAny
+        .from('content_items')
+        .upsert({
+          slug,
+          content_type: 'camp_page',
+          title: `${campType.charAt(0).toUpperCase() + campType.slice(1)} Camp Page`,
+          status: 'published',
+          content: JSON.stringify(config),
+          metadata: { pageConfig: config },
+          author_id: user?.id,
+          published_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'slug,content_type',
+          ignoreDuplicates: false
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Upsert error:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (err) {
+      console.error('Error updating camp page config:', err);
+      return null;
+    }
+  },
+
+  // Camp Form Management
+  async getCampFormConfig(formType: string): Promise<ContentItem | null> {
+    try {
+      const slug = `${formType}-form`;
+      const { data, error } = await supabaseAny
+        .from('content_items')
+        .select('*')
+        .eq('content_type', 'camp_form')
+        .eq('slug', slug)
+        .eq('status', 'published')
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return data || null;
+    } catch (err) {
+      console.error('Error fetching camp form config:', err);
+      return null;
+    }
+  },
+
+  async getAllCampForms(): Promise<ContentItem[]> {
+    try {
+      const { data, error } = await supabaseAny
+        .from('content_items')
+        .select('*')
+        .eq('content_type', 'camp_form')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching camp forms:', err);
+      return [];
+    }
+  },
+
+  async updateCampFormConfig(formType: string, config: any): Promise<ContentItem | null> {
+    try {
+      const slug = `${formType}-form`;
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Use upsert for reliable save - this will insert or update based on slug + content_type
+      const { data, error } = await supabaseAny
+        .from('content_items')
+        .upsert({
+          slug,
+          content_type: 'camp_form',
+          title: `${formType.charAt(0).toUpperCase() + formType.slice(1)} Form Config`,
+          status: 'published',
+          content: JSON.stringify(config),
+          metadata: { formConfig: config },
+          author_id: user?.id,
+          published_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'slug,content_type',
+          ignoreDuplicates: false
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Upsert error:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (err) {
+      console.error('Error updating camp form config:', err);
+      return null;
     }
   }
 };
