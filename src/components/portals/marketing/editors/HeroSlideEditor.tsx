@@ -45,8 +45,13 @@ export const HeroSlideEditor: React.FC<HeroSlideEditorProps> = ({ isOpen, onClos
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
+    // Validate file type (including HEIC/HEIF)
+    const fileName = file.name.toLowerCase();
+    const isImage = file.type.startsWith('image/') || 
+                    fileName.endsWith('.heic') || 
+                    fileName.endsWith('.heif');
+    
+    if (!isImage) {
       toast({
         title: 'Invalid file type',
         description: 'Please upload an image file',
@@ -208,7 +213,7 @@ export const HeroSlideEditor: React.FC<HeroSlideEditorProps> = ({ isOpen, onClos
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               onChange={handleFileUpload}
               className="hidden"
             />

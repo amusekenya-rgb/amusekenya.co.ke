@@ -167,11 +167,11 @@ const AdminImageManager: React.FC<AdminImageManagerProps> = ({ currentAdminUsern
                   <Input 
                     id="file-upload" 
                     type="file" 
-                    accept="image/*,application/pdf" 
+                    accept="image/*,.heic,.heif,application/pdf" 
                     onChange={handleFileChange}
                   />
                   <div className="text-xs text-muted-foreground">
-                    Supported formats: JPG, PNG, GIF, PDF
+                    Supported formats: JPG, PNG, GIF, HEIC, PDF
                   </div>
                 </div>
                 <div className="space-y-2">

@@ -74,8 +74,13 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
     setIsUploading(true);
 
     try {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
+      // Validate file type (including HEIC/HEIF)
+      const lowerFileName = file.name.toLowerCase();
+      const isImage = file.type.startsWith('image/') || 
+                      lowerFileName.endsWith('.heic') || 
+                      lowerFileName.endsWith('.heif');
+      
+      if (!isImage) {
         toast({
           title: 'Invalid file type',
           description: 'Please upload an image file',

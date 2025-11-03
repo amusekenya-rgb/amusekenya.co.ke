@@ -159,7 +159,7 @@ export const AnnouncementForm: React.FC<AnnouncementFormProps> = ({
                     id="poster-upload" 
                     type="file" 
                     className="hidden" 
-                    accept="image/*"
+                    accept="image/*,.heic,.heif"
                     onChange={onFileChange}
                   />
                 </label>

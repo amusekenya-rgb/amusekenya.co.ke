@@ -46,7 +46,7 @@ export const GalleryUploadForm: React.FC<GalleryUploadFormProps> = ({ onUpload, 
                 <Input 
                   id="gallery-upload" 
                   type="file" 
-                  accept="image/*" 
+                  accept="image/*,.heic,.heif" 
                   onChange={handleFileChange}
                 />
               </div>

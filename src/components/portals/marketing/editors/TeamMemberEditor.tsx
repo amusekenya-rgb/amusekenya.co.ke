@@ -71,8 +71,13 @@ export const TeamMemberEditor: React.FC<TeamMemberEditorProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
+    // Validate file type (including HEIC/HEIF)
+    const fileName = file.name.toLowerCase();
+    const isImage = file.type.startsWith('image/') || 
+                    fileName.endsWith('.heic') || 
+                    fileName.endsWith('.heif');
+    
+    if (!isImage) {
       toast({ title: 'Please select an image file', variant: 'destructive' });
       return;
     }
@@ -233,7 +238,7 @@ export const TeamMemberEditor: React.FC<TeamMemberEditorProps> = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,.heic,.heif"
                 onChange={handleFileUpload}
                 className="hidden"
               />
