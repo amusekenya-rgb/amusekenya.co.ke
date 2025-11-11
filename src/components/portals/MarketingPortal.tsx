@@ -9,6 +9,10 @@ import LeadsManagement from './marketing/LeadsManagement';
 import ContentManagement from './marketing/ContentManagement';
 import { CampaignsTab, LeadGenerationTab, ReportsTab } from './marketing/MarketingTabs';
 import { FAQManager } from './marketing/FAQManager';
+import EmailHealthDashboard from './marketing/EmailHealthDashboard';
+import EmailDeliveriesTab from './marketing/EmailDeliveriesTab';
+import EmailSegmentsTab from './marketing/EmailSegmentsTab';
+import EmailSuppressionsTab from './marketing/EmailSuppressionsTab';
 
 interface MarketingPortalProps {
   activeTab: string;
@@ -33,6 +37,14 @@ const MarketingPortal: React.FC<MarketingPortalProps> = ({ activeTab }) => {
         return <ReportsTab />;
       case 'faq':
         return <FAQManager />;
+      case 'email-health':
+        return <EmailHealthDashboard />;
+      case 'email-deliveries':
+        return <EmailDeliveriesTab />;
+      case 'email-segments':
+        return <EmailSegmentsTab />;
+      case 'email-suppressions':
+        return <EmailSuppressionsTab />;
       default:
         return <MarketingDashboard />;
     }

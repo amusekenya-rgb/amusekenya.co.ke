@@ -63,13 +63,17 @@ export const CampPageEditor: React.FC<CampPageEditorProps> = ({ isOpen, onClose,
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type (including HEIC/HEIF)
+    // Check for HEIC/HEIF files (not web-compatible)
     const fileName = file.name.toLowerCase();
-    const isImage = file.type.startsWith('image/') || 
-                    fileName.endsWith('.heic') || 
-                    fileName.endsWith('.heif');
+    const isHeic = fileName.endsWith('.heic') || fileName.endsWith('.heif');
     
-    if (!isImage) {
+    if (isHeic) {
+      toast.error('HEIC format not supported. Please convert to JPG or PNG first.');
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
       toast.error('Please select an image file');
       return;
     }
@@ -200,7 +204,7 @@ export const CampPageEditor: React.FC<CampPageEditorProps> = ({ isOpen, onClose,
                 <input
                   id="heroImageUpload"
                   type="file"
-                  accept="image/*,.heic,.heif"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                   className="hidden"
                   onChange={handleImageUpload}
                 />

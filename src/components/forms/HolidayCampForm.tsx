@@ -18,6 +18,7 @@ import { campRegistrationService } from '@/services/campRegistrationService';
 import { qrCodeService } from '@/services/qrCodeService';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
+import { leadsService } from '@/services/leadsService';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
@@ -179,6 +180,34 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
       
       // Generate QR code for display
       const qrUrl = await qrCodeService.generateQRCode(qrCodeData);
+      
+      // Capture lead
+      await leadsService.createLead({
+        full_name: data.parentName,
+        email: data.email,
+        phone: data.phone,
+        program_type: 'holiday-camp',
+        program_name: campTitle,
+        form_data: data,
+        source: 'website_registration'
+      });
+      
+      // Send confirmation email via Postmark
+      const { supabase } = await import('@/integrations/supabase/client');
+      await supabase.functions.invoke('send-program-confirmation', {
+        body: {
+          email: data.email,
+          name: data.parentName,
+          programType: 'holiday-camp',
+          details: {
+            campTitle: campTitle,
+            children: data.children,
+            campType: campType
+          },
+          totalAmount: totalAmount,
+          registrationId: registration.id
+        }
+      });
       
       // Set state for modal
       setRegistrationResult(registration);

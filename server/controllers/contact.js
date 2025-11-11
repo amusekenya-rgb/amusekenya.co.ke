@@ -38,6 +38,7 @@ exports.submitContactForm = asyncHandler(async (req, res, next) => {
     await sendEmail({
       email: process.env.EMAIL_FROM,
       subject: `New Contact Form Submission: ${subject}`,
+      emailType: 'notification',
       html: `
         <h1>New Contact Form Submission</h1>
         <p><strong>From:</strong> ${name} (${email})</p>
@@ -57,6 +58,8 @@ exports.submitContactForm = asyncHandler(async (req, res, next) => {
     await sendEmail({
       email: email,
       subject: 'Thank you for contacting Forest Camp',
+      emailType: 'transactional',
+      recipientType: 'lead',
       html: `
         <h1>Thank You for Contacting Us</h1>
         <p>Dear ${name},</p>
@@ -157,6 +160,8 @@ exports.replyToContact = asyncHandler(async (req, res, next) => {
     await sendEmail({
       email: contact.email,
       subject: `RE: ${contact.subject}`,
+      emailType: 'transactional',
+      recipientType: 'lead',
       html: `
         <h1>Response to Your Inquiry</h1>
         <p>Dear ${contact.name},</p>

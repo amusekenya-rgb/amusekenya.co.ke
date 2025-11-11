@@ -15,6 +15,7 @@ import birthdayImage from "@/assets/birthday.jpg";
 import DatePickerField from "./DatePickerField";
 import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
+import { leadsService } from '@/services/leadsService';
 
 const childSchema = z.object({
   childName: z.string().min(1, "Child name is required").max(100),
@@ -74,6 +75,17 @@ const PartiesProgram = () => {
       const { partiesService } = await import('@/services/programRegistrationService');
       const registration = await partiesService.create(data);
 
+      // Capture lead
+      await leadsService.createLead({
+        full_name: data.parentName,
+        email: data.email,
+        phone: data.phone,
+        program_type: 'parties',
+        program_name: data.occasion,
+        form_data: data,
+        source: 'website_registration'
+      });
+
       // Send confirmation email
       const { supabase } = await import('@/integrations/supabase/client');
       await supabase.functions.invoke('send-program-confirmation', {
@@ -86,14 +98,17 @@ const PartiesProgram = () => {
             packageType: data.packageType,
             guestsNumber: data.guestsNumber,
             eventDate: data.eventDate
-          }
+          },
+          totalAmount: 0, // TBD - will be confirmed by team
+          registrationId: registration && 'id' in registration ? registration.id : undefined
         }
       });
 
       toast.success("Party booking submitted successfully! Check your email for confirmation.");
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
-      toast.error("Failed to submit booking. Please try again.");
+      console.error('Error details:', error?.message, error?.details, error?.hint);
+      toast.error(error?.message || "Failed to submit booking. Please try again.");
     }
   };
 

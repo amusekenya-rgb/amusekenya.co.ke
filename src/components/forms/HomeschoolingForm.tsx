@@ -65,6 +65,17 @@ const HomeschoolingForm = () => {
       const { homeschoolingService } = await import('@/services/programRegistrationService');
       const registration = await homeschoolingService.create(data);
 
+      // Capture lead
+      await leadsService.createLead({
+        full_name: data.parentName,
+        email: data.email,
+        phone: data.phone,
+        program_type: 'homeschooling',
+        program_name: data.package,
+        form_data: data,
+        source: 'website'
+      });
+
       // Send confirmation email
       const { supabase } = await import('@/integrations/supabase/client');
       await supabase.functions.invoke('send-program-confirmation', {
@@ -81,9 +92,10 @@ const HomeschoolingForm = () => {
       });
 
       toast.success('Registration submitted successfully! Check your email for confirmation.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
-      toast.error('Failed to submit registration. Please try again.');
+      console.error('Error details:', error?.message, error?.details, error?.hint);
+      toast.error(error?.message || 'Failed to submit registration. Please try again.');
     }
   };
 

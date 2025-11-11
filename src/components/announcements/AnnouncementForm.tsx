@@ -153,13 +153,13 @@ export const AnnouncementForm: React.FC<AnnouncementFormProps> = ({
                     <p className="mb-2 text-sm text-gray-500">
                       <span className="font-semibold">Click to upload</span> or drag and drop
                     </p>
-                    <p className="text-xs text-gray-500">PNG, JPG or GIF</p>
+                    <p className="text-xs text-gray-500">JPG, PNG, GIF, WebP (HEIC not supported)</p>
                   </div>
                   <Input 
                     id="poster-upload" 
                     type="file" 
                     className="hidden" 
-                    accept="image/*,.heic,.heif"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                     onChange={onFileChange}
                   />
                 </label>

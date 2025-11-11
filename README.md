@@ -1,152 +1,115 @@
 
-# Amuse Ke - Children's Nature Camp Platform
+# Forest Camp Backend
 
-## About Amuse Ke
+This is the backend server for the Forest Camp website. It provides APIs for user authentication, program management, registration, payments, and email communications.
 
-Amuse Ke is a comprehensive digital platform designed for a children's nature camp located in Kenya's beautiful Karura Forest. Our platform connects families with exceptional outdoor educational experiences, offering nature-based summer programs that inspire environmental stewardship and personal growth in children.
+## Setup Instructions
 
-## Key Features
+1. **Install dependencies**
 
-### For Parents and Visitors
-- **Informative Landing Page**
-  - Introduction to the camp and its philosophy
-  - Program highlights and seasonal offerings
-  - Age-specific camp activities
-  - Parent testimonials
-  - Team introduction
-  - Contact form
-
-- **Program Registration**
-  - Online registration for summer camp programs
-  - Detailed program information
-  - Age group selection
-  - Payment processing
-
-- **Calendar and Events**
-  - View upcoming camp sessions
-  - Special events and workshops
-
-### For Administrators
-- **Admin Dashboard**
-  - Manage camp programs and schedules
-  - View and process registrations
-  - Content management (announcements, team members, gallery)
-  - Calendar management
-  - Feature flag controls
-
-## Technology Stack
-
-### Frontend
-- **Framework**: React with TypeScript
-- **Build Tool**: Vite
-- **Styling**: 
-  - Tailwind CSS for utility-first styling
-  - Shadcn UI component library
-- **State Management**: 
-  - React Query for server state
-  - Local state hooks
-- **Routing**: React Router Dom
-- **UI Components**:
-  - Radix UI primitives
-  - Custom components built on Radix
-- **Form Handling**: React Hook Form with Zod validation
-- **Data Visualization**: Recharts
-- **Date Handling**: date-fns
-- **Toast Notifications**: Sonner
-- **Icons**: Lucide React
-
-### Backend
-- **Runtime**: Node.js
-- **Web Framework**: Express
-- **Database**: MongoDB with Mongoose ORM
-- **Authentication**: 
-  - JWT (JSON Web Tokens)
-  - bcrypt for password hashing
-- **Validation**: express-validator
-- **Email Services**: Nodemailer
-- **Payment Processing**: Integration with payment gateways
-- **Security**: 
-  - Rate limiting with express-rate-limit
-  - Proper error handling
-- **Logging**: Custom audit logging system
-
-## Architecture
-- **Frontend**: Single Page Application (SPA)
-- **Backend**: RESTful API
-- **State Management**: Client-server model with optimistic updates
-
-## Development Approach
-- Component-based architecture
-- Responsive design principles
-- Progressive enhancement
-- Feature flag management for controlled rollouts
-
-## Getting Started
-
-### Prerequisites
-- Node.js (v16 or higher)
-- npm or yarn package manager
-- MongoDB database
-
-### Installation
-
-1. Clone the repository:
-```sh
-git clone <YOUR_GIT_URL>
-cd <YOUR_PROJECT_NAME>
-```
-
-2. Install dependencies:
-```sh
+```bash
+cd server
 npm install
 ```
 
-3. Set up environment variables:
-- Copy `.env.example` to `.env` in the server directory
-- Configure your MongoDB connection string
-- Set up email service credentials
-- Configure payment gateway settings
+2. **Configure environment variables**
 
-4. Start the development server:
-```sh
+Copy the `.env.example` file to `.env` and update the values:
+
+```bash
+cp .env.example .env
+```
+
+Update the following variables in the `.env` file:
+- `MONGODB_URI`: Your MongoDB connection string
+- `JWT_SECRET`: A secret key for JWT token generation
+- `EMAIL_*`: Configuration for your email provider
+- `STRIPE_SECRET_KEY`: Your Stripe secret key
+- `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook secret
+
+3. **Seed the database**
+
+```bash
+node seeder.js -i
+```
+
+This will create a default admin user and sample programs and announcements.
+
+4. **Start the server**
+
+Development mode (with auto-reload):
+```bash
 npm run dev
 ```
 
-### Deployment
+Production mode:
+```bash
+npm start
+```
 
-This application can be deployed to various hosting platforms:
-- **Frontend**: Netlify, Vercel, or any static hosting service
-- **Backend**: Heroku, Railway, or any Node.js hosting platform
-- **Database**: MongoDB Atlas or self-hosted MongoDB instance
+The server will start on port 5000 by default (or the port specified in your .env file).
 
-For production deployment:
-1. Build the frontend: `npm run build`
-2. Configure environment variables for production
-3. Set up your MongoDB database
-4. Deploy both frontend and backend to your chosen platforms
+## API Routes
 
-## File Structure Overview
+### Authentication
+- `POST /api/auth/register` - Register a new admin (super admin only)
+- `POST /api/auth/login` - Login admin
+- `GET /api/auth/me` - Get current admin details
+- `GET /api/auth/logout` - Logout admin
 
-- `/src` - Main source code directory
-  - `/components` - React components
-    - `/ui` - Reusable UI components from shadcn
-    - `/gallery` - Gallery-related components
-    - `/calendar` - Calendar and event management components
-    - `/team` - Team member components
-    - `/announcements` - Announcement components
-  - `/hooks` - Custom React hooks
-  - `/lib` - Utility functions and shared code
-  - `/pages` - Main page components
-  - `/services` - API services and data handling
-  - `/types` - TypeScript type definitions
+### Admin Management
+- `GET /api/admin` - Get all admins (super admin only)
+- `GET /api/admin/:id` - Get single admin (super admin only)
+- `PUT /api/admin/:id` - Update admin (super admin only)
+- `DELETE /api/admin/:id` - Delete admin (super admin only)
 
-- `/server` - Backend Express server code
-  - `/controllers` - API endpoint controllers
-  - `/middleware` - Express middleware
-  - `/models` - MongoDB schema models
-  - `/routes` - API route definitions
-  - `/utils` - Server utility functions
+### Programs
+- `GET /api/programs` - Get all programs
+- `GET /api/programs/:id` - Get single program
+- `POST /api/programs` - Create program (admin only)
+- `PUT /api/programs/:id` - Update program (admin only)
+- `DELETE /api/programs/:id` - Delete program (admin only)
 
-## License
+### Announcements
+- `GET /api/announcements` - Get all announcements
+- `GET /api/announcements/:id` - Get single announcement
+- `POST /api/announcements` - Create announcement (admin only)
+- `PUT /api/announcements/:id` - Update announcement (admin only)
+- `DELETE /api/announcements/:id` - Delete announcement (admin only)
 
-This project is proprietary and confidential.
+### Registrations
+- `GET /api/registrations` - Get all registrations (admin only)
+- `GET /api/registrations/:id` - Get single registration (admin only)
+- `POST /api/registrations` - Create registration (public)
+- `PUT /api/registrations/:id` - Update registration (admin only)
+- `DELETE /api/registrations/:id` - Delete registration (admin only)
+
+### Contact Form
+- `POST /api/contact` - Submit contact form (public)
+- `GET /api/contact` - Get all contact submissions (admin only)
+- `GET /api/contact/:id` - Get single contact submission (admin only)
+- `PUT /api/contact/:id` - Update contact status (admin only)
+- `POST /api/contact/:id/reply` - Reply to contact (admin only)
+- `DELETE /api/contact/:id` - Delete contact submission (admin only)
+
+### Payments
+- `POST /api/payment/:registrationId` - Create Stripe checkout session
+- `POST /api/payment/mpesa/:registrationId` - Process M-Pesa payment
+- `POST /api/payment/webhook` - Handle Stripe webhook events
+- `GET /api/payment/verify/:registrationId` - Verify payment status
+- `PUT /api/payment/manual/:registrationId` - Manually update payment status (admin only)
+
+## Frontend Integration
+
+To connect this backend to the frontend:
+
+1. Update the API URLs in your frontend code to point to this backend server.
+2. Replace the in-memory data service with API calls to these endpoints.
+3. Implement JWT token storage and authentication flows.
+
+## Security Notes
+
+- In production, ensure you have proper HTTPS setup.
+- Configure CORS settings in server.js to only allow requests from your frontend domain.
+- Regularly rotate JWT secrets and API keys.
+- Consider implementing rate limiting for public endpoints.

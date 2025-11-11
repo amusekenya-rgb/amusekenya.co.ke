@@ -18,6 +18,7 @@ import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlace
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { qrCodeService } from '@/services/qrCodeService';
+import { leadsService } from '@/services/leadsService';
 import type { CampRegistration } from '@/types/campRegistration';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
 
@@ -82,16 +83,16 @@ const LittleForestProgram = () => {
   const watchChildren = watch('children');
   const watchConsent = watch('consent');
 
-  // Auto-calculate pricing
+  // Auto-calculate pricing - watch for changes in selected days
   useEffect(() => {
     let total = 0;
     watchChildren.forEach((child, index) => {
       const childPrice = (child.selectedDays?.length || 0) * SESSION_PRICE;
-      setValue(`children.${index}.price`, childPrice);
+      setValue(`children.${index}.price`, childPrice, { shouldValidate: false });
       total += childPrice;
     });
     setTotalAmount(total);
-  }, [watchChildren, setValue, SESSION_PRICE]);
+  }, [watchChildren.map(c => `${c.childName}-${c.selectedDays?.join(',')}`).join('|'), setValue, SESSION_PRICE]);
 
   const onSubmit = async (data: LittleForestFormData) => {
     try {
@@ -126,6 +127,17 @@ const LittleForestProgram = () => {
 
       const result = await campRegistrationService.createRegistration(registrationData);
       const qrCodeUrl = await qrCodeService.generateQRCode(result.qr_code_data);
+      
+      // Capture lead
+      await leadsService.createLead({
+        full_name: data.parentName,
+        email: data.email,
+        phone: data.phone,
+        program_type: 'little-forest',
+        program_name: 'Little Forest',
+        form_data: data,
+        source: 'website'
+      });
       
       setRegistrationResult(result);
       setQrCodeDataUrl(qrCodeUrl);

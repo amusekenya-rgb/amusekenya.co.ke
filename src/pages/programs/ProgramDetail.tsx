@@ -26,7 +26,7 @@ const ProgramDetail = () => {
       case 'kenyan-experiences':
         return <KenyanExperiencesProgram />;
       case 'day-camps':
-        return <DayCampsProgram />;
+        return <DayCampsProgram campTitle="Nairobi Day Camps" />;
       default:
         return <NotFound />;
     }

@@ -48,13 +48,21 @@ export const ProgramEditor: React.FC<ProgramEditorProps> = ({ isOpen, onClose, p
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type (including HEIC/HEIF)
+    // Check for HEIC/HEIF files (not web-compatible)
     const fileName = file.name.toLowerCase();
-    const isImage = file.type.startsWith('image/') || 
-                    fileName.endsWith('.heic') || 
-                    fileName.endsWith('.heif');
+    const isHeic = fileName.endsWith('.heic') || fileName.endsWith('.heif');
     
-    if (!isImage) {
+    if (isHeic) {
+      toast({
+        title: 'HEIC format not supported',
+        description: 'Please convert to JPG or PNG first. HEIC images cannot be displayed on websites.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
       toast({
         title: 'Invalid file type',
         description: 'Please upload an image file',
@@ -207,7 +215,7 @@ export const ProgramEditor: React.FC<ProgramEditorProps> = ({ isOpen, onClose, p
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,.heic,.heif"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
               onChange={handleFileUpload}
               className="hidden"
             />
@@ -222,7 +230,7 @@ export const ProgramEditor: React.FC<ProgramEditorProps> = ({ isOpen, onClose, p
               {isUploading ? 'Uploading...' : 'Upload from Device'}
             </Button>
             <p className="text-xs text-muted-foreground mt-1">
-              Optional: Enter URL or upload image (max 5MB)
+              Upload JPG, PNG, GIF, or WebP (max 5MB). HEIC not supported.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-4">

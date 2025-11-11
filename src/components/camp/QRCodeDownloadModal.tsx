@@ -29,6 +29,11 @@ export const QRCodeDownloadModal: React.FC<QRCodeDownloadModalProps> = ({
 }) => {
   const [downloading, setDownloading] = useState(false);
 
+  // Guard clause: Don't render if registration is null
+  if (!registration) {
+    return null;
+  }
+
   const handleDownloadQR = async () => {
     try {
       setDownloading(true);
@@ -53,31 +58,31 @@ export const QRCodeDownloadModal: React.FC<QRCodeDownloadModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle className="h-6 w-6 text-green-600" />
             Registration Successful!
           </DialogTitle>
           <DialogDescription>
-            Your registration has been confirmed. A confirmation email has been sent to {registration.email}.
+            Your registration has been confirmed. A confirmation email has been sent to {registration?.email || 'your email address'}.
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto px-1 flex-1">{/* Added overflow-y-auto and px-1 for scrollbar spacing */}
           {/* Registration Number */}
           <div className="bg-muted p-4 rounded-lg text-center">
             <p className="text-sm text-muted-foreground">Registration Number</p>
             <p className="text-2xl font-bold text-primary">{registration.registration_number}</p>
           </div>
 
-          {/* QR Code Display */}
+           {/* QR Code Display */}
           <div className="flex flex-col items-center gap-3">
-            <div className="bg-white p-4 rounded-lg border-2 border-primary/20">
+            <div className="bg-white p-3 rounded-lg border-2 border-primary/20">
               <img 
                 src={qrCodeDataUrl} 
                 alt="Registration QR Code" 
-                className="w-48 h-48"
+                className="w-40 h-40 sm:w-48 sm:h-48"
               />
             </div>
             <p className="text-sm text-muted-foreground text-center">
@@ -117,7 +122,7 @@ export const QRCodeDownloadModal: React.FC<QRCodeDownloadModalProps> = ({
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Children:</span>
-              <span className="font-medium">{registration.children.length}</span>
+              <span className="font-medium">{Array.isArray(registration.children) ? registration.children.length : 0}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Total Amount:</span>
@@ -136,7 +141,7 @@ export const QRCodeDownloadModal: React.FC<QRCodeDownloadModalProps> = ({
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="w-full"
+            className="w-full mt-2"
           >
             Close
           </Button>

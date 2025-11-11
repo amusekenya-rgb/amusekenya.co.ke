@@ -46,9 +46,12 @@ export const GalleryUploadForm: React.FC<GalleryUploadFormProps> = ({ onUpload, 
                 <Input 
                   id="gallery-upload" 
                   type="file" 
-                  accept="image/*,.heic,.heif" 
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" 
                   onChange={handleFileChange}
                 />
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG, GIF, WebP supported. HEIC not supported - convert first.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="image-caption">Caption</Label>

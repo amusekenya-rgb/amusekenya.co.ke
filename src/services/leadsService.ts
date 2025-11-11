@@ -11,43 +11,58 @@ export const leadsService = {
     program_type: string;
     program_name?: string;
     form_data?: any;
+    source?: string;
   }): Promise<any> {
     try {
+      console.log('🎯 Creating lead:', { 
+        name: leadData.full_name, 
+        email: leadData.email, 
+        program: leadData.program_type 
+      });
+
       const { data, error } = await supabaseAny
         .from('leads')
         .insert([{
           ...leadData,
           status: 'new',
-          source: 'website'
+          source: leadData.source || 'website'
         }])
         .select()
         .single();
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('❌ Lead creation failed:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         return null;
       }
+      
+      console.log('✅ Lead created successfully:', data?.id);
       return data;
     } catch (error) {
-      console.error('Error creating lead:', error);
+      console.error('❌ Exception creating lead:', error);
       return null;
     }
   },
 
   async getAllLeads(): Promise<any[]> {
     try {
+      console.log('📋 Fetching all leads...');
+      
       const { data, error } = await supabaseAny
         .from('leads')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('❌ Error fetching leads:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         return [];
       }
+      
+      console.log(`✅ Found ${data?.length || 0} leads`);
       return Array.isArray(data) ? data : [];
     } catch (error) {
-      console.error('Error fetching leads:', error);
+      console.error('❌ Exception fetching leads:', error);
       return [];
     }
   },

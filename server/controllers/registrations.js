@@ -113,6 +113,9 @@ exports.createRegistration = asyncHandler(async (req, res, next) => {
     await sendEmail({
       email: registration.email,
       subject: 'Forest Camp Registration Confirmation',
+      emailType: 'confirmation',
+      recipientType: 'registration',
+      recipientId: registration._id.toString(),
       html: `
         <h1>Registration Confirmation</h1>
         <p>Dear ${registration.parentName},</p>

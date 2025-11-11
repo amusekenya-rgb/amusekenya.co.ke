@@ -71,13 +71,17 @@ export const TeamMemberEditor: React.FC<TeamMemberEditorProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type (including HEIC/HEIF)
+    // Check for HEIC/HEIF files (not web-compatible)
     const fileName = file.name.toLowerCase();
-    const isImage = file.type.startsWith('image/') || 
-                    fileName.endsWith('.heic') || 
-                    fileName.endsWith('.heif');
+    const isHeic = fileName.endsWith('.heic') || fileName.endsWith('.heif');
     
-    if (!isImage) {
+    if (isHeic) {
+      toast({ title: 'HEIC format not supported. Convert to JPG or PNG first.', variant: 'destructive' });
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
       toast({ title: 'Please select an image file', variant: 'destructive' });
       return;
     }
@@ -238,7 +242,7 @@ export const TeamMemberEditor: React.FC<TeamMemberEditorProps> = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,.heic,.heif"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -253,7 +257,7 @@ export const TeamMemberEditor: React.FC<TeamMemberEditorProps> = ({
                 {isUploading ? 'Uploading...' : 'Upload from Device'}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Enter URL or upload image (max 5MB)
+                JPG, PNG, GIF, WebP (max 5MB). HEIC not supported.
               </p>
             </div>
           </div>

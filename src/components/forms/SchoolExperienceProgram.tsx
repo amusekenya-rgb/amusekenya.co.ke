@@ -16,6 +16,7 @@ import schoolsImage from '@/assets/schools.jpg';
 import DatePickerField from './DatePickerField';
 import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
+import { leadsService } from '@/services/leadsService';
 
 const schoolExperienceSchema = z.object({
   schoolName: z.string().min(1, 'School name is required').max(200),
@@ -78,6 +79,17 @@ const SchoolExperienceProgram = () => {
       const { schoolExperienceService } = await import('@/services/programRegistrationService');
       const registration = await schoolExperienceService.create(data);
 
+      // Capture lead
+      await leadsService.createLead({
+        full_name: data.schoolName,
+        email: data.email,
+        phone: data.phone,
+        program_type: 'school-experience',
+        program_name: data.package,
+        form_data: data,
+        source: 'website_registration'
+      });
+
       // Send confirmation email
       const { supabase } = await import('@/integrations/supabase/client');
       await supabase.functions.invoke('send-program-confirmation', {
@@ -90,14 +102,17 @@ const SchoolExperienceProgram = () => {
             package: data.package,
             numberOfStudents: data.numberOfStudents,
             location: data.location
-          }
+          },
+          totalAmount: 0, // TBD - will be confirmed by team
+          registrationId: registration && 'id' in registration ? registration.id : undefined
         }
       });
 
       toast.success('Registration submitted successfully! Check your email for confirmation.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
-      toast.error('Failed to submit registration. Please try again.');
+      console.error('Error details:', error?.message, error?.details, error?.hint);
+      toast.error(error?.message || 'Failed to submit registration. Please try again.');
     }
   };
 

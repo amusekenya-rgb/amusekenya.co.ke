@@ -93,6 +93,9 @@ exports.processMpesaPayment = asyncHandler(async (req, res, next) => {
     await sendEmail({
       email: registration.email,
       subject: 'Payment Confirmation - Forest Camp',
+      emailType: 'confirmation',
+      recipientType: 'registration',
+      recipientId: registration._id.toString(),
       html: `
         <h1>Payment Confirmation</h1>
         <p>Dear ${registration.parentName},</p>
@@ -153,6 +156,9 @@ exports.stripeWebhook = asyncHandler(async (req, res, next) => {
             await sendEmail({
               email: registration.email,
               subject: 'Payment Confirmation - Forest Camp',
+              emailType: 'confirmation',
+              recipientType: 'registration',
+              recipientId: registration._id.toString(),
               html: `
                 <h1>Payment Confirmation</h1>
                 <p>Dear ${registration.parentName},</p>

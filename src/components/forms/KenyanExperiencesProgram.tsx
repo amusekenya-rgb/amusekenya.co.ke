@@ -16,6 +16,7 @@ import adventureImage from '@/assets/adventure.jpg';
 import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
 import DatePickerField from './DatePickerField';
+import { leadsService } from '@/services/leadsService';
 
 const participantSchema = z.object({
   name: z.string().min(1, 'Participant name is required').max(100),
@@ -76,6 +77,17 @@ const KenyanExperiencesProgram = () => {
       const { kenyanExperiencesService } = await import('@/services/programRegistrationService');
       const registration = await kenyanExperiencesService.create(data);
 
+      // Capture lead
+      await leadsService.createLead({
+        full_name: data.parentLeader,
+        email: data.email,
+        phone: data.phone,
+        program_type: 'kenyan-experiences',
+        program_name: data.circuit,
+        form_data: data,
+        source: 'website_registration'
+      });
+
       // Send confirmation email
       const { supabase } = await import('@/integrations/supabase/client');
       await supabase.functions.invoke('send-program-confirmation', {
@@ -87,14 +99,17 @@ const KenyanExperiencesProgram = () => {
             circuit: data.circuit,
             participants: data.participants,
             transport: data.transport
-          }
+          },
+          totalAmount: 0, // TBD - will be confirmed by team
+          registrationId: registration && 'id' in registration ? registration.id : undefined
         }
       });
 
       toast.success('Registration submitted successfully! Check your email for confirmation.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
-      toast.error('Failed to submit registration. Please try again.');
+      console.error('Error details:', error?.message, error?.details, error?.hint);
+      toast.error(error?.message || 'Failed to submit registration. Please try again.');
     }
   };
 
