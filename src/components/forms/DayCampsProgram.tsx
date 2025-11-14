@@ -19,14 +19,15 @@ import { qrCodeService } from '@/services/qrCodeService';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
 import { leadsService } from '@/services/leadsService';
+import { DateSelector } from './DateSelector';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
   dateOfBirth: z.date({ required_error: 'Date of birth is required' }),
-  ageRange: z.enum(['3-below', '4-6', '7-10', '11-13', '14-17'], { required_error: 'Age range is required' }),
+  ageRange: z.enum(['3-below', '4-6', '7-10', '11-15'], { required_error: 'Age range is required' }),
   specialNeeds: z.string().max(500).optional(),
-  numberOfDays: z.number().min(1, 'At least one day is required').max(60, 'Maximum 60 days'),
-  dailySessions: z.array(z.enum(['half', 'full'])).min(1, 'At least one day is required'),
+  selectedDates: z.array(z.string()).min(1, 'At least one date is required'),
+  sessionTypes: z.record(z.enum(['half', 'full'])),
   totalPrice: z.number()
 });
 
@@ -46,22 +47,22 @@ interface DayCampsProgramProps {
 }
 
 // Helper function to calculate age range
-const calculateAgeRange = (dateOfBirth: Date): '3-below' | '4-6' | '7-10' | '11-13' | '14-17' => {
+const calculateAgeRange = (dateOfBirth: Date): '3-below' | '4-6' | '7-10' | '11-15' => {
   const age = differenceInYears(new Date(), dateOfBirth);
   if (age <= 3) return '3-below';
   if (age <= 6) return '4-6';
   if (age <= 10) return '7-10';
-  if (age <= 13) return '11-13';
-  return '14-17';
+  return '11-15';
 };
 
 const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
   const { config, isLoading } = useCampFormConfig('day-camps');
 
-  const calculatePrice = (dailySessions: Array<'half' | 'full'>): number => {
+  const calculatePrice = (selectedDates: string[], sessionTypes: Record<string, 'half' | 'full'>): number => {
     if (!config) return 0;
-    return dailySessions.reduce((sum, session) => {
-      return sum + (session === 'half' ? config.pricing.halfDayRate : config.pricing.fullDayRate);
+    return selectedDates.reduce((sum, date) => {
+      const sessionType = sessionTypes[date] || 'full';
+      return sum + (sessionType === 'half' ? config.pricing.halfDayRate : config.pricing.fullDayRate);
     }, 0);
   };
 
@@ -80,9 +81,9 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         dateOfBirth: undefined, 
         ageRange: '3-below' as const, 
         specialNeeds: '',
-        numberOfDays: 1,
-        dailySessions: ['full'],
-        totalPrice: 3500
+        selectedDates: [],
+        sessionTypes: {},
+        totalPrice: 0
       }],
       consent: false
     }
@@ -106,29 +107,15 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         }
       }
       
-      // Ensure dailySessions array matches numberOfDays
-      if (child.numberOfDays && child.dailySessions) {
-        const currentLength = child.dailySessions.length;
-        if (currentLength < child.numberOfDays) {
-          // Add missing days with default 'full' session
-          const newSessions = [...child.dailySessions];
-          for (let i = currentLength; i < child.numberOfDays; i++) {
-            newSessions.push('full');
-          }
-          setValue(`children.${index}.dailySessions`, newSessions, { shouldValidate: false });
-        } else if (currentLength > child.numberOfDays) {
-          // Remove extra days
-          setValue(`children.${index}.dailySessions`, child.dailySessions.slice(0, child.numberOfDays), { shouldValidate: false });
-        }
-        
-        // Calculate price
-        const calculatedPrice = calculatePrice(child.dailySessions);
+      // Calculate price based on selected dates and session types
+      if (child.selectedDates && child.sessionTypes) {
+        const calculatedPrice = calculatePrice(child.selectedDates, child.sessionTypes);
         if (child.totalPrice !== calculatedPrice) {
           setValue(`children.${index}.totalPrice`, calculatedPrice, { shouldValidate: false });
         }
       }
     });
-  }, [watchedChildren.map(c => `${c.dateOfBirth?.getTime()}-${c.numberOfDays}-${c.dailySessions?.join(',')}`).join('|'), setValue]);
+  }, [watchedChildren.map(c => `${c.dateOfBirth?.getTime()}-${c.selectedDates?.join(',')}-${JSON.stringify(c.sessionTypes)}`).join('|'), setValue, config]);
 
   const [showQRModal, setShowQRModal] = useState(false);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
@@ -159,8 +146,9 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
           dateOfBirth: child.dateOfBirth.toISOString(),
           ageRange: child.ageRange,
           specialNeeds: child.specialNeeds || '',
-          selectedDays: Array.from({ length: child.numberOfDays }, (_, i) => `Day ${i + 1}`),
-          selectedSessions: child.dailySessions,
+          selectedDays: child.selectedDates.map((date, i) => `Day ${i + 1}`), // For backward compatibility
+          selectedDates: child.selectedDates,
+          selectedSessions: child.sessionTypes,
           price: child.totalPrice,
         })),
         total_amount: totalAmount,
@@ -266,9 +254,9 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
                 dateOfBirth: undefined, 
                 ageRange: '3-below' as const, 
                 specialNeeds: '',
-                numberOfDays: 1,
-                dailySessions: ['full'],
-                totalPrice: config.pricing.fullDayRate
+                selectedDates: [],
+                sessionTypes: {},
+                totalPrice: 0
               })}
             >
               <Plus className="w-4 h-4 mr-1" />
@@ -332,11 +320,10 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
                           <SelectValue placeholder="Select date of birth first" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="3-below">3 & Below</SelectItem>
-                          <SelectItem value="4-6">4-6 years</SelectItem>
-                          <SelectItem value="7-10">7-10 years</SelectItem>
-                          <SelectItem value="11-13">11-13 years</SelectItem>
-                          <SelectItem value="14-17">14-17 years</SelectItem>
+                          <SelectItem value="3-below">3 & Below (Neem)</SelectItem>
+                          <SelectItem value="4-6">4-6 (Grevillea)</SelectItem>
+                          <SelectItem value="7-10">7-10 (Croton)</SelectItem>
+                          <SelectItem value="11-15">11-15 (Mighty Oaks)</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
@@ -346,100 +333,21 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
                   )}
                 </div>
 
-                <div>
-                  <Label className="text-sm">{config.fields.numberOfDays.label}</Label>
-                  <Controller
-                    name={`children.${index}.numberOfDays`}
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        type="number"
-                        min={1}
-                        max={60}
-                        placeholder={config.fields.numberOfDays.placeholder}
-                        className="mt-1"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                        value={field.value || ''}
-                      />
-                    )}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">{config.fields.numberOfDays.helpText}</p>
-                  {errors.children?.[index]?.numberOfDays && (
-                    <p className="text-destructive text-sm mt-1">{errors.children[index]?.numberOfDays?.message}</p>
-                  )}
-                </div>
-
-                {watchedChildren[index]?.numberOfDays > 0 && (
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-sm mb-2 block">{config.fields.sessionType.label}</Label>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => {
-                            const sessions = Array(watchedChildren[index]?.numberOfDays || 0).fill('half');
-                            setValue(`children.${index}.dailySessions`, sessions as Array<'half' | 'full'>, { shouldValidate: true });
-                          }}
-                        >
-                          {config.fields.sessionType.halfDayLabel} ({config.pricing.halfDayRate.toLocaleString()} {config.pricing.currency}/day)
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => {
-                            const sessions = Array(watchedChildren[index]?.numberOfDays || 0).fill('full');
-                            setValue(`children.${index}.dailySessions`, sessions as Array<'half' | 'full'>, { shouldValidate: true });
-                          }}
-                        >
-                          {config.fields.sessionType.fullDayLabel} ({config.pricing.fullDayRate.toLocaleString()} {config.pricing.currency}/day)
-                        </Button>
-                      </div>
-                    </div>
-
-                    <details className="group">
-                      <summary className="cursor-pointer text-sm font-medium text-primary hover:underline list-none flex items-center gap-2">
-                        <span className="group-open:rotate-90 transition-transform">▶</span>
-                        Customize Individual Days (Optional)
-                      </summary>
-                      <div className="mt-3 space-y-2 pl-4">
-                        {Array.from({ length: watchedChildren[index]?.numberOfDays || 0 }).map((_, dayIndex) => (
-                          <div key={dayIndex} className="flex items-center gap-3 bg-muted/50 rounded p-2">
-                            <span className="text-sm font-medium min-w-[60px]">Day {dayIndex + 1}:</span>
-                            <Controller
-                              name={`children.${index}.dailySessions.${dayIndex}`}
-                              control={control}
-                              render={({ field }) => (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                  <SelectTrigger className="h-8">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="half">{config.fields.sessionType.halfDayLabel} ({config.pricing.halfDayRate.toLocaleString()} {config.pricing.currency})</SelectItem>
-                                    <SelectItem value="full">{config.fields.sessionType.fullDayLabel} ({config.pricing.fullDayRate.toLocaleString()} {config.pricing.currency})</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-
-                    <div className="bg-primary/5 rounded-lg p-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">Subtotal for Child {index + 1}:</span>
-                        <span className="text-lg font-bold text-primary">
-                          {config.pricing.currency} {watchedChildren[index]?.totalPrice?.toLocaleString() || 0}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                <DateSelector
+                  availableDates={config.availableDates || []}
+                  selectedDates={watchedChildren[index]?.selectedDates || []}
+                  sessionTypes={watchedChildren[index]?.sessionTypes || {}}
+                  onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
+                  onSessionTypeChange={(date, type) => {
+                    const currentTypes = watchedChildren[index]?.sessionTypes || {};
+                    setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
+                  }}
+                  halfDayRate={config.pricing.halfDayRate}
+                  fullDayRate={config.pricing.fullDayRate}
+                  currency={config.pricing.currency}
+                />
+                {errors.children?.[index]?.selectedDates && (
+                  <p className="text-destructive text-sm mt-1">{errors.children[index]?.selectedDates?.message}</p>
                 )}
 
                 <div>

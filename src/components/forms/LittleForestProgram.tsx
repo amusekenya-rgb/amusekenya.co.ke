@@ -21,6 +21,7 @@ import { qrCodeService } from '@/services/qrCodeService';
 import { leadsService } from '@/services/leadsService';
 import type { CampRegistration } from '@/types/campRegistration';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
+import { mapDayNamesToCalendarDates } from '@/utils/dateMapper';
 
 // Child schema for multiple children support
 const childSchema = z.object({
@@ -109,6 +110,7 @@ const LittleForestProgram = () => {
           ageRange: child.childAge,
           specialNeeds: child.nannyRequired ? 'Accompanied by Nanny' : '',
           selectedDays: child.selectedDays,
+          selectedDates: [], // Little Forest uses day names, not specific dates yet
           selectedSessions: child.selectedDays,
           price: child.price,
         })),
@@ -366,20 +368,23 @@ const LittleForestProgram = () => {
                         Select Days * ({config.pricing.currency} {SESSION_PRICE.toLocaleString()} per day)
                       </Label>
                       <div className="mt-3 flex gap-6">
-                        {config.dayOptions.map(day => (
-                          <div key={day.value} className="flex items-center space-x-3">
-                            <Checkbox
-                              id={`${day.value}-${index}`}
-                              checked={watchChildren[index]?.selectedDays?.includes(day.value)}
-                              onCheckedChange={(checked) =>
-                                handleDayChange(index, day.value, checked as boolean)
-                              }
-                            />
-                            <Label htmlFor={`${day.value}-${index}`} className="text-base">
-                              {day.label}
-                            </Label>
-                          </div>
-                        ))}
+                        {(() => {
+                          const daysWithDates = mapDayNamesToCalendarDates(config.sessionSchedule);
+                          return daysWithDates.map(day => (
+                            <div key={day.value} className="flex items-center space-x-3">
+                              <Checkbox
+                                id={`${day.value}-${index}`}
+                                checked={watchChildren[index]?.selectedDays?.includes(day.value)}
+                                onCheckedChange={(checked) =>
+                                  handleDayChange(index, day.value, checked as boolean)
+                                }
+                              />
+                              <Label htmlFor={`${day.value}-${index}`} className="text-base">
+                                {day.label}
+                              </Label>
+                            </div>
+                          ));
+                        })()}
                       </div>
                       {errors.children?.[index]?.selectedDays && (
                         <p className="text-destructive text-sm mt-1">

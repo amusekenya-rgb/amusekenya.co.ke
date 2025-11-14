@@ -64,23 +64,64 @@ export const AttendanceMarkingTab: React.FC = () => {
     }
 
     try {
+      const key = `${registrationId}-${childName}`;
+      
+      // Optimistically update UI
+      setAttendanceStatus(prev => ({
+        ...prev,
+        [key]: {
+          id: 'temp',
+          check_in_time: new Date().toISOString(),
+          check_out_time: null
+        }
+      }));
+
+      // Perform check-in
       await attendanceService.checkIn(registrationId, childName, user.id);
       toast.success(`${childName} checked in successfully`);
-      loadTodaysRegistrations();
+      
+      // Fetch only the updated attendance record
+      const attendance = await attendanceService.hasCheckedInToday(registrationId, childName);
+      setAttendanceStatus(prev => ({
+        ...prev,
+        [key]: attendance
+      }));
     } catch (error) {
       console.error('Error checking in:', error);
       toast.error('Failed to check in');
+      // Reload on error to ensure correct state
+      loadTodaysRegistrations();
     }
   };
 
-  const handleCheckOut = async (attendanceId: string, childName: string) => {
+  const handleCheckOut = async (attendanceId: string, childName: string, registrationId: string) => {
     try {
+      const key = `${registrationId}-${childName}`;
+      
+      // Optimistically update UI
+      setAttendanceStatus(prev => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          check_out_time: new Date().toISOString()
+        }
+      }));
+
+      // Perform check-out
       await attendanceService.checkOut(attendanceId);
       toast.success(`${childName} checked out successfully`);
-      loadTodaysRegistrations();
+      
+      // Fetch only the updated attendance record
+      const attendance = await attendanceService.hasCheckedInToday(registrationId, childName);
+      setAttendanceStatus(prev => ({
+        ...prev,
+        [key]: attendance
+      }));
     } catch (error) {
       console.error('Error checking out:', error);
       toast.error('Failed to check out');
+      // Reload on error to ensure correct state
+      loadTodaysRegistrations();
     }
   };
 
@@ -150,8 +191,14 @@ export const AttendanceMarkingTab: React.FC = () => {
           }`
         );
         
-        // Refresh the attendance list
-        loadTodaysRegistrations();
+        // Update attendance status for affected children without full reload
+        const statusUpdates: Record<string, any> = {};
+        for (const child of registration.children) {
+          const key = `${registration.id}-${child.childName}`;
+          const attendance = await attendanceService.hasCheckedInToday(registration.id!, child.childName);
+          statusUpdates[key] = attendance;
+        }
+        setAttendanceStatus(prev => ({ ...prev, ...statusUpdates }));
       } else if (alreadyCheckedInCount > 0) {
         toast.info('All children from this registration are already checked in');
       }
@@ -244,7 +291,7 @@ export const AttendanceMarkingTab: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleCheckOut(attendance.id, child.childName)}
+                            onClick={() => handleCheckOut(attendance.id, child.childName, reg.id!)}
                           >
                             Check Out
                           </Button>

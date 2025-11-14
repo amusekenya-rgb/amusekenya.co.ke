@@ -9,21 +9,26 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, differenceInDays } from "date-fns";
-import { CalendarIcon, Clock, Plus, Trash2, Upload } from "lucide-react";
+import { CalendarIcon, Clock, Plus, Trash2, Upload, Calendar as CalendarDaysIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Event, saveEvent } from '@/services/calendarService';
+import { Event, saveEvent, updateEvent } from '@/services/calendarService';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { programTypes, getProgramsByCategory, getProgramUrl } from '@/services/programMappingService';
+import { MultiDatePicker } from '@/components/forms/MultiDatePicker';
 
 interface EventManagementProps {
   onAddEvent?: (event: Event) => void;
+  onEditComplete?: (event: Event) => void;
+  editingEvent?: Event | null;
   className?: string;
 }
 
 const EventManagement: React.FC<EventManagementProps> = ({ 
   onAddEvent,
+  onEditComplete,
+  editingEvent,
   className 
 }) => {
   const [eventStartDate, setEventStartDate] = useState<Date | undefined>(new Date());
@@ -40,6 +45,47 @@ const EventManagement: React.FC<EventManagementProps> = ({
   const [activeTab, setActiveTab] = useState("basicDetails");
   const [programType, setProgramType] = useState<string>("");
   const [registrationUrl, setRegistrationUrl] = useState<string>("");
+  const [dateSelectionMode, setDateSelectionMode] = useState<'range' | 'specific'>('range');
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+
+  // Load event data when editing
+  useEffect(() => {
+    if (editingEvent) {
+      setTitle(editingEvent.title);
+      setDescription(editingEvent.description || "");
+      setLocation(editingEvent.location || "");
+      setMaxAttendees(editingEvent.maxAttendees?.toString() || "20");
+      setColor(editingEvent.color || "bg-forest-500");
+      setEventType(editingEvent.eventType || 'program');
+      setProgramType(editingEvent.programType || "");
+      setRegistrationUrl(editingEvent.registrationUrl || "");
+      setProgramPdf(editingEvent.programPdf || "");
+      
+      // Set date mode based on event data
+      if (editingEvent.eventDates && editingEvent.eventDates.length > 0) {
+        setDateSelectionMode('specific');
+        setSelectedDates(editingEvent.eventDates);
+      } else {
+        setDateSelectionMode('range');
+        const startDate = editingEvent.start instanceof Date ? editingEvent.start : new Date(editingEvent.start);
+        const endDate = editingEvent.end instanceof Date ? editingEvent.end : new Date(editingEvent.end);
+        setEventStartDate(startDate);
+        setEventEndDate(endDate);
+      }
+      
+      // Set times from event
+      const startDate = editingEvent.start instanceof Date ? editingEvent.start : new Date(editingEvent.start);
+      const endDate = editingEvent.end instanceof Date ? editingEvent.end : new Date(editingEvent.end);
+      
+      const startHours = startDate.getHours().toString().padStart(2, '0');
+      const startMinutes = startDate.getMinutes().toString().padStart(2, '0');
+      setStartTime(`${startHours}:${startMinutes}`);
+      
+      const endHours = endDate.getHours().toString().padStart(2, '0');
+      const endMinutes = endDate.getMinutes().toString().padStart(2, '0');
+      setEndTime(`${endHours}:${endMinutes}`);
+    }
+  }, [editingEvent]);
 
   // Auto-populate registration URL when program type changes
   useEffect(() => {
@@ -66,20 +112,47 @@ const EventManagement: React.FC<EventManagementProps> = ({
   };
 
   const handleAddEvent = async () => {
-    if (!title || !eventStartDate || !eventEndDate) return;
+    // Validation
+    if (!title) {
+      toast.error('Please enter an event title');
+      return;
+    }
     
-    // Create the event start and end dates by combining the date with the times
+    if (dateSelectionMode === 'range' && (!eventStartDate || !eventEndDate)) {
+      toast.error('Please select start and end dates');
+      return;
+    }
+    
+    if (dateSelectionMode === 'specific' && selectedDates.length === 0) {
+      toast.error('Please select at least one date');
+      return;
+    }
+    
+    // Create the event start and end dates
     const [startHour, startMinute] = startTime.split(":").map(Number);
     const [endHour, endMinute] = endTime.split(":").map(Number);
     
-    const startDate = new Date(eventStartDate);
-    startDate.setHours(startHour, startMinute);
+    let startDate: Date;
+    let endDate: Date;
+    let eventDates: string[] | undefined;
     
-    const endDate = new Date(eventEndDate);
+    if (dateSelectionMode === 'specific') {
+      // Sort dates to get first and last
+      const sortedDates = [...selectedDates].sort();
+      startDate = new Date(sortedDates[0]);
+      endDate = new Date(sortedDates[sortedDates.length - 1]);
+      eventDates = sortedDates;
+    } else {
+      startDate = new Date(eventStartDate!);
+      endDate = new Date(eventEndDate!);
+      eventDates = undefined;
+    }
+    
+    startDate.setHours(startHour, startMinute);
     endDate.setHours(endHour, endMinute);
     
-    const newEvent: Event = {
-      id: Date.now().toString(),
+    const eventData: Event = {
+      id: editingEvent?.id || Date.now().toString(),
       title,
       start: startDate,
       end: endDate,
@@ -91,30 +164,52 @@ const EventManagement: React.FC<EventManagementProps> = ({
       programType: programType || undefined,
       registrationUrl: registrationUrl || undefined,
       programPdf: programPdf || undefined,
+      eventDates: eventDates,
     };
     
-    const savedEvent = await saveEvent(newEvent);
+    let savedEvent: Event | null;
     
-    if (savedEvent) {
-      toast.success('Event created successfully');
-      if (onAddEvent) {
-        onAddEvent(savedEvent);
+    if (editingEvent) {
+      // Update existing event
+      savedEvent = await updateEvent(eventData);
+      if (savedEvent) {
+        toast.success('Event updated successfully');
+        if (onEditComplete) {
+          onEditComplete(savedEvent);
+        }
+      } else {
+        toast.error('Failed to update event');
+        return;
       }
-      
-      // Reset form
-      setTitle("");
-      setDescription("");
-      setLocation("");
-      setMaxAttendees("20");
-      setStartTime("09:00");
-      setEndTime("17:00");
-      setEventType('program');
-      setProgramPdf("");
-      setProgramType("");
-      setRegistrationUrl("");
     } else {
-      toast.error('Failed to create event');
+      // Create new event
+      savedEvent = await saveEvent(eventData);
+      if (savedEvent) {
+        toast.success('Event created successfully');
+        if (onAddEvent) {
+          onAddEvent(savedEvent);
+        }
+      } else {
+        toast.error('Failed to create event');
+        return;
+      }
     }
+    
+    // Reset form
+    setTitle("");
+    setDescription("");
+    setLocation("");
+    setMaxAttendees("20");
+    setStartTime("09:00");
+    setEndTime("17:00");
+    setEventType('program');
+    setProgramPdf("");
+    setProgramType("");
+    setRegistrationUrl("");
+    setSelectedDates([]);
+    setDateSelectionMode('range');
+    setEventStartDate(new Date());
+    setEventEndDate(new Date());
   };
 
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,10 +241,12 @@ const EventManagement: React.FC<EventManagementProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Plus className="h-5 w-5" />
-          Add New Program Event
+          {editingEvent ? 'Edit Program Event' : 'Add New Program Event'}
         </CardTitle>
         <CardDescription>
-          Create a new program event that will appear in the calendar.
+          {editingEvent 
+            ? 'Modify the program event details below.' 
+            : 'Create a new program event that will appear in the calendar.'}
         </CardDescription>
       </CardHeader>
       
@@ -238,63 +335,90 @@ const EventManagement: React.FC<EventManagementProps> = ({
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !eventStartDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {eventStartDate ? format(eventStartDate, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={eventStartDate}
-                          onSelect={handleStartDateChange}
-                          initialFocus
-                          className="pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+              <div className="space-y-4">
+                <Label className="text-base font-semibold flex items-center gap-2">
+                  <CalendarDaysIcon className="h-4 w-4" />
+                  Calendar Dates
+                </Label>
+                
+                <Tabs value={dateSelectionMode} onValueChange={(val) => setDateSelectionMode(val as 'range' | 'specific')}>
+                  <TabsList className="w-full mb-4">
+                    <TabsTrigger value="range" className="flex-1">Date Range</TabsTrigger>
+                    <TabsTrigger value="specific" className="flex-1">Specific Dates</TabsTrigger>
+                  </TabsList>
                   
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !eventEndDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {eventEndDate ? format(eventEndDate, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={eventEndDate}
-                          onSelect={handleEndDateChange}
-                          disabled={(date) => !eventStartDate || date < eventStartDate}
-                          initialFocus
-                          className="pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
+                  <TabsContent value="range" className="mt-0">
+                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Start Date</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !eventStartDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {eventStartDate ? format(eventStartDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={eventStartDate}
+                              onSelect={handleStartDateChange}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>End Date</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !eventEndDate && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {eventEndDate ? format(eventEndDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={eventEndDate}
+                              onSelect={handleEndDateChange}
+                              disabled={(date) => !eventStartDate || date < eventStartDate}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Select a continuous date range for your event
+                    </p>
+                  </TabsContent>
+                  
+                  <TabsContent value="specific" className="mt-0">
+                    <MultiDatePicker
+                      selectedDates={selectedDates}
+                      onChange={setSelectedDates}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Select specific dates for complex schedules (e.g., weekdays only, non-consecutive dates)
+                    </p>
+                  </TabsContent>
+                </Tabs>
               </div>
               
               <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
@@ -403,7 +527,7 @@ const EventManagement: React.FC<EventManagementProps> = ({
       
       <CardFooter>
         <Button onClick={handleAddEvent} className="w-full">
-          Add Program Event
+          {editingEvent ? 'Update Program Event' : 'Add Program Event'}
         </Button>
       </CardFooter>
     </Card>

@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { cmsService } from '@/services/cmsService';
+import { MultiDatePicker } from '@/components/forms/MultiDatePicker';
 
 interface CampFormEditorProps {
   isOpen: boolean;
@@ -49,7 +50,8 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
     specialNeedsSection: {
       title: 'Special Needs & Medical Information',
       description: 'Please provide any information about allergies, medical conditions, or special accommodations needed.'
-    }
+    },
+    availableDates: [] as string[]
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -64,7 +66,15 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
     
     const data = await cmsService.getCampFormConfig(formSlug.replace('-form', ''));
     if (data?.metadata?.formConfig) {
-      setFormData(data.metadata.formConfig);
+      setFormData({
+        ...formData,
+        ...data.metadata.formConfig,
+        specialNeedsSection: {
+          ...formData.specialNeedsSection,
+          ...(data.metadata.formConfig.specialNeedsSection || {})
+        },
+        availableDates: data.metadata.formConfig.availableDates || []
+      });
     }
   };
 
@@ -74,14 +84,13 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
 
     try {
       const formType = formSlug?.replace('-form', '') || '';
+      
       const result = await cmsService.updateCampFormConfig(formType, formData);
       
       if (result) {
         toast.success('Camp form updated successfully');
         onSave();
         onClose();
-        // Force page reload to fetch fresh data from database
-        setTimeout(() => window.location.reload(), 500);
       } else {
         toast.error('Failed to update camp form - please check permissions');
       }
@@ -103,8 +112,9 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Tabs defaultValue="pricing" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="pricing">Pricing</TabsTrigger>
+              <TabsTrigger value="dates">Session Dates</TabsTrigger>
               <TabsTrigger value="fields">Field Labels</TabsTrigger>
               <TabsTrigger value="buttons">Buttons</TabsTrigger>
               <TabsTrigger value="messages">Messages</TabsTrigger>
@@ -147,6 +157,22 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
                     })}
                   />
                 </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="dates" className="space-y-4 pt-4">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2">Available Camp Dates</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Select specific dates when this camp will be available. Supports complex schedules like weekdays only, specific weeks, or custom date combinations.
+                  </p>
+                </div>
+
+                <MultiDatePicker
+                  selectedDates={formData.availableDates}
+                  onChange={(dates) => setFormData({ ...formData, availableDates: dates })}
+                />
               </div>
             </TabsContent>
 

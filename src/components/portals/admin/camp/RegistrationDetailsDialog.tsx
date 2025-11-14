@@ -17,6 +17,7 @@ import { CampRegistration } from '@/types/campRegistration';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { toast } from 'sonner';
 import { Save, User, Mail, Phone, Calendar, DollarSign, FileText } from 'lucide-react';
+import { formatShortDate } from '@/utils/dateMapper';
 
 interface RegistrationDetailsDialogProps {
   open: boolean;
@@ -133,11 +134,21 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">Days: </span>
-                      {child.selectedDays.join(', ')}
+                      {child.selectedDays.map((day, idx) => {
+                        const dateStr = child.selectedDates?.[idx];
+                        return dateStr 
+                          ? `${day} (${formatShortDate(dateStr)})`
+                          : day;
+                      }).join(', ')}
                     </div>
                     <div>
                       <span className="text-muted-foreground">Sessions: </span>
-                      {child.selectedSessions.join(', ')}
+                      {Array.isArray(child.selectedSessions) 
+                        ? child.selectedSessions.join(', ')
+                        : Object.entries(child.selectedSessions as Record<string, 'half' | 'full'>)
+                            .map(([date, session]) => `${date}: ${session}`)
+                            .join(', ')
+                      }
                     </div>
                     <div>
                       <span className="text-muted-foreground">Price: </span>

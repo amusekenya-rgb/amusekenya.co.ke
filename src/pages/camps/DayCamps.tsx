@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Link } from 'react-router-dom';
@@ -7,7 +7,17 @@ import DayCampsProgram from '@/components/forms/DayCampsProgram';
 import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 
 const DayCamps = () => {
-  const { config, isLoading } = useCampPageConfig('day-camps');
+  const { config, isLoading, refresh } = useCampPageConfig('day-camps');
+
+  // Listen for CMS updates and refresh config
+  useEffect(() => {
+    const handleCMSUpdate = () => {
+      refresh?.();
+    };
+    
+    window.addEventListener('cms-content-updated', handleCMSUpdate);
+    return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
+  }, [refresh]);
 
   if (isLoading) {
     return (

@@ -3,8 +3,9 @@ export interface CampChild {
   dateOfBirth: string;
   ageRange: string;
   specialNeeds?: string;
-  selectedDays: string[];
-  selectedSessions: string[];
+  selectedDays: string[]; // Deprecated: For backward compatibility
+  selectedDates: string[]; // Array of YYYY-MM-DD dates
+  selectedSessions: string[] | Record<string, 'half' | 'full'>; // Array (old) or keyed by date (new)
   price: number;
 }
 

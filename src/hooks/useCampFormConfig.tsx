@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { format, addDays } from 'date-fns';
 import { cmsService } from '@/services/cmsService';
 import { defaultCampFormConfigs } from '@/utils/defaultCampConfigs';
 
@@ -36,6 +37,11 @@ export interface CampFormConfig {
     title: string;
     description: string;
   };
+  sessionDates?: {
+    startDate: string; // YYYY-MM-DD format (deprecated, for backward compatibility)
+    endDate?: string; // YYYY-MM-DD format (deprecated, for backward compatibility)
+  };
+  availableDates?: string[]; // Array of YYYY-MM-DD dates (preferred method)
   ageGroups?: Array<{
     age: string;
     locations: string;
@@ -57,12 +63,37 @@ export const useCampFormConfig = (formType: string) => {
         setError(null);
         
         const data = await cmsService.getCampFormConfig(formType);
+        const defaultConfig = defaultCampFormConfigs[formType];
         
         if (data?.metadata?.formConfig) {
-          setConfig(data.metadata.formConfig);
+          // Merge CMS config with default config to include sessionDates and other missing fields
+          let availableDates = data.metadata.formConfig.availableDates || defaultConfig?.availableDates;
+          
+          // Backward compatibility: Generate availableDates from sessionDates if not present
+          if (!availableDates && data.metadata.formConfig.sessionDates?.startDate) {
+            const start = new Date(data.metadata.formConfig.sessionDates.startDate);
+            const end = data.metadata.formConfig.sessionDates.endDate 
+              ? new Date(data.metadata.formConfig.sessionDates.endDate) 
+              : start;
+            
+            availableDates = [];
+            const current = new Date(start);
+            while (current <= end) {
+              availableDates.push(format(current, 'yyyy-MM-dd'));
+              current.setDate(current.getDate() + 1);
+            }
+          }
+          
+          const mergedConfig = {
+            ...defaultConfig,
+            ...data.metadata.formConfig,
+            availableDates,
+            sessionDates: data.metadata.formConfig.sessionDates || defaultConfig?.sessionDates,
+            ageGroups: data.metadata.formConfig.ageGroups || defaultConfig?.ageGroups
+          };
+          setConfig(mergedConfig);
         } else {
           // Use default config if CMS data not found
-          const defaultConfig = defaultCampFormConfigs[formType];
           setConfig(defaultConfig || null);
         }
       } catch (err) {

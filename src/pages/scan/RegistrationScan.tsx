@@ -174,7 +174,14 @@ const RegistrationScan = () => {
                       </div>
                       <div>
                         <span className="text-muted-foreground">Sessions: </span>
-                        <span className="capitalize">{child.selectedSessions?.join(', ')}</span>
+                        <span className="capitalize">
+                          {Array.isArray(child.selectedSessions)
+                            ? child.selectedSessions.join(', ')
+                            : Object.entries(child.selectedSessions as Record<string, 'half' | 'full'>)
+                                .map(([date, session]) => `${session}`)
+                                .join(', ')
+                          }
+                        </span>
                       </div>
                     </div>
                     {child.specialNeeds && (

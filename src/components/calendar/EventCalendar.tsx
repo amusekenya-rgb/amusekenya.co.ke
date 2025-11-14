@@ -137,7 +137,14 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
     return events.filter(event => {
       const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
       const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
-      // Show event on every day within its date range
+      
+      // If event has specific dates, check if day matches any of them
+      if (event.eventDates && event.eventDates.length > 0) {
+        const dayStr = format(day, 'yyyy-MM-dd');
+        return event.eventDates.includes(dayStr);
+      }
+      
+      // Otherwise, show event on every day within its date range
       return day >= new Date(eventStart.getFullYear(), eventStart.getMonth(), eventStart.getDate()) && 
              day <= new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate());
     });
@@ -176,6 +183,15 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
   };
   
   const getEventDuration = (event: Event) => {
+    // If event has specific dates, count them
+    if (event.eventDates && event.eventDates.length > 0) {
+      const count = event.eventDates.length;
+      if (count === 1) return "1 day";
+      if (count >= 5 && count <= 7) return "Week-long";
+      return `${count} days`;
+    }
+    
+    // Otherwise, calculate from date range
     const start = event.start instanceof Date ? event.start : new Date(event.start);
     const end = event.end instanceof Date ? event.end : new Date(event.end);
     
@@ -192,11 +208,20 @@ const EventCalendar: React.FC<EventCalendarProps> = ({
 
   const getEventsByMonth = (monthIndex: number) => {
     return events.filter(event => {
-      const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
-      const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
       const monthStart = new Date(currentDate.getFullYear(), monthIndex, 1);
       const monthEnd = new Date(currentDate.getFullYear(), monthIndex + 1, 0);
-      // Include events that overlap with this month
+      
+      // If event has specific dates, check if any fall in this month
+      if (event.eventDates && event.eventDates.length > 0) {
+        return event.eventDates.some(dateStr => {
+          const eventDate = new Date(dateStr);
+          return eventDate >= monthStart && eventDate <= monthEnd;
+        });
+      }
+      
+      // Otherwise check date range overlap
+      const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
+      const eventEnd = event.end instanceof Date ? event.end : new Date(event.end);
       return eventEnd >= monthStart && eventStart <= monthEnd;
     });
   };

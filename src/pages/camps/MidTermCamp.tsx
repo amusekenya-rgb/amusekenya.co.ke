@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Link, useParams } from 'react-router-dom';
@@ -9,7 +9,17 @@ import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 const MidTermCamp = () => {
   const { period } = useParams<{ period: string }>();
   const campType = period ? `mid-term-${period}` : 'mid-term-feb-march';
-  const { config, isLoading } = useCampPageConfig(campType);
+  const { config, isLoading, refresh } = useCampPageConfig(campType);
+
+  // Listen for CMS updates and refresh config
+  useEffect(() => {
+    const handleCMSUpdate = () => {
+      refresh?.();
+    };
+    
+    window.addEventListener('cms-content-updated', handleCMSUpdate);
+    return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
+  }, [refresh]);
 
   if (isLoading) {
     return (

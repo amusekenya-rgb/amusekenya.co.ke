@@ -17,7 +17,7 @@ import { ProgramEditor } from './editors/ProgramEditor';
 import { SiteSettingsEditor } from './editors/SiteSettingsEditor';
 import AdminGalleryManager from '@/components/AdminGalleryManager';
 import { AnnouncementEditorDialog } from './editors/AnnouncementEditorDialog';
-import EventManagement from '@/components/calendar/EventManagement';
+import AdminCalendar from '@/components/admin/AdminCalendar';
 import NavigationManager from './NavigationManager';
 import SeedCMSButton from '@/components/admin/SeedCMSButton';
 import { CampPageEditor } from './editors/CampPageEditor';
@@ -105,6 +105,8 @@ const ContentManagement = () => {
 
   const handleSave = () => {
     loadAllContent();
+    // Dispatch custom event to notify pages to refresh their content
+    window.dispatchEvent(new CustomEvent('cms-content-updated'));
   };
 
   const getStatusBadge = (status: string) => {
@@ -306,7 +308,7 @@ const ContentManagement = () => {
         </TabsContent>
 
         <TabsContent value="calendar">
-          <EventManagement />
+          <AdminCalendar />
         </TabsContent>
 
         <TabsContent value="navigation">

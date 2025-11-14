@@ -162,10 +162,34 @@ const baseFormConfig: Omit<CampFormConfig, 'ageGroups'> = {
 };
 
 export const defaultCampFormConfigs: Record<string, CampFormConfig> = {
-  'easter': { ...baseFormConfig },
-  'summer': { ...baseFormConfig },
-  'end-year': { ...baseFormConfig },
-  'mid-term': { ...baseFormConfig },
+  'easter': { 
+    ...baseFormConfig,
+    sessionDates: {
+      startDate: '2025-04-14',
+      endDate: '2025-04-18'
+    }
+  },
+  'summer': { 
+    ...baseFormConfig,
+    sessionDates: {
+      startDate: '2025-06-02',
+      endDate: '2025-07-25'
+    }
+  },
+  'end-year': { 
+    ...baseFormConfig,
+    sessionDates: {
+      startDate: '2025-12-08',
+      endDate: '2025-12-12'
+    }
+  },
+  'mid-term': { 
+    ...baseFormConfig,
+    sessionDates: {
+      startDate: '2025-10-20',
+      endDate: '2025-10-24'
+    }
+  },
   'holiday-camp': {
     pricing: {
       halfDayRate: 1500,
@@ -199,6 +223,10 @@ export const defaultCampFormConfigs: Record<string, CampFormConfig> = {
     specialNeedsSection: {
       title: 'Special Needs & Medical Information',
       description: 'Please provide any information about allergies, medical conditions, or special accommodations needed.'
+    },
+    sessionDates: {
+      startDate: '2025-04-14',
+      endDate: '2025-04-18'
     }
   },
   'day-camps': {
@@ -234,6 +262,10 @@ export const defaultCampFormConfigs: Record<string, CampFormConfig> = {
     specialNeedsSection: {
       title: 'Special Needs & Medical Information',
       description: 'Please provide any information about allergies, medical conditions, or special accommodations needed.'
+    },
+    sessionDates: {
+      startDate: '2025-06-02',
+      endDate: '2025-07-25'
     },
     ageGroups: [
       {

@@ -117,8 +117,6 @@ export const CampPageEditor: React.FC<CampPageEditorProps> = ({ isOpen, onClose,
         toast.success('Camp page updated successfully');
         onSave();
         onClose();
-        // Force page reload to fetch fresh data from database
-        setTimeout(() => window.location.reload(), 500);
       } else {
         toast.error('Failed to update camp page - please check permissions');
       }

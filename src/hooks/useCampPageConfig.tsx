@@ -53,12 +53,26 @@ export const useCampPageConfig = (campType: string) => {
   }, [campType]);
 
   // Add refresh function that can be called externally
-  const refresh = () => {
+  const refresh = async () => {
     if (campType) {
-      setConfig(null);
       setIsLoading(true);
+      setError(null);
+      try {
+        const data = await cmsService.getCampPageConfig(campType);
+        if (data?.metadata?.pageConfig) {
+          setConfig(data.metadata.pageConfig);
+        } else {
+          const defaultConfig = defaultCampPageConfigs[campType];
+          setConfig(defaultConfig || null);
+        }
+      } catch (err) {
+        console.error(`[CampPageConfig] Error refreshing ${campType}:`, err);
+        setError(err instanceof Error ? err.message : 'Failed to refresh config');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  return { config, isLoading, error };
+  return { config, isLoading, error, refresh };
 };

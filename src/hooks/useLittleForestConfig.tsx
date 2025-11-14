@@ -27,9 +27,14 @@ export interface LittleForestFormConfig {
     chooseOption: string;
     paymentComingSoon: string;
   };
+  sessionSchedule?: {
+    Monday?: string; // YYYY-MM-DD format
+    Friday?: string; // YYYY-MM-DD format
+  };
   dayOptions: Array<{
     value: string;
     label: string;
+    date?: string;
   }>;
   ageOptions: Array<{
     value: string;
@@ -63,6 +68,10 @@ export const defaultLittleForestConfig: LittleForestFormConfig = {
     chooseOption: 'Choose your registration option:',
     paymentComingSoon: 'Payment integration coming soon. Both options will complete your registration.'
   },
+  sessionSchedule: {
+    Monday: '2025-06-02',
+    Friday: '2025-06-06'
+  },
   dayOptions: [
     { value: 'Monday', label: 'Monday' },
     { value: 'Friday', label: 'Friday' }
@@ -88,7 +97,18 @@ export const useLittleForestConfig = () => {
         const data = await cmsService.getContentBySlug('little-forest-form');
         
         if (data?.metadata?.formConfig) {
-          setConfig(data.metadata.formConfig);
+          // Merge CMS config with default config to include sessionSchedule if missing
+          const mergedConfig = {
+            ...defaultLittleForestConfig,
+            ...data.metadata.formConfig,
+            // Ensure sessionSchedule from default is used if not in CMS
+            sessionSchedule: data.metadata.formConfig.sessionSchedule || defaultLittleForestConfig.sessionSchedule,
+            // Ensure dayOptions from default is used if not in CMS
+            dayOptions: data.metadata.formConfig.dayOptions || defaultLittleForestConfig.dayOptions,
+            // Ensure ageOptions from default is used if not in CMS
+            ageOptions: data.metadata.formConfig.ageOptions || defaultLittleForestConfig.ageOptions
+          };
+          setConfig(mergedConfig);
         } else {
           setConfig(defaultLittleForestConfig);
         }

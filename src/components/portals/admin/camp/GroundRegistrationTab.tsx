@@ -22,6 +22,7 @@ const childSchema = z.object({
   ageRange: z.string().min(1, 'Age range is required'),
   specialNeeds: z.string().max(500, 'Description too long').optional(),
   selectedDays: z.array(z.string()).min(1, 'Select at least one day'),
+  selectedDates: z.array(z.string()).optional(),
   selectedSessions: z.array(z.string()).min(1, 'Select at least one session'),
   price: z.number().min(0)
 });
@@ -146,6 +147,7 @@ export const GroundRegistrationTab: React.FC = () => {
           ageRange: child.ageRange || '',
           specialNeeds: child.specialNeeds || '',
           selectedDays: child.selectedDays || [],
+          selectedDates: child.selectedDates || [],
           selectedSessions: child.selectedSessions || [],
           price: child.price || 0
         })),

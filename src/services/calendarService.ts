@@ -33,6 +33,7 @@ export interface Event {
   registrationUrl?: string; // Direct link to registration form
   programPdf?: string; // URL or path to PDF
   eventType?: 'camp' | 'program' | 'workshop' | 'other';
+  eventDates?: string[]; // Array of specific dates for non-consecutive scheduling (format: YYYY-MM-DD)
   // Legacy fields - kept for backward compatibility
   programId?: string;
   isWeeklong?: boolean;
@@ -116,6 +117,7 @@ export const saveEvent = async (event: Event): Promise<Event | null> => {
         registration_url: event.registrationUrl,
         program_pdf: event.programPdf,
         event_type: event.eventType,
+        event_dates: event.eventDates ? JSON.stringify(event.eventDates) : null,
         created_by: user.id
       })
       .select()
@@ -134,7 +136,8 @@ export const saveEvent = async (event: Event): Promise<Event | null> => {
       programType: (data as any).program_type,
       registrationUrl: (data as any).registration_url,
       programPdf: (data as any).program_pdf,
-      eventType: (data as any).event_type as 'camp' | 'program' | 'workshop' | 'other'
+      eventType: (data as any).event_type as 'camp' | 'program' | 'workshop' | 'other',
+      eventDates: (data as any).event_dates ? JSON.parse((data as any).event_dates) : undefined
     } : null;
   } catch (error) {
     console.error('Failed to save event:', error);
@@ -164,7 +167,8 @@ export const loadEvents = async (): Promise<Event[]> => {
       programType: event.program_type,
       registrationUrl: event.registration_url,
       programPdf: event.program_pdf,
-      eventType: event.event_type as 'camp' | 'program' | 'workshop' | 'other'
+      eventType: event.event_type as 'camp' | 'program' | 'workshop' | 'other',
+      eventDates: event.event_dates ? JSON.parse(event.event_dates) : undefined
     })) : [];
   } catch (error) {
     console.error('Failed to load events:', error);
@@ -188,7 +192,8 @@ export const updateEvent = async (event: Event): Promise<Event | null> => {
         program_type: event.programType,
         registration_url: event.registrationUrl,
         program_pdf: event.programPdf,
-        event_type: event.eventType
+        event_type: event.eventType,
+        event_dates: event.eventDates ? JSON.stringify(event.eventDates) : null
       })
       .eq('id', event.id)
       .select()
@@ -207,7 +212,8 @@ export const updateEvent = async (event: Event): Promise<Event | null> => {
       programType: (data as any).program_type,
       registrationUrl: (data as any).registration_url,
       programPdf: (data as any).program_pdf,
-      eventType: (data as any).event_type as 'camp' | 'program' | 'workshop' | 'other'
+      eventType: (data as any).event_type as 'camp' | 'program' | 'workshop' | 'other',
+      eventDates: (data as any).event_dates ? JSON.parse((data as any).event_dates) : undefined
     } : null;
   } catch (error) {
     console.error('Failed to update event:', error);

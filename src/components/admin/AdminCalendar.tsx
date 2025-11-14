@@ -8,17 +8,19 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import EventCalendar from '@/components/calendar/EventCalendar';
 import EventManagement from '@/components/calendar/EventManagement';
 import { Event, saveEvent, loadEvents, deleteEvent } from '@/services/calendarService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PlusCircle, CalendarDays } from 'lucide-react';
+import { PlusCircle, CalendarDays, Edit2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 const AdminCalendar: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [activeTab, setActiveTab] = useState("calendar");
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   
   useEffect(() => {
     const fetchEvents = async () => {
@@ -48,6 +50,26 @@ const AdminCalendar: React.FC = () => {
     });
     setActiveTab("calendar");
     console.log('Event added and saved:', newEvent.title);
+  };
+
+  const handleEventEdited = (updatedEvent: Event) => {
+    setEvents(events.map(e => e.id === updatedEvent.id ? updatedEvent : e));
+    setEditingEvent(null);
+    toast({
+      title: "Event Updated",
+      description: `"${updatedEvent.title}" has been updated successfully.`,
+      duration: 3000,
+    });
+    setActiveTab("calendar");
+  };
+
+  const handleEditClick = (event: Event) => {
+    setEditingEvent(event);
+    setActiveTab("add");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEvent(null);
   };
   
   const handleDeleteEvent = async (eventId: string) => {
@@ -122,26 +144,52 @@ const AdminCalendar: React.FC = () => {
                         const dateB = b.start instanceof Date ? b.start : new Date(b.start);
                         return dateA.getTime() - dateB.getTime();
                       })
-                      .map((event) => (
-                        <Card key={event.id} className="overflow-hidden">
-                          <div className={`h-1 ${event.color}`} />
-                          <CardContent className="p-4 flex justify-between items-center">
-                            <div>
-                              <h4 className="font-medium">{event.title}</h4>
-                              <p className="text-sm text-gray-500">
-                                {format(event.start instanceof Date ? event.start : new Date(event.start), 'MMM d, yyyy')}
-                              </p>
-                            </div>
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              onClick={() => handleDeleteEvent(event.id)}
-                            >
-                              Delete
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      ))
+                      .map((event) => {
+                        const isMultiDate = event.eventDates && event.eventDates.length > 0;
+                        const dateDisplay = isMultiDate 
+                          ? event.eventDates!.length === 1
+                            ? format(new Date(event.eventDates![0]), 'MMM d, yyyy')
+                            : `${format(new Date(event.eventDates![0]), 'MMM d')} - ${format(new Date(event.eventDates![event.eventDates!.length - 1]), 'MMM d, yyyy')} (${event.eventDates!.length} days)`
+                          : format(event.start instanceof Date ? event.start : new Date(event.start), 'MMM d, yyyy');
+                        
+                        return (
+                          <Card key={event.id} className="overflow-hidden">
+                            <div className={`h-1 ${event.color}`} />
+                            <CardContent className="p-4 flex justify-between items-center">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-medium">{event.title}</h4>
+                                  {isMultiDate && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Multi-Date
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-500">
+                                  {dateDisplay}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleEditClick(event)}
+                                >
+                                  <Edit2 className="h-4 w-4 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm"
+                                  onClick={() => handleDeleteEvent(event.id)}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })
                   ) : (
                     <p className="text-center py-4 text-gray-500">
                       No events have been added yet.
@@ -154,7 +202,20 @@ const AdminCalendar: React.FC = () => {
         </TabsContent>
         
         <TabsContent value="add" className="mt-6">
-          <EventManagement onAddEvent={handleAddEvent} />
+          <EventManagement 
+            onAddEvent={handleAddEvent}
+            onEditComplete={handleEventEdited}
+            editingEvent={editingEvent}
+          />
+          {editingEvent && (
+            <Button 
+              variant="outline" 
+              onClick={handleCancelEdit}
+              className="w-full mt-4"
+            >
+              Cancel Editing
+            </Button>
+          )}
         </TabsContent>
       </Tabs>
     </div>
