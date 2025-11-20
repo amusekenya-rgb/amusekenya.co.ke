@@ -113,9 +113,17 @@ const Footer = () => {
         </div>
         
         <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-gray-400 text-sm mb-4 md:mb-0">
-            &copy; {new Date().getFullYear()} Amuse Kenya. All rights reserved.
-          </p>
+          <div className="flex flex-col items-center md:items-start gap-2">
+            <p className="text-gray-400 text-sm mb-4 md:mb-0">
+              &copy; {new Date().getFullYear()} Amuse Kenya. All rights reserved.
+            </p>
+            <a 
+              href="/test/email-monitor" 
+              className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+            >
+              Email Test Monitor
+            </a>
+          </div>
           <button 
             onClick={scrollToTop}
             className="bg-forest-600 hover:bg-forest-700 text-white p-2 rounded-full transition-colors duration-300 flex items-center gap-2"

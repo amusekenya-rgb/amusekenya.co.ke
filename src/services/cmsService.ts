@@ -8,7 +8,7 @@ export interface ContentItem {
   title: string;
   slug: string;
   content?: string;
-  content_type: 'page' | 'post' | 'announcement' | 'campaign' | 'hero_slide' | 'program' | 'site_settings' | 'testimonial' | 'team_member' | 'about_section' | 'service_item' | 'camp_page' | 'camp_form';
+  content_type: 'page' | 'post' | 'announcement' | 'campaign' | 'hero_slide' | 'program' | 'site_settings' | 'testimonial' | 'team_member' | 'about_section' | 'service_item' | 'camp_page' | 'camp_form' | 'activity_detail';
   status: 'draft' | 'published' | 'archived';
   author_id?: string;
   published_at?: string;
@@ -29,6 +29,11 @@ export const cmsService = {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
+      if (!user) {
+        console.error('No authenticated user found');
+        return null;
+      }
+
       const { data, error } = await supabaseAny
         .from('content_items')
         .insert([{
@@ -41,9 +46,17 @@ export const cmsService = {
         .single();
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('Supabase error creating content:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         return null;
       }
+      
+      console.log('Content created successfully:', data);
       return data;
     } catch (error) {
       console.error('Error creating content:', error);
@@ -94,18 +107,28 @@ export const cmsService = {
     }
   },
 
-  async getContentBySlug(slug: string): Promise<ContentItem | null> {
+  async getContentBySlug(slug: string, contentType?: ContentItem['content_type']): Promise<ContentItem | null> {
     try {
-      const { data, error } = await supabaseAny
+      let query = supabaseAny
         .from('content_items')
         .select('*')
-        .eq('slug', slug)
-        .single();
+        .eq('slug', slug);
+      
+      if (contentType) {
+        query = query.eq('content_type', contentType);
+      }
+      
+      const { data, error } = await query.maybeSingle();
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('Supabase error fetching by slug:', error);
         return null;
       }
+      
+      if (!data) {
+        console.log('No content found for slug:', slug);
+      }
+      
       return data;
     } catch (error) {
       console.error('Error fetching content by slug:', error);
@@ -528,6 +551,41 @@ export const cmsService = {
     } catch (err) {
       console.error('Error updating program form config:', err);
       return null;
+    }
+  },
+
+  // Activity Detail Management
+  async getActivityDetail(slug: string): Promise<ContentItem | null> {
+    try {
+      const { data, error } = await supabaseAny
+        .from('content_items')
+        .select('*')
+        .eq('content_type', 'activity_detail')
+        .eq('slug', slug)
+        .eq('status', 'published')
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return data || null;
+    } catch (err) {
+      console.error('Error fetching activity detail:', err);
+      return null;
+    }
+  },
+
+  async getAllActivityDetails(): Promise<ContentItem[]> {
+    try {
+      const { data, error } = await supabaseAny
+        .from('content_items')
+        .select('*')
+        .eq('content_type', 'activity_detail')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching activity details:', err);
+      return [];
     }
   }
 };

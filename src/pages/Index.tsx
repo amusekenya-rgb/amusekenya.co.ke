@@ -8,6 +8,7 @@ import ProgramsOverview from '@/components/forms/ProgramsOverview';
 import YearlyCalendar from '@/components/YearlyCalendar';
 import Testimonials from '@/components/Testimonials';
 import Footer from '@/components/Footer';
+import SEOHead from '@/components/SEOHead';
 import { loadFromLocalStorage } from '@/services/dataService';
 import { loadEvents } from '@/services/calendarService';
 import { Button } from '@/components/ui/button';
@@ -100,10 +101,13 @@ const Index = () => {
   const handleAdminAccess = () => {
     navigate('/admin');
   };
-  return <div className="min-h-screen">
-      <header role="banner">
-        <Navbar />
-      </header>
+  return (
+    <>
+      <SEOHead />
+      <div className="min-h-screen">
+        <header role="banner">
+          <Navbar />
+        </header>
       
       <main role="main">
         <section aria-label="Hero section">
@@ -142,6 +146,8 @@ const Index = () => {
           </Button>
           
         </div>}
-    </div>;
+    </div>
+    </>
+  );
 };
 export default Index;

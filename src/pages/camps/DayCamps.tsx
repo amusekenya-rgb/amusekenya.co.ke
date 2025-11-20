@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import SEOHead from '@/components/SEOHead';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react';
 import DayCampsProgram from '@/components/forms/DayCampsProgram';
@@ -21,30 +22,53 @@ const DayCamps = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <>
+        <SEOHead
+          title="Daily Adventure Programs | Amuse Kenya Day Camps"
+          description="Join our daily outdoor adventure programs at Karura Forest. Nature exploration, games, and skill-building activities for children. Flexible daily attendance options available."
+          keywords="day camps Kenya, daily activities, children's programs, outdoor activities Nairobi, forest activities, nature programs, after-school activities"
+          canonical="https://amusekenya.co.ke/camps/day-camps"
+        />
+        <div className="min-h-screen bg-background">
         <Navbar />
         <div className="container mx-auto px-4 py-8 pt-24 text-center">
           <p className="text-muted-foreground">Loading camp information...</p>
         </div>
         <Footer />
       </div>
+      </>
     );
   }
 
   if (!config) {
     return (
-      <div className="min-h-screen bg-background">
+      <>
+        <SEOHead
+          title="Daily Adventure Programs | Amuse Kenya Day Camps"
+          description="Join our daily outdoor adventure programs at Karura Forest. Nature exploration, games, and skill-building activities for children. Flexible daily attendance options available."
+          keywords="day camps Kenya, daily activities, children's programs, outdoor activities Nairobi, forest activities, nature programs, after-school activities"
+          canonical="https://amusekenya.co.ke/camps/day-camps"
+        />
+        <div className="min-h-screen bg-background">
         <Navbar />
         <div className="container mx-auto px-4 py-8 pt-24 text-center">
           <p className="text-destructive">Failed to load camp information.</p>
         </div>
         <Footer />
       </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <SEOHead
+        title="Daily Adventure Programs | Amuse Kenya Day Camps"
+        description="Join our daily outdoor adventure programs at Karura Forest. Nature exploration, games, and skill-building activities for children. Flexible daily attendance options available."
+        keywords="day camps Kenya, daily activities, children's programs, outdoor activities Nairobi, forest activities, nature programs, after-school activities"
+        canonical="https://amusekenya.co.ke/camps/day-camps"
+      />
+      <div className="min-h-screen bg-background">
       <Navbar />
       
       <div className="container mx-auto px-4 py-8 pt-24">
@@ -148,6 +172,7 @@ const DayCamps = () => {
       
       <Footer />
     </div>
+    </>
   );
 };
 

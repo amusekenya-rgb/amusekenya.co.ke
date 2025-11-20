@@ -2,12 +2,20 @@ import React from 'react';
 import Gallery from '@/components/Gallery';
 import Footer from '@/components/Footer';
 import Navbar from '@/components/Navbar';
+import SEOHead from '@/components/SEOHead';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const GalleryPage = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-forest-50 to-earth-50">
+    <>
+      <SEOHead
+        title="Photo Gallery | Amuse Kenya Adventures"
+        description="Browse our photo gallery showcasing children's outdoor adventures, camp activities, nature exploration, and memorable moments at Karura Forest. See the magic of learning through nature."
+        keywords="Amuse Kenya gallery, camp photos, outdoor activities photos, nature adventures, children activities Kenya, forest activities gallery"
+        canonical="https://amusekenya.co.ke/gallery"
+      />
+      <div className="min-h-screen bg-gradient-to-br from-forest-50 to-earth-50">
       <Navbar />
       
       <div className="pt-24 pb-16">
@@ -40,6 +48,7 @@ const GalleryPage = () => {
       
       <Footer />
     </div>
+    </>
   );
 };
 

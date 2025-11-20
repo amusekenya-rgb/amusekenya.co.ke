@@ -49,35 +49,42 @@ const sendEmail = async (options) => {
       throw new Error(`Cannot send to ${email}: marked as invalid`);
     }
 
-    // Step 3: Send email via Postmark
-    const postmarkApiKey = process.env.POSTMARK_API_KEY;
-    if (!postmarkApiKey) {
-      throw new Error('POSTMARK_API_KEY not configured');
+    // Step 3: Send email via SendGrid
+    const sendGridApiKey = process.env.SENDGRID_API_KEY;
+    if (!sendGridApiKey) {
+      throw new Error('SENDGRID_API_KEY not configured');
     }
 
-    const postmarkResponse = await fetch('https://api.postmarkapp.com/email', {
+    const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'X-Postmark-Server-Token': postmarkApiKey
+        'Authorization': `Bearer ${sendGridApiKey}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        From: process.env.EMAIL_FROM || 'noreply@forestcamp.com',
-        To: email,
-        Subject: subject,
-        HtmlBody: html,
-        MessageStream: 'outbound'
+        personalizations: [{
+          to: [{ email: email }]
+        }],
+        from: {
+          email: 'peterokata47@gmail.com',
+          name: 'Amuse Kenya'
+        },
+        subject: subject,
+        content: [{
+          type: 'text/html',
+          value: html
+        }]
       })
     });
 
-    if (!postmarkResponse.ok) {
-      const errorData = await postmarkResponse.json();
-      throw new Error(`Postmark error: ${errorData.Message || 'Unknown error'}`);
+    if (!sendGridResponse.ok) {
+      const errorText = await sendGridResponse.text();
+      throw new Error(`SendGrid error: ${errorText || 'Unknown error'}`);
     }
 
-    const result = await postmarkResponse.json();
-    console.log('Email sent via Postmark:', result.MessageID);
+    // SendGrid returns X-Message-Id header
+    const messageId = sendGridResponse.headers.get('X-Message-Id') || `sendgrid-${Date.now()}`;
+    console.log('Email sent via SendGrid:', messageId);
 
     // Step 4: Track delivery in database
     try {
@@ -85,13 +92,13 @@ const sendEmail = async (options) => {
         .from('email_deliveries')
         .insert({
           email: email,
-          message_id: result.MessageID,
+          message_id: messageId,
           recipient_type: recipientType,
           recipient_id: recipientId,
           email_type: emailType,
           subject: subject,
           status: 'sent',
-          postmark_data: result,
+          postmark_data: { provider: 'sendgrid', message_id: messageId },
           sent_at: new Date().toISOString()
         });
     } catch (trackingError) {
@@ -99,7 +106,7 @@ const sendEmail = async (options) => {
       // Don't fail the email send if tracking fails
     }
 
-    return result;
+    return { MessageID: messageId, provider: 'sendgrid' };
 
   } catch (error) {
     console.error('Error sending email:', error.message);

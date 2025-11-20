@@ -15,7 +15,9 @@ const defaultSlides = [
     description: "Exhilarating", 
     image: adventureImage,
     buttonText: "Book Now",
-    badge: "Outdoor Adventure"
+    badge: "Outdoor Adventure",
+    secondaryButtonText: "View All Programs",
+    detailPageSlug: ""
   },
   {
     id: 2,
@@ -24,7 +26,9 @@ const defaultSlides = [
     description: "Challenging",
     image: schoolsImage,
     buttonText: "Learn More",
-    badge: "Navigation Skills"
+    badge: "Navigation Skills",
+    secondaryButtonText: "View All Programs",
+    detailPageSlug: ""
   },
   {
     id: 3,
@@ -33,7 +37,9 @@ const defaultSlides = [
     description: "Thrilling",
     image: campingImage,
     buttonText: "Take the Challenge",
-    badge: "Physical Adventure"
+    badge: "Physical Adventure",
+    secondaryButtonText: "View All Programs",
+    detailPageSlug: ""
   },
   {
     id: 4,
@@ -43,7 +49,8 @@ const defaultSlides = [
     image: birthdayImage,
     buttonText: "Explore Program",
     badge: "Ages 0-3",
-    link: "/programs/little-forest"
+    secondaryButtonText: "View All Programs",
+    detailPageSlug: "little-forest"
   }
 ];
 
@@ -66,7 +73,8 @@ const InteractiveHero = () => {
           image: item.metadata?.imageUrl || adventureImage,
           buttonText: item.metadata?.buttonText || 'Book Now',
           badge: item.metadata?.badge || '',
-          link: item.metadata?.link
+          secondaryButtonText: item.metadata?.secondaryButtonText || 'View All Programs',
+          detailPageSlug: item.metadata?.detailPageSlug
         })));
       }
     };
@@ -120,14 +128,16 @@ const InteractiveHero = () => {
   };
 
   const handleRegisterClick = () => {
+    // Primary button always goes to contact page
+    window.location.href = '/contact';
+  };
+
+  const handleSecondaryClick = () => {
     const currentSlideData = slides[currentSlide];
-    if (currentSlideData.link) {
-      window.location.href = currentSlideData.link;
+    if (currentSlideData.detailPageSlug) {
+      window.location.href = `/activity/${currentSlideData.detailPageSlug}`;
     } else {
-      const contactSection = document.getElementById('contact');
-      if (contactSection) {
-        contactSection.scrollIntoView({ behavior: 'smooth' });
-      }
+      window.location.href = '/programs';
     }
   };
 
@@ -201,10 +211,10 @@ const InteractiveHero = () => {
                     {slide.buttonText}
                   </button>
                   <button 
-                    onClick={() => window.location.href = '/programs'}
+                    onClick={handleSecondaryClick}
                     className="px-8 py-3 bg-white/10 backdrop-blur-sm border-2 border-white/50 text-white rounded-lg font-semibold hover:bg-white/20 transition-all"
                   >
-                    View All Programs
+                    {slides[currentSlide].secondaryButtonText}
                   </button>
                 </div>
               </div>

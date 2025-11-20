@@ -1,234 +1,115 @@
-# Amuse Ke - Children's Nature Camp Platform
 
-## About Amuse Ke
+# Forest Camp Backend
 
-Amuse Ke is a comprehensive full-stack platform for a children's nature camp located in Kenya's beautiful Karura Forest. The platform serves as both a public-facing website for families to learn about and register for camp programs, and a robust internal management system with role-based portals for staff across multiple departments.
+This is the backend server for the Forest Camp website. It provides APIs for user authentication, program management, registration, payments, and email communications.
 
-## Key Features
+## Setup Instructions
 
-### Public-Facing Features
-- **Interactive Landing Page**
-  - Dynamic hero slider with content management
-  - Real-time announcements system
-  - Program highlights and seasonal camp offerings
-  - Interactive yearly calendar
-  - Parent testimonials and reviews
-  - Team member profiles
-  - Contact form with email integration
+1. **Install dependencies**
 
-- **Program Registration System**
-  - Multiple program types: Day Camps, Holiday Camps (Easter, Summer, Mid-Term, End Year)
-  - Kenyan Experiences, Homeschooling, School Experience programs
-  - Team Building and Birthday Party bookings
-  - Online payment processing with QR code generation
-  - Automated confirmation emails
-  - Registration tracking and management
-
-- **Content Management**
-  - Dynamic "Who We Are" section with pillars
-  - FAQ system with categorization
-  - Gallery management with image optimization
-  - Navigation settings control
-
-### Administrative & Staff Portals
-- **Marketing Portal**
-  - Content management for all public pages
-  - Lead and customer management
-  - Email campaign management with Postmark integration
-  - Email health dashboard and deliverability tracking
-  - Campaign analytics and reporting
-  - Navigation and SEO settings
-
-- **CEO Dashboard**
-  - Executive analytics and KPI tracking
-  - Approval workflows
-  - Strategic planning tools
-  - Company-wide reports
-  - System settings and configurations
-
-- **HR Portal**
-  - Employee management
-  - Team recruitment section
-  - Staff profiles and roles
-
-- **Accounts Portal**
-  - Invoice management
-  - Financial tracking
-  - Payment reconciliation
-
-- **Governance Portal**
-  - Policy management
-  - Compliance framework
-  - Risk management
-  - Audit trails and logs
-  - Document management
-  - Data governance
-
-- **Coach Portal**
-  - Camp attendance tracking with QR scanner
-  - Registration management
-  - Activity planning and reporting
-
-- **Admin Portal**
-  - User management and approval system
-  - Role-based access control
-  - Camp and program registration management
-  - Ground registration for walk-ins
-  - Attendance marking system
-  - System health monitoring
-  - Data migration tools
-
-## Technology Stack
-
-### Frontend
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: 
-  - Tailwind CSS with custom design system
-  - Semantic color tokens (HSL-based)
-  - Shadcn UI component library
-  - Radix UI primitives
-- **State Management**: 
-  - TanStack React Query for server state
-  - React Context for authentication
-  - Local state with React hooks
-- **Routing**: React Router DOM v6
-- **Form Handling**: React Hook Form with Zod validation
-- **UI Components**:
-  - Custom components built on Radix UI
-  - Responsive design patterns
-  - Accessible ARIA-compliant components
-- **Utilities**:
-  - date-fns for date handling
-  - Recharts for data visualization
-  - Sonner for toast notifications
-  - Lucide React for icons
-  - QR code generation (qrcode, html5-qrcode)
-  - PDF generation (jspdf, html2canvas)
-  - Rich text editing (Quill, React Quill)
-
-### Backend (Supabase)
-- **Database**: PostgreSQL with Row Level Security (RLS)
-- **Authentication**: 
-  - Supabase Auth with JWT
-  - Email/password authentication
-  - Role-based access control with custom app_role enum
-  - User approval system
-- **Storage**: Supabase Storage for images and assets
-- **Edge Functions**: 
-  - Email webhook handling (Postmark integration)
-  - Program confirmation emails
-  - Marketing system automation
-- **Real-time**: Supabase real-time subscriptions for live updates
-- **Security**: 
-  - Row Level Security policies on all tables
-  - Custom security functions (has_role)
-  - Audit logging system
-
-### Key Integrations
-- **Email**: Postmark for transactional emails and campaigns
-- **Analytics**: Custom analytics dashboard with usage tracking
-- **Payment Processing**: Integrated payment gateway (Stripe-ready)
-- **SEO**: React Helmet Async for meta tags and SEO optimization
-
-## Architecture
-- **Frontend**: Single Page Application (SPA)
-- **Backend**: Supabase (PostgreSQL + Edge Functions + Storage + Auth)
-- **State Management**: Server-client synchronization with React Query
-- **Security Model**: Role-based access control (RBAC) with RLS policies
-- **Content Delivery**: Optimized asset delivery with lazy loading
-
-## Development Approach
-- Component-based architecture with TypeScript
-- Mobile-first responsive design
-- Accessibility-first UI components (WCAG compliant)
-- Progressive enhancement patterns
-- Comprehensive CMS for non-technical content management
-- Real-time data synchronization
-- Optimistic UI updates for better UX
-
-## Getting Started
-
-### Prerequisites
-- Node.js (v18 or higher)
-- npm or bun package manager
-- Lovable Cloud enabled (automatically provisions Supabase backend)
-
-### Installation
-
-1. Clone the repository:
-```sh
-git clone <YOUR_GIT_URL>
-cd <YOUR_PROJECT_NAME>
-```
-
-2. Install dependencies:
-```sh
+```bash
+cd server
 npm install
 ```
 
-3. Start the development server:
-```sh
+2. **Configure environment variables**
+
+Copy the `.env.example` file to `.env` and update the values:
+
+```bash
+cp .env.example .env
+```
+
+Update the following variables in the `.env` file:
+- `MONGODB_URI`: Your MongoDB connection string
+- `JWT_SECRET`: A secret key for JWT token generation
+- `EMAIL_*`: Configuration for your email provider
+- `STRIPE_SECRET_KEY`: Your Stripe secret key
+- `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook secret
+
+3. **Seed the database**
+
+```bash
+node seeder.js -i
+```
+
+This will create a default admin user and sample programs and announcements.
+
+4. **Start the server**
+
+Development mode (with auto-reload):
+```bash
 npm run dev
 ```
 
-The app will be available at `http://localhost:8080`
+Production mode:
+```bash
+npm start
+```
 
-### Database Setup
+The server will start on port 5000 by default (or the port specified in your .env file).
 
-All database migrations are located in `public/supabase/migrations/` and include:
-- Authentication system setup
-- User roles and permissions
-- Content management tables
-- Program registration tables
-- Marketing and CMS tables
-- Email management system
-- Calendar and events
+## API Routes
 
-Migrations are automatically applied when deploying or can be run manually through the Supabase dashboard.
+### Authentication
+- `POST /api/auth/register` - Register a new admin (super admin only)
+- `POST /api/auth/login` - Login admin
+- `GET /api/auth/me` - Get current admin details
+- `GET /api/auth/logout` - Logout admin
 
-### Deployment
+### Admin Management
+- `GET /api/admin` - Get all admins (super admin only)
+- `GET /api/admin/:id` - Get single admin (super admin only)
+- `PUT /api/admin/:id` - Update admin (super admin only)
+- `DELETE /api/admin/:id` - Delete admin (super admin only)
 
-This application is optimized for deployment on Lovable:
-- **Frontend**: Automatically deployed via Lovable's publish feature
-- **Backend**: Supabase with automatic scaling
-- **Database**: PostgreSQL managed by Supabase
-- **Edge Functions**: Automatically deployed with code changes
+### Programs
+- `GET /api/programs` - Get all programs
+- `GET /api/programs/:id` - Get single program
+- `POST /api/programs` - Create program (admin only)
+- `PUT /api/programs/:id` - Update program (admin only)
+- `DELETE /api/programs/:id` - Delete program (admin only)
 
+### Announcements
+- `GET /api/announcements` - Get all announcements
+- `GET /api/announcements/:id` - Get single announcement
+- `POST /api/announcements` - Create announcement (admin only)
+- `PUT /api/announcements/:id` - Update announcement (admin only)
+- `DELETE /api/announcements/:id` - Delete announcement (admin only)
 
-## File Structure Overview
+### Registrations
+- `GET /api/registrations` - Get all registrations (admin only)
+- `GET /api/registrations/:id` - Get single registration (admin only)
+- `POST /api/registrations` - Create registration (public)
+- `PUT /api/registrations/:id` - Update registration (admin only)
+- `DELETE /api/registrations/:id` - Delete registration (admin only)
 
-- `/src` - Main source code directory
-  - `/components` - React components
-    - `/ui` - Shadcn UI components (Radix-based)
-    - `/portals` - Role-based portal components (CEO, Marketing, HR, etc.)
-    - `/admin` - Admin dashboard components
-    - `/gallery` - Gallery management components
-    - `/calendar` - Calendar and event components
-    - `/team` - Team member components
-    - `/announcements` - Announcement system
-    - `/content` - CMS content components
-    - `/forms` - Program registration forms
-    - `/analytics` - Analytics dashboard
-    - `/attendance` - QR scanner and attendance tracking
-    - `/communication` - Messaging and email components
-  - `/hooks` - Custom React hooks (useAuth, useContent, useSupabaseAuth, etc.)
-  - `/lib` - Utility functions and helpers
-  - `/pages` - Main page components
-    - `/about` - About section pages (Team, Who We Are, What We Do)
-    - `/camps` - Camp program pages
-    - `/experiences` - Experience program pages
-    - `/group-activities` - Team building and parties
-    - `/programs` - Program detail pages
-  - `/services` - API service layer for Supabase integration
-  - `/types` - TypeScript type definitions
-  - `/integrations` - Third-party integrations (Supabase client)
-  - `/utils` - Utility functions and default configurations
+### Contact Form
+- `POST /api/contact` - Submit contact form (public)
+- `GET /api/contact` - Get all contact submissions (admin only)
+- `GET /api/contact/:id` - Get single contact submission (admin only)
+- `PUT /api/contact/:id` - Update contact status (admin only)
+- `POST /api/contact/:id/reply` - Reply to contact (admin only)
+- `DELETE /api/contact/:id` - Delete contact submission (admin only)
 
-- `/public/supabase/migrations` - Database migration files
-- `/supabase/functions` - Edge functions for serverless backend logic
-- `/server` - Legacy Express backend (deprecated, kept for reference)
+### Payments
+- `POST /api/payment/:registrationId` - Create Stripe checkout session
+- `POST /api/payment/mpesa/:registrationId` - Process M-Pesa payment
+- `POST /api/payment/webhook` - Handle Stripe webhook events
+- `GET /api/payment/verify/:registrationId` - Verify payment status
+- `PUT /api/payment/manual/:registrationId` - Manually update payment status (admin only)
 
-## License
+## Frontend Integration
 
-This project is proprietary and confidential.
+To connect this backend to the frontend:
+
+1. Update the API URLs in your frontend code to point to this backend server.
+2. Replace the in-memory data service with API calls to these endpoints.
+3. Implement JWT token storage and authentication flows.
+
+## Security Notes
+
+- In production, ensure you have proper HTTPS setup.
+- Configure CORS settings in server.js to only allow requests from your frontend domain.
+- Regularly rotate JWT secrets and API keys.
+- Consider implementing rate limiting for public endpoints.

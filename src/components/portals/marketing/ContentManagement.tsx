@@ -24,8 +24,9 @@ import { CampPageEditor } from './editors/CampPageEditor';
 import { CampFormEditor } from './editors/CampFormEditor';
 import { LittleForestEditor } from './editors/LittleForestEditor';
 import { ProgramFormEditor } from './editors/ProgramFormEditor';
+import { ActivityDetailEditor } from './editors/ActivityDetailEditor';
 
-type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | 'camp-page' | 'camp-form' | 'little-forest' | 'program-form' | null;
+type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | 'camp-page' | 'camp-form' | 'little-forest' | 'program-form' | 'activity-detail' | null;
 
 const ContentManagement = () => {
   const isMobile = useIsMobile();
@@ -40,6 +41,7 @@ const ContentManagement = () => {
   const [campPages, setCampPages] = useState<ContentItem[]>([]);
   const [campForms, setCampForms] = useState<ContentItem[]>([]);
   const [programForms, setProgramForms] = useState<ContentItem[]>([]);
+  const [activityDetails, setActivityDetails] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeEditor, setActiveEditor] = useState<EditorType>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -50,7 +52,7 @@ const ContentManagement = () => {
 
   const loadAllContent = async () => {
     setIsLoading(true);
-    const [heroData, programData, announcementData, testimonialData, teamData, aboutData, serviceData, campPageData, campFormData, programFormData] = await Promise.all([
+    const [heroData, programData, announcementData, testimonialData, teamData, aboutData, serviceData, campPageData, campFormData, programFormData, activityDetailData] = await Promise.all([
       cmsService.getAllContent('hero_slide'),
       cmsService.getAllContent('program'),
       cmsService.getAllContent('announcement'),
@@ -60,7 +62,8 @@ const ContentManagement = () => {
       cmsService.getAllContent('service_item'),
       cmsService.getAllContent('camp_page'),
       cmsService.getAllContent('camp_form'),
-      cmsService.getAllProgramForms()
+      cmsService.getAllProgramForms(),
+      cmsService.getAllActivityDetails()
     ]);
     setHeroSlides(heroData);
     setPrograms(programData);
@@ -72,6 +75,7 @@ const ContentManagement = () => {
     setCampPages(campPageData);
     setCampForms(campFormData);
     setProgramForms(programFormData);
+    setActivityDetails(activityDetailData);
     setIsLoading(false);
   };
 
@@ -103,8 +107,9 @@ const ContentManagement = () => {
     setEditingItem(null);
   };
 
-  const handleSave = () => {
-    loadAllContent();
+  const handleSave = async () => {
+    await loadAllContent();
+    closeEditor();
     // Dispatch custom event to notify pages to refresh their content
     window.dispatchEvent(new CustomEvent('cms-content-updated'));
   };
@@ -172,6 +177,7 @@ const ContentManagement = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="hero">Hero Section</SelectItem>
+              <SelectItem value="activity-details">Activity Details</SelectItem>
               <SelectItem value="services">Services</SelectItem>
               <SelectItem value="about">About Us</SelectItem>
               <SelectItem value="testimonials">Testimonials</SelectItem>
@@ -187,8 +193,9 @@ const ContentManagement = () => {
             </SelectContent>
           </Select>
         ) : (
-          <TabsList className="grid grid-cols-7 lg:grid-cols-13 gap-1 overflow-x-auto">
+          <TabsList className="grid grid-cols-7 lg:grid-cols-14 gap-1 overflow-x-auto">
             <TabsTrigger value="hero">Hero</TabsTrigger>
+            <TabsTrigger value="activity-details">Activities</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="about">About</TabsTrigger>
             <TabsTrigger value="testimonials">Testimonials</TabsTrigger>
@@ -214,6 +221,19 @@ const ContentManagement = () => {
               </Button>
             </CardHeader>
             <CardContent>{renderContentList(heroSlides, 'hero')}</CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="activity-details" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Activity Detail Pages</CardTitle>
+              <Button onClick={() => openEditor('activity-detail')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Activity Detail
+              </Button>
+            </CardHeader>
+            <CardContent>{renderContentList(activityDetails, 'activity-detail')}</CardContent>
           </Card>
         </TabsContent>
 
@@ -577,6 +597,16 @@ const ContentManagement = () => {
           onClose={closeEditor}
           formSlug={editingItem}
           onSave={handleSave}
+        />
+      )}
+
+      {activeEditor === 'activity-detail' && (
+        <ActivityDetailEditor
+          isOpen={true}
+          onClose={closeEditor}
+          activityDetail={editingItem}
+          onSave={handleSave}
+          heroSlides={heroSlides}
         />
       )}
     </div>

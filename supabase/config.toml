@@ -1,4 +1,16 @@
-project_id = "aoabmibxidpowfltjvvt"
+project_id = "rfmyrqzrwamygvyibdbs"
 
 [functions."setup-marketing-system"]
+verify_jwt = false
+
+[functions."send-program-confirmation"]
+verify_jwt = false
+
+[functions."handle-sendgrid-webhooks"]
+verify_jwt = false
+
+[functions."handle-postmark-webhooks"]
+verify_jwt = false
+
+[functions."test-sendgrid"]
 verify_jwt = false

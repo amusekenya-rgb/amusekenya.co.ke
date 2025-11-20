@@ -1,6 +1,7 @@
 import React from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import SEOHead from '@/components/SEOHead';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { Calendar, MapPin, Users, Gift } from 'lucide-react';
@@ -8,7 +9,14 @@ import birthdayImage from '@/assets/birthday.jpg';
 
 const Parties = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <SEOHead
+        title="Parties & Celebrations | Amuse Kenya Outdoor Events"
+        description="Host unforgettable outdoor birthday parties and celebrations at Karura Forest. Customized party packages with nature activities, games, catering, and decorations for groups of 10-50 guests."
+        keywords="birthday parties Kenya, outdoor celebrations, children's party venue, forest parties, group events, party packages Karura, outdoor party venue Nairobi"
+        canonical="https://amusekenya.co.ke/group-activities/parties"
+      />
+      <div className="min-h-screen bg-background">
       <Navbar />
       
       <div className="pt-20">
@@ -120,6 +128,7 @@ const Parties = () => {
       
       <Footer />
     </div>
+    </>
   );
 };
 

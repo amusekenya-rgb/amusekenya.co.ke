@@ -2,12 +2,20 @@ import React from 'react';
 import ContactForm from '@/components/ContactForm';
 import Footer from '@/components/Footer';
 import Navbar from '@/components/Navbar';
+import SEOHead from '@/components/SEOHead';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Contact = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-forest-50 to-earth-50">
+    <>
+      <SEOHead
+        title="Contact Us | Amuse Kenya - Get in Touch"
+        description="Contact Amuse Kenya for inquiries about our forest adventures, camps, birthday parties, and outdoor education programs. We're here to help plan your perfect nature experience."
+        keywords="contact Amuse Kenya, inquiries, booking information, program details, Karura Forest contact, outdoor education contact"
+        canonical="https://amusekenya.co.ke/contact"
+      />
+      <div className="min-h-screen bg-gradient-to-br from-forest-50 to-earth-50">
       <Navbar />
       
       <div className="pt-24 pb-16">
@@ -40,6 +48,7 @@ const Contact = () => {
       
       <Footer />
     </div>
+    </>
   );
 };
 

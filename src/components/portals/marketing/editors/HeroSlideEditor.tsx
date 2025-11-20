@@ -18,6 +18,8 @@ interface HeroSlide {
   buttonText: string;
   imageUrl: string;
   order: number;
+  secondaryButtonText: string;
+  detailPageSlug: string;
 }
 
 interface HeroSlideEditorProps {
@@ -35,7 +37,9 @@ export const HeroSlideEditor: React.FC<HeroSlideEditorProps> = ({ isOpen, onClos
     badge: slide?.metadata?.badge || '',
     buttonText: slide?.metadata?.buttonText || 'Book Now',
     imageUrl: slide?.metadata?.imageUrl || '',
-    order: slide?.metadata?.order || 1
+    order: slide?.metadata?.order || 1,
+    secondaryButtonText: slide?.metadata?.secondaryButtonText || 'View All Programs',
+    detailPageSlug: slide?.metadata?.detailPageSlug || ''
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -128,7 +132,9 @@ export const HeroSlideEditor: React.FC<HeroSlideEditorProps> = ({ isOpen, onClos
             badge: formData.badge,
             buttonText: formData.buttonText,
             imageUrl: formData.imageUrl,
-            order: formData.order
+            order: formData.order,
+            secondaryButtonText: formData.secondaryButtonText,
+            detailPageSlug: formData.detailPageSlug
           }
         });
         toast({ title: 'Hero slide updated successfully' });
@@ -144,7 +150,9 @@ export const HeroSlideEditor: React.FC<HeroSlideEditorProps> = ({ isOpen, onClos
             badge: formData.badge,
             buttonText: formData.buttonText,
             imageUrl: formData.imageUrl,
-            order: formData.order
+            order: formData.order,
+            secondaryButtonText: formData.secondaryButtonText,
+            detailPageSlug: formData.detailPageSlug
           }
         });
         toast({ title: 'Hero slide created successfully' });
@@ -239,6 +247,55 @@ export const HeroSlideEditor: React.FC<HeroSlideEditorProps> = ({ isOpen, onClos
               Upload JPG, PNG, GIF, or WebP (max 5MB). HEIC not supported.
             </p>
           </div>
+          
+          {/* Button Configuration */}
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+            <h3 className="font-semibold">Button Configuration</h3>
+            <p className="text-sm text-muted-foreground">
+              Primary button (colored) → Always goes to Contact Us page<br />
+              Secondary button (outlined) → Goes to activity detail page or programs
+            </p>
+            
+            <div>
+              <Label htmlFor="buttonText">Primary Button Text</Label>
+              <Input
+                id="buttonText"
+                value={formData.buttonText}
+                onChange={(e) => setFormData({ ...formData, buttonText: e.target.value })}
+                placeholder="Book Now"
+                required
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                This button always navigates to /contact
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="secondaryButtonText">Secondary Button Text</Label>
+              <Input
+                id="secondaryButtonText"
+                value={formData.secondaryButtonText}
+                onChange={(e) => setFormData({ ...formData, secondaryButtonText: e.target.value })}
+                placeholder="View All Programs"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="detailPageSlug">Activity Detail Page Slug (Optional)</Label>
+              <Input
+                id="detailPageSlug"
+                value={formData.detailPageSlug}
+                onChange={(e) => setFormData({ ...formData, detailPageSlug: e.target.value })}
+                placeholder="mountain-biking"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {formData.detailPageSlug 
+                  ? `Secondary button will link to: /activity/${formData.detailPageSlug}`
+                  : 'Leave blank to link to /programs instead'}
+              </p>
+            </div>
+          </div>
+
           <div>
             <Label htmlFor="order">Display Order</Label>
             <Input
