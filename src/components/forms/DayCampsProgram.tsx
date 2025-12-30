@@ -72,6 +72,7 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
     setValue,
     watch,
     control,
+    reset,
     formState: { errors, isSubmitting }
   } = useForm<DayCampsFormData>({
     resolver: zodResolver(dayCampsSchema),
@@ -177,20 +178,23 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         source: 'website_registration'
       });
       
-      // Send confirmation email via Postmark
+      // Send confirmation email via Resend
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.functions.invoke('send-program-confirmation', {
+      await supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
-          name: data.parentName,
-          programType: 'day-camp',
-          details: {
+          programType: 'day-camps',
+          registrationDetails: {
+            parentName: data.parentName,
             campTitle: campTitle,
             children: data.children,
-            campType: 'day-camps'
+            campType: 'day-camps',
+            registrationId: registration.id
           },
-          totalAmount: totalAmount,
-          registrationId: registration.id
+          invoiceDetails: {
+            totalAmount: totalAmount,
+            paymentMethod: buttonType === 'pay' ? 'online_payment' : 'cash'
+          }
         }
       });
       
@@ -208,6 +212,7 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
       }
       
       toast.success(config.messages.registrationSuccess);
+      reset();
     } catch (error) {
       console.error('Registration error:', error);
       toast.error(config.messages.registrationError);

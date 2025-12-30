@@ -7,7 +7,7 @@ const supabase = createClient(
 );
 
 /**
- * Send email using Postmark with suppression checking and delivery tracking
+ * Send email using Resend with suppression checking and delivery tracking
  * @param {Object} options - Email options
  * @param {string} options.email - Recipient email address
  * @param {string} options.subject - Email subject
@@ -49,64 +49,32 @@ const sendEmail = async (options) => {
       throw new Error(`Cannot send to ${email}: marked as invalid`);
     }
 
-    // Step 3: Send email via SendGrid
-    const sendGridApiKey = process.env.SENDGRID_API_KEY;
-    if (!sendGridApiKey) {
-      throw new Error('SENDGRID_API_KEY not configured');
-    }
-
-    const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sendGridApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        personalizations: [{
-          to: [{ email: email }]
-        }],
-        from: {
-          email: 'peterokata47@gmail.com',
-          name: 'Amuse Kenya'
-        },
-        subject: subject,
-        content: [{
-          type: 'text/html',
-          value: html
-        }]
-      })
-    });
-
-    if (!sendGridResponse.ok) {
-      const errorText = await sendGridResponse.text();
-      throw new Error(`SendGrid error: ${errorText || 'Unknown error'}`);
-    }
-
-    // SendGrid returns X-Message-Id header
-    const messageId = sendGridResponse.headers.get('X-Message-Id') || `sendgrid-${Date.now()}`;
-    console.log('Email sent via SendGrid:', messageId);
-
-    // Step 4: Track delivery in database
-    try {
-      await supabase
-        .from('email_deliveries')
-        .insert({
+    // Step 3: Call Supabase Edge Function to send email via Resend
+    const { data: functionResponse, error: functionError } = await supabase.functions.invoke(
+      'send-confirmation-email',
+      {
+        body: {
           email: email,
-          message_id: messageId,
-          recipient_type: recipientType,
-          recipient_id: recipientId,
-          email_type: emailType,
-          subject: subject,
-          status: 'sent',
-          postmark_data: { provider: 'sendgrid', message_id: messageId },
-          sent_at: new Date().toISOString()
-        });
-    } catch (trackingError) {
-      console.error('Error tracking email delivery:', trackingError);
-      // Don't fail the email send if tracking fails
+          programType: emailType,
+          registrationDetails: {
+            subject: subject
+          }
+        }
+      }
+    );
+
+    if (functionError) {
+      throw new Error(`Edge function error: ${functionError.message}`);
     }
 
-    return { MessageID: messageId, provider: 'sendgrid' };
+    if (!functionResponse.success) {
+      throw new Error(`Email send failed: ${functionResponse.error || 'Unknown error'}`);
+    }
+
+    const messageId = functionResponse.messageId || `resend-${Date.now()}`;
+    console.log('Email sent via Resend:', messageId);
+
+    return { MessageID: messageId, provider: 'resend' };
 
   } catch (error) {
     console.error('Error sending email:', error.message);

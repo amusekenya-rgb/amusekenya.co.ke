@@ -31,12 +31,12 @@ const PillarColumn: React.FC<PillarColumnProps> = ({ pillar, color, onClick }) =
 
       {/* Column Shaft */}
       <div
-        className="relative w-20 md:w-22 lg:w-24 h-64 md:h-72 lg:h-80 rounded-b-xl shadow-lg hover:shadow-xl transition-shadow duration-300 flex items-center justify-center overflow-hidden"
+        className="relative w-10 sm:w-14 md:w-20 lg:w-24 h-40 sm:h-52 md:h-72 lg:h-80 rounded-b-xl shadow-lg hover:shadow-xl transition-shadow duration-300 flex items-center justify-center overflow-hidden"
         style={{ backgroundColor: color }}
       >
         {/* Vertical text */}
         <div
-          className="text-white font-bold text-lg md:text-xl tracking-wider"
+          className="text-white font-bold text-xs sm:text-sm md:text-lg lg:text-xl tracking-wider"
           style={{
             writingMode: 'vertical-rl',
             textOrientation: 'mixed',

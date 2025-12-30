@@ -52,6 +52,7 @@ const PartiesProgram = () => {
     setValue,
     control,
     watch,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<PartiesFormData>({
     resolver: zodResolver(partiesSchema),
@@ -89,28 +90,28 @@ const PartiesProgram = () => {
         source: 'website_registration'
       });
 
-      // Send confirmation email
+      // Send confirmation email via Resend
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.functions.invoke('send-program-confirmation', {
+      await supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
-          name: data.parentName,
           programType: 'parties',
-          details: {
+          registrationDetails: {
+            parentName: data.parentName,
             occasion: data.occasion,
             packageType: data.packageType,
             eventTiming: data.eventTiming,
             guestsNumber: data.guestsNumber,
             eventDate: data.eventDate,
             startTime: data.startTime,
-            endTime: data.endTime
-          },
-          totalAmount: 0, // TBD - will be confirmed by team
-          registrationId: registration && 'id' in registration ? registration.id : undefined
+            endTime: data.endTime,
+            registrationId: registration && 'id' in registration ? registration.id : undefined
+          }
         }
       });
 
       toast.success("Party booking submitted successfully! Check your email for confirmation.");
+      reset();
     } catch (error: any) {
       console.error('Registration error:', error);
       console.error('Error details:', error?.message, error?.details, error?.hint);

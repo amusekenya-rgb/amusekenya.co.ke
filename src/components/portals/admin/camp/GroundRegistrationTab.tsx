@@ -11,10 +11,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { campRegistrationService } from '@/services/campRegistrationService';
+import { financialService } from '@/services/financialService';
 import { qrCodeService } from '@/services/qrCodeService';
 import { leadsService } from '@/services/leadsService';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
 import { CampRegistration } from '@/types/campRegistration';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
 const childSchema = z.object({
   childName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name too long'),
@@ -58,6 +60,7 @@ const SESSIONS = [
 ];
 
 export const GroundRegistrationTab: React.FC = () => {
+  const { user } = useSupabaseAuth();
   const [submitting, setSubmitting] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
@@ -169,6 +172,22 @@ export const GroundRegistrationTab: React.FC = () => {
       const registration = await campRegistrationService.createRegistration(registrationData);
 
       if (registration) {
+        // Create unified payment record if amount was paid
+        if (data.amountPaid > 0) {
+          await financialService.createPaymentFromRegistration({
+            registrationId: registration.id,
+            registrationType: 'camp',
+            source: 'ground_registration',
+            customerName: data.parentName,
+            programName: `${data.campType} (Ground)`,
+            amount: data.amountPaid,
+            paymentMethod: 'cash_ground',
+            paymentReference: `GROUND-${Date.now()}`,
+            notes: `Ground registration. Amount paid: KES ${data.amountPaid}`,
+            createdBy: user?.id
+          });
+        }
+
         // Generate QR code from string data
         const qrData = await qrCodeService.generateQRCode(registration.qr_code_data);
 

@@ -108,8 +108,14 @@ class EmailManagementService {
 
       const deliveryData = (deliveries || []) as any[];
       const totalSent = deliveryData.length;
-      const delivered = deliveryData.filter((d: any) => d.status === 'delivered').length;
-      const opened = deliveryData.filter((d: any) => d.status === 'opened').length;
+      
+      // Email statuses are cumulative - an "opened" email was also "delivered"
+      // So we count all emails that reached at least that stage
+      const deliveredStatuses = ['delivered', 'opened', 'clicked'];
+      const openedStatuses = ['opened', 'clicked'];
+      
+      const delivered = deliveryData.filter((d: any) => deliveredStatuses.includes(d.status)).length;
+      const opened = deliveryData.filter((d: any) => openedStatuses.includes(d.status)).length;
       const clicked = deliveryData.filter((d: any) => d.status === 'clicked').length;
       const bounced = deliveryData.filter((d: any) => d.status === 'bounced').length;
       const spam = deliveryData.filter((d: any) => d.status === 'spam').length;

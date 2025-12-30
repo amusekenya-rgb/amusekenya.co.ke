@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CampRegistration, CampChild } from '@/types/campRegistration';
 import { Tables } from '@/integrations/supabase/types';
+import { financialService } from './financialService';
 
 type DbCampRegistration = Tables<'camp_registrations'>;
 
@@ -122,13 +123,43 @@ export const campRegistrationService = {
     id: string,
     status: 'unpaid' | 'paid' | 'partial',
     method?: 'pending' | 'card' | 'mpesa' | 'cash_ground',
-    reference?: string
+    reference?: string,
+    options?: {
+      createPaymentRecord?: boolean;
+      parentName?: string;
+      campType?: string;
+      totalAmount?: number;
+      createdBy?: string;
+    }
   ) {
     const updates: Partial<CampRegistration> = { payment_status: status };
     if (method) updates.payment_method = method;
     if (reference) updates.payment_reference = reference;
 
-    return this.updateRegistration(id, updates);
+    const result = await this.updateRegistration(id, updates);
+
+    // Create unified payment record if requested and status is paid
+    if (options?.createPaymentRecord && status === 'paid' && options.totalAmount) {
+      try {
+        await financialService.createPaymentFromRegistration({
+          registrationId: id,
+          registrationType: 'camp',
+          source: 'camp_registration',
+          customerName: options.parentName || 'Unknown',
+          programName: options.campType || 'Camp',
+          amount: options.totalAmount,
+          paymentMethod: (method === 'pending' ? 'other' : method) || 'mpesa',
+          paymentReference: reference,
+          notes: 'Payment recorded from camp registration',
+          createdBy: options.createdBy
+        });
+      } catch (error) {
+        console.error('Error creating unified payment record:', error);
+        // Don't throw - the registration update succeeded
+      }
+    }
+
+    return result;
   },
 
   async searchRegistrations(searchTerm: string) {

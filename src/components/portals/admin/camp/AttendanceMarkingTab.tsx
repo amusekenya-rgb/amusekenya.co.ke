@@ -1,18 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, CheckCircle, XCircle, Clock, QrCode } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Clock, QrCode, Calendar, Users, CalendarDays } from 'lucide-react';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { attendanceService } from '@/services/attendanceService';
 import { qrCodeService } from '@/services/qrCodeService';
-import { CampRegistration } from '@/types/campRegistration';
+import { CampRegistration, CampChild } from '@/types/campRegistration';
 import { toast } from 'sonner';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { QRScannerDialog } from '@/components/attendance/QRScannerDialog';
+import { format, parseISO, isToday } from 'date-fns';
+
+interface ExpectedChild {
+  registration: CampRegistration;
+  child: CampChild;
+  session: string; // 'half' or 'full'
+}
 
 export const AttendanceMarkingTab: React.FC = () => {
   const { user } = useSupabaseAuth();
@@ -22,8 +29,10 @@ export const AttendanceMarkingTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState<Record<string, any>>({});
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [viewMode, setViewMode] = useState<'expected' | 'all'>('expected');
 
-  const loadTodaysRegistrations = async () => {
+  const loadRegistrations = async () => {
     try {
       setLoading(true);
       const filters: any = {};
@@ -35,12 +44,12 @@ export const AttendanceMarkingTab: React.FC = () => {
       const activeRegs = allRegs.filter(r => r.status === 'active');
       setRegistrations(activeRegs);
 
-      // Check attendance status for all children
+      // Check attendance status for all children for selected date
       const statusMap: Record<string, any> = {};
       for (const reg of activeRegs) {
         for (const child of reg.children) {
-          const key = `${reg.id}-${child.childName}`;
-          const attendance = await attendanceService.hasCheckedInToday(reg.id!, child.childName);
+          const key = `${reg.id}-${child.childName}-${selectedDate}`;
+          const attendance = await attendanceService.hasCheckedInOnDate(reg.id!, child.childName, selectedDate);
           statusMap[key] = attendance;
         }
       }
@@ -54,8 +63,38 @@ export const AttendanceMarkingTab: React.FC = () => {
   };
 
   useEffect(() => {
-    loadTodaysRegistrations();
-  }, [campTypeFilter]);
+    loadRegistrations();
+  }, [campTypeFilter, selectedDate]);
+
+  // Get children expected on the selected date
+  const expectedChildren = useMemo((): ExpectedChild[] => {
+    const expected: ExpectedChild[] = [];
+    
+    for (const reg of registrations) {
+      for (const child of reg.children) {
+        // Check if this child is registered for the selected date
+        const selectedDates = child.selectedDates || [];
+        
+        if (selectedDates.includes(selectedDate)) {
+          // Determine session type for this date
+          let session = 'full';
+          if (child.selectedSessions) {
+            if (typeof child.selectedSessions === 'object' && !Array.isArray(child.selectedSessions)) {
+              session = (child.selectedSessions as Record<string, 'half' | 'full'>)[selectedDate] || 'full';
+            }
+          }
+          
+          expected.push({ registration: reg, child, session });
+        }
+      }
+    }
+    
+    return expected;
+  }, [registrations, selectedDate]);
+
+  // Separate expected children by payment status
+  const paidExpected = expectedChildren.filter(e => e.registration.payment_status === 'paid');
+  const unpaidExpected = expectedChildren.filter(e => e.registration.payment_status !== 'paid');
 
   const handleCheckIn = async (registrationId: string, childName: string) => {
     if (!user?.id) {
@@ -64,7 +103,7 @@ export const AttendanceMarkingTab: React.FC = () => {
     }
 
     try {
-      const key = `${registrationId}-${childName}`;
+      const key = `${registrationId}-${childName}-${selectedDate}`;
       
       // Optimistically update UI
       setAttendanceStatus(prev => ({
@@ -76,12 +115,12 @@ export const AttendanceMarkingTab: React.FC = () => {
         }
       }));
 
-      // Perform check-in
-      await attendanceService.checkIn(registrationId, childName, user.id);
-      toast.success(`${childName} checked in successfully`);
+      // Perform check-in for selected date
+      await attendanceService.checkInForDate(registrationId, childName, user.id, selectedDate);
+      toast.success(`${childName} checked in successfully for ${format(parseISO(selectedDate), 'MMM d, yyyy')}`);
       
-      // Fetch only the updated attendance record
-      const attendance = await attendanceService.hasCheckedInToday(registrationId, childName);
+      // Fetch updated attendance record
+      const attendance = await attendanceService.hasCheckedInOnDate(registrationId, childName, selectedDate);
       setAttendanceStatus(prev => ({
         ...prev,
         [key]: attendance
@@ -89,14 +128,13 @@ export const AttendanceMarkingTab: React.FC = () => {
     } catch (error) {
       console.error('Error checking in:', error);
       toast.error('Failed to check in');
-      // Reload on error to ensure correct state
-      loadTodaysRegistrations();
+      loadRegistrations();
     }
   };
 
   const handleCheckOut = async (attendanceId: string, childName: string, registrationId: string) => {
     try {
-      const key = `${registrationId}-${childName}`;
+      const key = `${registrationId}-${childName}-${selectedDate}`;
       
       // Optimistically update UI
       setAttendanceStatus(prev => ({
@@ -111,8 +149,8 @@ export const AttendanceMarkingTab: React.FC = () => {
       await attendanceService.checkOut(attendanceId);
       toast.success(`${childName} checked out successfully`);
       
-      // Fetch only the updated attendance record
-      const attendance = await attendanceService.hasCheckedInToday(registrationId, childName);
+      // Fetch updated attendance record
+      const attendance = await attendanceService.hasCheckedInOnDate(registrationId, childName, selectedDate);
       setAttendanceStatus(prev => ({
         ...prev,
         [key]: attendance
@@ -120,14 +158,13 @@ export const AttendanceMarkingTab: React.FC = () => {
     } catch (error) {
       console.error('Error checking out:', error);
       toast.error('Failed to check out');
-      // Reload on error to ensure correct state
-      loadTodaysRegistrations();
+      loadRegistrations();
     }
   };
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
-      loadTodaysRegistrations();
+      loadRegistrations();
       return;
     }
 
@@ -149,7 +186,6 @@ export const AttendanceMarkingTab: React.FC = () => {
     }
 
     try {
-      // Parse the QR code data
       const parsed = qrCodeService.parseQRCodeData(qrCodeData);
       
       if (!parsed || parsed.type !== 'camp_registration') {
@@ -157,7 +193,6 @@ export const AttendanceMarkingTab: React.FC = () => {
         return;
       }
 
-      // Fetch the registration
       const registration = await campRegistrationService.getRegistrationByQRCode(qrCodeData);
       
       if (!registration) {
@@ -165,95 +200,141 @@ export const AttendanceMarkingTab: React.FC = () => {
         return;
       }
 
-      // Check in all children who haven't checked in yet
+      // Check in all children who are expected today and haven't checked in yet
       let checkedInCount = 0;
       let alreadyCheckedInCount = 0;
+      let notExpectedCount = 0;
 
       for (const child of registration.children) {
-        const hasCheckedIn = await attendanceService.hasCheckedInToday(registration.id!, child.childName);
+        const selectedDates = child.selectedDates || [];
+        
+        if (!selectedDates.includes(selectedDate)) {
+          notExpectedCount++;
+          continue;
+        }
+
+        const hasCheckedIn = await attendanceService.hasCheckedInOnDate(registration.id!, child.childName, selectedDate);
         
         if (!hasCheckedIn) {
-          await attendanceService.checkIn(registration.id!, child.childName, user.id);
+          await attendanceService.checkInForDate(registration.id!, child.childName, user.id, selectedDate);
           checkedInCount++;
         } else {
           alreadyCheckedInCount++;
         }
       }
 
-      // Close scanner
       setScannerOpen(false);
 
-      // Show success message
       if (checkedInCount > 0) {
-        toast.success(
-          `Successfully checked in ${checkedInCount} child${checkedInCount !== 1 ? 'ren' : ''} from ${registration.registration_number}${
-            alreadyCheckedInCount > 0 ? ` (${alreadyCheckedInCount} already checked in)` : ''
-          }`
-        );
+        let message = `Checked in ${checkedInCount} child${checkedInCount !== 1 ? 'ren' : ''} from ${registration.registration_number}`;
+        if (alreadyCheckedInCount > 0) message += ` (${alreadyCheckedInCount} already in)`;
+        if (notExpectedCount > 0) message += ` (${notExpectedCount} not registered for today)`;
+        toast.success(message);
         
-        // Update attendance status for affected children without full reload
+        // Update attendance status
         const statusUpdates: Record<string, any> = {};
         for (const child of registration.children) {
-          const key = `${registration.id}-${child.childName}`;
-          const attendance = await attendanceService.hasCheckedInToday(registration.id!, child.childName);
+          const key = `${registration.id}-${child.childName}-${selectedDate}`;
+          const attendance = await attendanceService.hasCheckedInOnDate(registration.id!, child.childName, selectedDate);
           statusUpdates[key] = attendance;
         }
         setAttendanceStatus(prev => ({ ...prev, ...statusUpdates }));
       } else if (alreadyCheckedInCount > 0) {
-        toast.info('All children from this registration are already checked in');
+        toast.info('All expected children from this registration are already checked in');
+      } else if (notExpectedCount > 0) {
+        toast.warning('No children from this registration are expected today');
       }
     } catch (error) {
       console.error('Error processing QR scan:', error);
-      toast.error('Failed to process QR code. Please try again or check in manually.');
+      toast.error('Failed to process QR code');
       setScannerOpen(false);
     }
   };
 
-  const paidRegistrations = registrations.filter(r => r.payment_status === 'paid');
-  const unpaidRegistrations = registrations.filter(r => r.payment_status !== 'paid');
+  const formatChildDates = (child: CampChild): string => {
+    const dates = child.selectedDates || [];
+    if (dates.length === 0) return 'No dates selected';
+    if (dates.length <= 3) {
+      return dates.map(d => format(parseISO(d), 'MMM d')).join(', ');
+    }
+    return `${dates.length} days`;
+  };
 
-  const renderAttendanceSection = (regs: CampRegistration[], title: string, isPaid: boolean) => (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>{title}</span>
-          <Badge variant={isPaid ? 'default' : 'secondary'}>
-            {regs.length} Registration{regs.length !== 1 ? 's' : ''}
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {regs.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No {title.toLowerCase()} found
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Reg #</TableHead>
-                <TableHead>Parent</TableHead>
-                <TableHead>Child Name</TableHead>
-                <TableHead>Age</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {regs.flatMap(reg =>
-                reg.children.map(child => {
-                  const key = `${reg.id}-${child.childName}`;
+  const renderExpectedSection = (items: ExpectedChild[], title: string, isPaid: boolean) => {
+    const presentCount = items.filter(item => {
+      const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
+      return attendanceStatus[key] && !attendanceStatus[key].check_out_time;
+    }).length;
+
+    return (
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {title}
+            </span>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">
+                {presentCount}/{items.length} Present
+              </Badge>
+              <Badge variant={isPaid ? 'default' : 'secondary'}>
+                {items.length} Expected
+              </Badge>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {items.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No {title.toLowerCase()} for {format(parseISO(selectedDate), 'MMMM d, yyyy')}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reg #</TableHead>
+                  <TableHead>Parent</TableHead>
+                  <TableHead>Child Name</TableHead>
+                  <TableHead>Age</TableHead>
+                  <TableHead>Session</TableHead>
+                  <TableHead>Registered Dates</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item, idx) => {
+                  const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
                   const attendance = attendanceStatus[key];
                   const checkedIn = !!attendance;
                   const checkedOut = attendance?.check_out_time;
 
                   return (
-                    <TableRow key={key}>
-                      <TableCell className="font-mono text-xs">{reg.registration_number}</TableCell>
-                      <TableCell>{reg.parent_name}</TableCell>
-                      <TableCell className="font-medium">{child.childName}</TableCell>
-                      <TableCell>{child.ageRange}</TableCell>
+                    <TableRow key={`${key}-${idx}`}>
+                      <TableCell className="font-mono text-xs">{item.registration.registration_number}</TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{item.registration.parent_name}</div>
+                          <div className="text-xs text-muted-foreground">{item.registration.phone}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{item.child.childName}</TableCell>
+                      <TableCell>{item.child.ageRange}</TableCell>
+                      <TableCell>
+                        <Badge variant={item.session === 'full' ? 'default' : 'outline'}>
+                          {item.session === 'full' ? 'Full Day' : 'Half Day'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-xs">
+                          <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                          <span title={item.child.selectedDates?.join(', ')}>
+                            {formatChildDates(item.child)}
+                          </span>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {checkedOut ? (
                           <Badge variant="secondary" className="flex items-center gap-1 w-fit">
@@ -265,13 +346,13 @@ export const AttendanceMarkingTab: React.FC = () => {
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                            <XCircle className="h-3 w-3" /> Absent
+                            <XCircle className="h-3 w-3" /> Not Arrived
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
                         {attendance && (
-                          <div className="space-y-1">
+                          <div className="space-y-1 text-xs">
                             <div>In: {new Date(attendance.check_in_time).toLocaleTimeString()}</div>
                             {attendance.check_out_time && (
                               <div>Out: {new Date(attendance.check_out_time).toLocaleTimeString()}</div>
@@ -283,7 +364,7 @@ export const AttendanceMarkingTab: React.FC = () => {
                         {!checkedIn ? (
                           <Button
                             size="sm"
-                            onClick={() => handleCheckIn(reg.id!, child.childName)}
+                            onClick={() => handleCheckIn(item.registration.id!, item.child.childName)}
                           >
                             Check In
                           </Button>
@@ -291,7 +372,7 @@ export const AttendanceMarkingTab: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleCheckOut(attendance.id, child.childName, reg.id!)}
+                            onClick={() => handleCheckOut(attendance.id, item.child.childName, item.registration.id!)}
                           >
                             Check Out
                           </Button>
@@ -301,21 +382,77 @@ export const AttendanceMarkingTab: React.FC = () => {
                       </TableCell>
                     </TableRow>
                   );
-                })
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
-  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const totalExpected = expectedChildren.length;
+  const totalPresent = expectedChildren.filter(item => {
+    const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
+    const attendance = attendanceStatus[key];
+    return attendance && !attendance.check_out_time;
+  }).length;
 
   return (
     <div className="space-y-6">
+      {/* Header with stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-primary">{totalExpected}</div>
+            <div className="text-sm text-muted-foreground">Expected Today</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-green-600">{totalPresent}</div>
+            <div className="text-sm text-muted-foreground">Present Now</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold">{paidExpected.length}</div>
+            <div className="text-sm text-muted-foreground">Paid Expected</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-destructive">{unpaidExpected.length}</div>
+            <div className="text-sm text-muted-foreground">Unpaid Expected</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Controls */}
       <Card>
         <CardHeader>
-          <CardTitle>Today's Attendance - {new Date().toLocaleDateString()}</CardTitle>
-          <div className="flex gap-4 mt-4">
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Attendance for {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}
+          </CardTitle>
+          <div className="flex flex-wrap gap-4 mt-4">
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-[180px]"
+              />
+              {selectedDate !== new Date().toISOString().split('T')[0] && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                >
+                  Today
+                </Button>
+              )}
+            </div>
             <div className="flex-1 flex gap-2">
               <Input
                 placeholder="Search by registration number or name..."
@@ -332,7 +469,7 @@ export const AttendanceMarkingTab: React.FC = () => {
                 className="flex items-center gap-2"
               >
                 <QrCode className="h-4 w-4" />
-                Scan QR Code
+                Scan QR
               </Button>
             </div>
             <Select value={campTypeFilter} onValueChange={setCampTypeFilter}>
@@ -361,8 +498,8 @@ export const AttendanceMarkingTab: React.FC = () => {
         <div className="text-center py-8">Loading...</div>
       ) : (
         <>
-          {renderAttendanceSection(paidRegistrations, 'Paid Registrations', true)}
-          {renderAttendanceSection(unpaidRegistrations, 'Unpaid Registrations', false)}
+          {renderExpectedSection(paidExpected, 'Paid - Expected Children', true)}
+          {renderExpectedSection(unpaidExpected, 'Unpaid - Expected Children', false)}
         </>
       )}
     </div>

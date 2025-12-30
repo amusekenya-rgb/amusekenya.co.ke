@@ -20,6 +20,24 @@ export const attendanceService = {
     return data as CampAttendance;
   },
 
+  async checkInForDate(registrationId: string, childName: string, markedBy: string, date: string, notes?: string) {
+    const { data, error } = await supabase
+      .from('camp_attendance')
+      .insert({
+        registration_id: registrationId,
+        child_name: childName,
+        check_in_time: new Date().toISOString(),
+        attendance_date: date,
+        marked_by: markedBy,
+        notes,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as CampAttendance;
+  },
+
   async checkOut(attendanceId: string, notes?: string) {
     const { data, error } = await supabase
       .from('camp_attendance')
@@ -101,13 +119,16 @@ export const attendanceService = {
 
   async hasCheckedInToday(registrationId: string, childName: string) {
     const today = new Date().toISOString().split('T')[0];
-    
+    return this.hasCheckedInOnDate(registrationId, childName, today);
+  },
+
+  async hasCheckedInOnDate(registrationId: string, childName: string, date: string) {
     const { data, error } = await supabase
       .from('camp_attendance')
       .select('*')
       .eq('registration_id', registrationId)
       .eq('child_name', childName)
-      .eq('attendance_date', today)
+      .eq('attendance_date', date)
       .maybeSingle();
 
     if (error) throw error;

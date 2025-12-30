@@ -1,10 +1,15 @@
-
 import React from 'react';
 import InvoiceManagement from './accounts/InvoiceManagement';
+import PaymentManagement from './accounts/PaymentManagement';
+import BudgetManagement from './accounts/BudgetManagement';
+import ExpenseManagement from './accounts/ExpenseManagement';
+import FinancialReports from './accounts/FinancialReports';
 import MessageCenter from '../communication/MessageCenter';
-import AnalyticsDashboard from '../analytics/AnalyticsDashboard';
 import AccountsDashboard from './accounts/AccountsDashboard';
-import { PaymentsTab, BudgetTab, ExpensesTab } from './accounts/AccountsPlaceholderTabs';
+import { CampReportsTab } from './admin/camp/CampReportsTab';
+import { PendingCollections } from './accounts/PendingCollections';
+import VendorManagement from './accounts/VendorManagement';
+import BillsManagement from './accounts/BillsManagement';
 
 interface AccountsPortalProps {
   activeTab: string;
@@ -15,18 +20,26 @@ const AccountsPortal: React.FC<AccountsPortalProps> = ({ activeTab }) => {
     switch (activeTab) {
       case 'dashboard':
         return <AccountsDashboard />;
+      case 'collections':
+        return <PendingCollections />;
       case 'invoices':
         return <InvoiceManagement />;
+      case 'bills':
+        return <BillsManagement />;
+      case 'vendors':
+        return <VendorManagement />;
+      case 'payments':
+        return <PaymentManagement />;
+      case 'budget':
+        return <BudgetManagement />;
+      case 'expenses':
+        return <ExpenseManagement />;
       case 'communication':
         return <MessageCenter />;
       case 'reports':
-        return <AnalyticsDashboard />;
-      case 'payments':
-        return <PaymentsTab />;
-      case 'budget':
-        return <BudgetTab />;
-      case 'expenses':
-        return <ExpensesTab />;
+        return <FinancialReports />;
+      case 'camp-analytics':
+        return <CampReportsTab />;
       default:
         return (
           <div>

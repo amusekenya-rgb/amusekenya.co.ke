@@ -494,32 +494,35 @@ export const ProgramRegistrationsManager = () => {
       </div>
 
       {selectedIds.size > 0 && (
-        <Card className="p-4 bg-primary/5 border-primary">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">{selectedIds.size} registration(s) selected</span>
-            <div className="flex gap-2">
+        <Card className="p-3 sm:p-4 bg-primary/5 border-primary">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => handleBulkStatusUpdate('confirmed')}
+                className="text-xs sm:text-sm"
               >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Mark Confirmed
+                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Mark </span>Confirmed
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => handleBulkStatusUpdate('cancelled')}
+                className="text-xs sm:text-sm"
               >
-                <XCircle className="h-4 w-4 mr-2" />
-                Mark Cancelled
+                <XCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Mark </span>Cancelled
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setSelectedIds(new Set())}
+                className="text-xs sm:text-sm"
               >
-                Clear Selection
+                Clear
               </Button>
             </div>
           </div>
@@ -527,17 +530,19 @@ export const ProgramRegistrationsManager = () => {
       )}
 
       <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setSelectedIds(new Set()); }}>
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="kenyan-experiences">Experiences</TabsTrigger>
-          <TabsTrigger value="homeschooling">Homeschooling</TabsTrigger>
-          <TabsTrigger value="school-experience">Schools</TabsTrigger>
-          <TabsTrigger value="team-building">Team Building</TabsTrigger>
-          <TabsTrigger value="parties">Parties</TabsTrigger>
-          <TabsTrigger value="reports">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Reports
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-6 h-auto gap-1">
+            <TabsTrigger value="kenyan-experiences" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Experiences</TabsTrigger>
+            <TabsTrigger value="homeschooling" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Homeschool</TabsTrigger>
+            <TabsTrigger value="school-experience" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Schools</TabsTrigger>
+            <TabsTrigger value="team-building" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Team</TabsTrigger>
+            <TabsTrigger value="parties" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap">Parties</TabsTrigger>
+            <TabsTrigger value="reports" className="text-xs sm:text-sm px-2 sm:px-3 py-2 whitespace-nowrap flex items-center gap-1">
+              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>Reports</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="reports">
           <ReportsTab />
@@ -566,32 +571,34 @@ export const ProgramRegistrationsManager = () => {
                 </div>
                 <div className="grid gap-4">
                   {filteredRegistrations.map((reg) => (
-                    <Card key={reg.id} className="p-4">
-                      <div className="flex items-start gap-4">
+                    <Card key={reg.id} className="p-3 sm:p-4">
+                      <div className="flex items-start gap-2 sm:gap-4">
                         <Checkbox
                           checked={selectedIds.has(reg.id)}
                           onCheckedChange={(checked) => handleSelectOne(reg.id, checked as boolean)}
                           className="mt-1"
                         />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-semibold">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-2">
+                            <h3 className="font-semibold text-sm sm:text-base truncate">
                               {reg.parent_name || reg.parent_leader || reg.school_name || reg.email}
                             </h3>
                             {getStatusBadge(reg.status)}
                           </div>
-                          <p className="text-sm text-muted-foreground">{reg.email} • {reg.phone}</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Registered: {new Date(reg.created_at).toLocaleDateString()}
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">{reg.email}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground">{reg.phone}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(reg.created_at).toLocaleDateString()}
                           </p>
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => setSelectedRegistration(reg)}
+                          className="flex-shrink-0"
                         >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View
+                          <Eye className="h-4 w-4 sm:mr-2" />
+                          <span className="hidden sm:inline">View</span>
                         </Button>
                       </div>
                     </Card>

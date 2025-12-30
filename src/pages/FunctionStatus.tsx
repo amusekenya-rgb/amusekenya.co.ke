@@ -12,9 +12,9 @@ interface FunctionStatus {
 
 export default function FunctionStatus() {
   const [functions, setFunctions] = useState<FunctionStatus[]>([
-    { name: 'send-program-confirmation', status: 'checking' },
-    { name: 'test-sendgrid', status: 'checking' },
-    { name: 'handle-sendgrid-webhooks', status: 'checking' },
+    { name: 'send-confirmation-email', status: 'checking' },
+    { name: 'test-resend', status: 'checking' },
+    { name: 'handle-resend-webhooks', status: 'checking' },
   ]);
 
   const checkFunctions = async () => {
@@ -146,18 +146,19 @@ export default function FunctionStatus() {
             )}
 
             <div className="text-sm space-y-2">
-              <p className="font-medium">Recent fixes applied:</p>
+              <p className="font-medium">Recent updates:</p>
               <ul className="list-disc list-inside ml-2 text-muted-foreground">
-                <li>Fixed project ID in config.toml (was pointing to wrong project)</li>
-                <li>Added enhanced logging to track email sending</li>
-                <li>Updated RLS policies for email_deliveries table</li>
+                <li>Migrated from SendGrid to Resend for better email delivery</li>
+                <li>Updated all registration forms to use new confirmation email function</li>
+                <li>Implemented webhook handler for bounce tracking and email events</li>
+                <li>Enhanced email suppression and delivery tracking</li>
               </ul>
             </div>
 
             <div className="flex gap-2 pt-2">
               <Button asChild variant="outline">
                 <a href="/test/sendgrid" target="_blank">
-                  Test SendGrid →
+                  Test Resend →
                 </a>
               </Button>
               <Button asChild variant="outline">

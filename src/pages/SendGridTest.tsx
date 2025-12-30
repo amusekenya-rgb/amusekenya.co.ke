@@ -12,7 +12,7 @@ export default function SendGridTest() {
   const [result, setResult] = useState<any>(null);
   const { toast } = useToast();
 
-  const testSendGrid = async () => {
+  const testResend = async () => {
     if (!email) {
       toast({
         title: "Email Required",
@@ -26,10 +26,10 @@ export default function SendGridTest() {
     setResult(null);
 
     try {
-      console.log('🧪 Testing SendGrid with email:', email);
+      console.log('🧪 Testing Resend with email:', email);
       
-      const { data, error } = await supabase.functions.invoke('test-sendgrid', {
-        body: { testEmail: email }
+      const { data, error } = await supabase.functions.invoke('test-resend', {
+        body: { email: email }
       });
 
       console.log('Response:', data);
@@ -84,14 +84,14 @@ export default function SendGridTest() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mail className="w-6 h-6" />
-            SendGrid Integration Test
+            Resend Integration Test
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
             <p className="text-sm text-muted-foreground mb-4">
-              This tool tests the SendGrid email integration by sending a test email.
-              Use this to verify your SendGrid API key is working correctly.
+              This tool tests the Resend email integration by sending a test email.
+              Use this to verify your Resend API key is working correctly.
             </p>
           </div>
 
@@ -103,7 +103,7 @@ export default function SendGridTest() {
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
             />
-            <Button onClick={testSendGrid} disabled={isLoading}>
+            <Button onClick={testResend} disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -135,13 +135,13 @@ export default function SendGridTest() {
                     {result.success && (
                       <div className="text-sm space-y-1">
                         <div className="text-muted-foreground">
-                          Email sent successfully to: <span className="font-mono">{result.recipient}</span>
+                          Email sent successfully to: <span className="font-mono">{result.details?.recipient || email}</span>
                         </div>
                         <div className="text-muted-foreground">
                           Message ID: <span className="font-mono text-xs">{result.messageId}</span>
                         </div>
                         <div className="text-green-600 font-medium mt-2">
-                          ✓ Check your inbox for the test email from peterokata47@gmail.com
+                          ✓ Check your inbox for the test email from Amuse Kenya
                         </div>
                       </div>
                     )}
@@ -172,8 +172,8 @@ export default function SendGridTest() {
           <div className="border-t pt-4">
             <h3 className="font-semibold mb-2">What this test checks:</h3>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-              <li>SendGrid API key is configured</li>
-              <li>Sender email (peterokata47@gmail.com) is verified</li>
+              <li>Resend API key is configured</li>
+              <li>Sender email domain is verified</li>
               <li>Edge function can send emails</li>
               <li>CORS and authentication are working</li>
             </ul>
@@ -184,9 +184,9 @@ export default function SendGridTest() {
               Common Issues:
             </h4>
             <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-              <li>• Sender email not verified in SendGrid</li>
+              <li>• Email domain not verified in Resend (visit resend.com/domains)</li>
               <li>• Invalid API key</li>
-              <li>• API key doesn't have "Mail Send" permission</li>
+              <li>• API key doesn't have proper permissions</li>
               <li>• Edge function not deployed</li>
             </ul>
           </div>

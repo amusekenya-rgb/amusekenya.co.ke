@@ -1,43 +1,51 @@
-import React from 'react';
-import { useForm, Controller, useFieldArray } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
-import { GraduationCap, MapPin, Users, ArrowLeft, CheckCircle, Plus, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import schoolsImage from '@/assets/schools.jpg';
-import DatePickerField from './DatePickerField';
-import { ConsentDialog } from './ConsentDialog';
-import { RefundPolicyDialog } from './RefundPolicyDialog';
-import { leadsService } from '@/services/leadsService';
+import React from "react";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { GraduationCap, MapPin, Users, ArrowLeft, CheckCircle, Plus, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import schoolsImage from "@/assets/schools.jpg";
+import DatePickerField from "./DatePickerField";
+import { ConsentDialog } from "./ConsentDialog";
+import { RefundPolicyDialog } from "./RefundPolicyDialog";
+import { leadsService } from "@/services/leadsService";
 
 const schoolExperienceSchema = z.object({
-  schoolName: z.string().min(1, 'School name is required').max(200),
-  numberOfKids: z.string().min(1, 'Number of kids is required'),
-  numberOfAdults: z.string().min(1, 'Number of adults is required'),
-  ageRanges: z.array(z.object({
-    range: z.enum(['6-8', '9-11', '12-14', '15-17'])
-  })).min(1, 'Please add at least one age range'),
-  package: z.enum(['day-trip', 'sleep-away', 'after-school-club', 'physical-education']),
-  preferredDates: z.array(z.object({
-    date: z.date()
-  })).min(1, 'Please add at least one preferred date'),
-  location: z.enum(['karura-gate-f', 'karura-gate-a', 'tigoni', 'ngong']),
-  numberOfStudents: z.string().min(1, 'Number of students is required'),
-  numberOfTeachers: z.string().min(1, 'Number of teachers is required'),
+  schoolName: z.string().min(1, "School name is required").max(200),
+  numberOfKids: z.string().min(1, "Number of kids is required"),
+  numberOfAdults: z.string().min(1, "Number of adults is required"),
+  ageRanges: z
+    .array(
+      z.object({
+        range: z.enum(["6-8", "9-11", "12-14", "15-17"]),
+      }),
+    )
+    .min(1, "Please add at least one age range"),
+  package: z.enum(["day-trip", "sleep-away", "after-school-club", "physical-education"]),
+  preferredDates: z
+    .array(
+      z.object({
+        date: z.date(),
+      }),
+    )
+    .min(1, "Please add at least one preferred date"),
+  location: z.enum(["karura-gate-f", "karura-gate-a", "tigoni", "ngong"]),
+  numberOfStudents: z.string().min(1, "Number of students is required"),
+  numberOfTeachers: z.string().min(1, "Number of teachers is required"),
   transport: z.boolean().default(false),
   catering: z.boolean().default(false),
   specialNeeds: z.string().max(500),
-  email: z.string().email('Invalid email address'),
-  phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().refine(val => val === true, 'Consent is required')
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(1, "Phone number is required").max(20),
+  consent: z.boolean().refine((val) => val === true, "Consent is required"),
 });
 
 type SchoolExperienceFormData = z.infer<typeof schoolExperienceSchema>;
@@ -49,7 +57,7 @@ const SchoolExperienceProgram = () => {
     setValue,
     control,
     watch,
-    formState: { errors, isSubmitting }
+    formState: { errors, isSubmitting },
   } = useForm<SchoolExperienceFormData>({
     resolver: zodResolver(schoolExperienceSchema),
     defaultValues: {
@@ -57,26 +65,34 @@ const SchoolExperienceProgram = () => {
       preferredDates: [{ date: undefined as any }],
       transport: false,
       catering: false,
-      consent: false
-    }
+      consent: false,
+    },
   });
 
-  const { fields: ageRangeFields, append: appendAgeRange, remove: removeAgeRange } = useFieldArray({
+  const {
+    fields: ageRangeFields,
+    append: appendAgeRange,
+    remove: removeAgeRange,
+  } = useFieldArray({
     control,
-    name: 'ageRanges'
+    name: "ageRanges",
   });
 
-  const { fields: dateFields, append: appendDate, remove: removeDate } = useFieldArray({
+  const {
+    fields: dateFields,
+    append: appendDate,
+    remove: removeDate,
+  } = useFieldArray({
     control,
-    name: 'preferredDates'
+    name: "preferredDates",
   });
 
-  const consent = watch('consent');
+  const consent = watch("consent");
 
   const onSubmit = async (data: SchoolExperienceFormData) => {
     try {
       // Save to database
-      const { schoolExperienceService } = await import('@/services/programRegistrationService');
+      const { schoolExperienceService } = await import("@/services/programRegistrationService");
       const registration = await schoolExperienceService.create(data);
 
       // Capture lead
@@ -84,72 +100,70 @@ const SchoolExperienceProgram = () => {
         full_name: data.schoolName,
         email: data.email,
         phone: data.phone,
-        program_type: 'school-experience',
+        program_type: "school-experience",
         program_name: data.package,
         form_data: data,
-        source: 'website_registration'
+        source: "website_registration",
       });
 
-      // Send confirmation email
-      const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.functions.invoke('send-program-confirmation', {
+      // Send confirmation email via Resend
+      const { supabase } = await import("@/integrations/supabase/client");
+      await supabase.functions.invoke("send-confirmation-email", {
         body: {
           email: data.email,
-          name: data.schoolName,
-          programType: 'school-experience',
-          details: {
+          programType: "school-experience",
+          registrationDetails: {
             schoolName: data.schoolName,
             package: data.package,
             numberOfStudents: data.numberOfStudents,
-            location: data.location
+            location: data.location,
+            registrationId: registration && "id" in registration ? registration.id : undefined,
           },
-          totalAmount: 0, // TBD - will be confirmed by team
-          registrationId: registration && 'id' in registration ? registration.id : undefined
-        }
+        },
       });
 
-      toast.success('Registration submitted successfully! Check your email for confirmation.');
+      toast.success("Registration submitted successfully! Check your email for confirmation.");
     } catch (error: any) {
-      console.error('Registration error:', error);
-      console.error('Error details:', error?.message, error?.details, error?.hint);
-      toast.error(error?.message || 'Failed to submit registration. Please try again.');
+      console.error("Registration error:", error);
+      console.error("Error details:", error?.message, error?.details, error?.hint);
+      toast.error(error?.message || "Failed to submit registration. Please try again.");
     }
   };
 
   const globalPrograms = [
     {
-      title: 'Forest-Based Curriculum Days',
-      description: 'Ecology, conservation, and citizen science activities',
-      features: ['Curriculum Integration', 'Reflection Journals', 'Scientific Method']
+      title: "Forest-Based Curriculum Days",
+      description: "Ecology, conservation, and citizen science activities",
+      features: ["Curriculum Integration", "Reflection Journals", "Scientific Method"],
     },
     {
-      title: 'Adventure Sleep-Aways (3–5 Days)',
-      description: 'Mount Kenya, Coast, Mara, Chalbi, Western circuits',
-      features: ['Multi-day Experience', 'Cultural Immersion', 'Team Building']
+      title: "Adventure Sleep-Aways (3–5 Days)",
+      description: "Mount Kenya, Coast, Mara, Chalbi, Western circuits",
+      features: ["Multi-day Experience", "Cultural Immersion", "Team Building"],
     },
     {
-      title: 'After-School Clubs',
-      description: 'Creative Arts, Leadership Games',
-      features: ['Skill Development', 'Leadership', 'Creative Expression']
+      title: "After-School Clubs",
+      description: "Creative Arts, Leadership Games",
+      features: ["Skill Development", "Leadership", "Creative Expression"],
     },
     {
-      title: 'PE & Well-being Consulting',
-      description: 'Design of outdoor term plans for physical education',
-      features: ['Curriculum Design', 'Physical Fitness', 'Well-being Focus']
-    }
+      title: "PE & Well-being Consulting",
+      description: "Design of outdoor term plans for physical education",
+      features: ["Curriculum Design", "Physical Fitness", "Well-being Focus"],
+    },
   ];
 
   const communityPrograms = [
     {
-      title: 'Affordable Day Trips',
-      description: 'Forest ecology walks, tree planting, group games, excursions & bushcraft days',
-      features: ['Accessible Pricing', 'Environmental Education', 'Group Activities']
+      title: "Affordable Day Trips",
+      description: "Forest ecology walks, tree planting, group games, excursions & bushcraft days",
+      features: ["Accessible Pricing", "Environmental Education", "Group Activities"],
     },
     {
-      title: 'Life Skills Immersion Days',
-      description: 'Fireless cooking, navigation, ropes & survival challenges',
-      features: ['Practical Skills', 'Problem Solving', 'Confidence Building']
-    }
+      title: "Life Skills Immersion Days",
+      description: "Fireless cooking, navigation, ropes & survival challenges",
+      features: ["Practical Skills", "Problem Solving", "Confidence Building"],
+    },
   ];
 
   return (
@@ -171,23 +185,20 @@ const SchoolExperienceProgram = () => {
                   <GraduationCap className="w-8 h-8 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-primary">
-                    School Experience Packages
-                  </h1>
+                  <h1 className="text-4xl md:text-5xl font-bold text-primary">School Experience Packages</h1>
                   <p className="text-lg text-muted-foreground">(Ages 6-17 years)</p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Designed to complement curriculum with immersive experiential learning. International schools receive curriculum tie-in and reflection journals. Kenyan schools gain accessible packages focusing on practical life skills.
+                School Adventures brings learning to life beyond the classroom through immersive outdoor experiences and
+                expertly designed programs. From team-building sessions, Field trips, to holiday camps, sleep-away
+                adventures, after-school clubs, and PE consultancy, we provide students with opportunities to explore,
+                play, and grow while developing confidence, resilience, teamwork, and problem-solving skills.
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
-              <img 
-                src={schoolsImage} 
-                alt="School groups in nature"
-                className="w-full h-full object-cover"
-              />
+              <img src={schoolsImage} alt="School groups in nature" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
 
@@ -238,7 +249,8 @@ const SchoolExperienceProgram = () => {
                 Rainy-Day Plans
               </h4>
               <p className="text-muted-foreground">
-                Use indoor pavilions or partner halls for storytelling, simulations, knot practice, cultural dance workshops - ensuring learning continues regardless of weather.
+                Use indoor pavilions or partner halls for storytelling, simulations, knot practice, cultural dance
+                workshops - ensuring learning continues regardless of weather.
               </p>
             </Card>
           </div>
@@ -246,42 +258,31 @@ const SchoolExperienceProgram = () => {
           {/* Registration Form */}
           <Card className="p-8 sticky top-8">
             <h3 className="text-2xl font-bold text-primary mb-6">School Registration</h3>
-            
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
-                <Label htmlFor="schoolName" className="text-base font-medium">School Name *</Label>
-                <Input
-                  id="schoolName"
-                  {...register('schoolName')}
-                  className="mt-2"
-                  placeholder="Enter school name"
-                />
-                {errors.schoolName && (
-                  <p className="text-destructive text-sm mt-1">{errors.schoolName.message}</p>
-                )}
+                <Label htmlFor="schoolName" className="text-base font-medium">
+                  School Name *
+                </Label>
+                <Input id="schoolName" {...register("schoolName")} className="mt-2" placeholder="Enter school name" />
+                {errors.schoolName && <p className="text-destructive text-sm mt-1">{errors.schoolName.message}</p>}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="numberOfKids" className="text-base font-medium">Number of Kids *</Label>
-                  <Input
-                    id="numberOfKids"
-                    {...register('numberOfKids')}
-                    className="mt-2"
-                    placeholder="e.g., 25"
-                  />
+                  <Label htmlFor="numberOfKids" className="text-base font-medium">
+                    Number of Kids *
+                  </Label>
+                  <Input id="numberOfKids" {...register("numberOfKids")} className="mt-2" placeholder="e.g., 25" />
                   {errors.numberOfKids && (
                     <p className="text-destructive text-sm mt-1">{errors.numberOfKids.message}</p>
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="numberOfAdults" className="text-base font-medium">Number of Adults *</Label>
-                  <Input
-                    id="numberOfAdults"
-                    {...register('numberOfAdults')}
-                    className="mt-2"
-                    placeholder="e.g., 3"
-                  />
+                  <Label htmlFor="numberOfAdults" className="text-base font-medium">
+                    Number of Adults *
+                  </Label>
+                  <Input id="numberOfAdults" {...register("numberOfAdults")} className="mt-2" placeholder="e.g., 3" />
                   {errors.numberOfAdults && (
                     <p className="text-destructive text-sm mt-1">{errors.numberOfAdults.message}</p>
                   )}
@@ -337,7 +338,7 @@ const SchoolExperienceProgram = () => {
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Age Range
                   </Button>
-                  {errors.ageRanges && typeof errors.ageRanges.message === 'string' && (
+                  {errors.ageRanges && typeof errors.ageRanges.message === "string" && (
                     <p className="text-destructive text-sm mt-1">{errors.ageRanges.message}</p>
                   )}
                 </div>
@@ -345,7 +346,7 @@ const SchoolExperienceProgram = () => {
 
               <div>
                 <Label className="text-base font-medium">Package *</Label>
-                <Select onValueChange={(value) => setValue('package', value as any)}>
+                <Select onValueChange={(value) => setValue("package", value as any)}>
                   <SelectTrigger className="mt-2">
                     <SelectValue placeholder="Select a package" />
                   </SelectTrigger>
@@ -400,7 +401,7 @@ const SchoolExperienceProgram = () => {
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Date
                   </Button>
-                  {errors.preferredDates && typeof errors.preferredDates.message === 'string' && (
+                  {errors.preferredDates && typeof errors.preferredDates.message === "string" && (
                     <p className="text-destructive text-sm mt-1">{errors.preferredDates.message}</p>
                   )}
                 </div>
@@ -408,7 +409,7 @@ const SchoolExperienceProgram = () => {
 
               <div>
                 <Label className="text-base font-medium">Location *</Label>
-                <Select onValueChange={(value) => setValue('location', value as any)}>
+                <Select onValueChange={(value) => setValue("location", value as any)}>
                   <SelectTrigger className="mt-2">
                     <SelectValue placeholder="Select location" />
                   </SelectTrigger>
@@ -419,17 +420,17 @@ const SchoolExperienceProgram = () => {
                     <SelectItem value="ngong">Ngong</SelectItem>
                   </SelectContent>
                 </Select>
-                {errors.location && (
-                  <p className="text-destructive text-sm mt-1">{errors.location.message}</p>
-                )}
+                {errors.location && <p className="text-destructive text-sm mt-1">{errors.location.message}</p>}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="numberOfStudents" className="text-base font-medium">No. of Students *</Label>
+                  <Label htmlFor="numberOfStudents" className="text-base font-medium">
+                    No. of Students *
+                  </Label>
                   <Input
                     id="numberOfStudents"
-                    {...register('numberOfStudents')}
+                    {...register("numberOfStudents")}
                     className="mt-2"
                     placeholder="Total students"
                   />
@@ -438,10 +439,12 @@ const SchoolExperienceProgram = () => {
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="numberOfTeachers" className="text-base font-medium">No. of Teachers *</Label>
+                  <Label htmlFor="numberOfTeachers" className="text-base font-medium">
+                    No. of Teachers *
+                  </Label>
                   <Input
                     id="numberOfTeachers"
-                    {...register('numberOfTeachers')}
+                    {...register("numberOfTeachers")}
                     className="mt-2"
                     placeholder="Total teachers"
                   />
@@ -455,21 +458,23 @@ const SchoolExperienceProgram = () => {
                 <Label className="text-base font-medium">Add-Ons</Label>
                 <div className="mt-3 space-y-3">
                   <div className="flex items-center space-x-3">
-                    <Checkbox id="transport" {...register('transport')} />
+                    <Checkbox id="transport" {...register("transport")} />
                     <Label htmlFor="transport">Transport</Label>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <Checkbox id="catering" {...register('catering')} />
+                    <Checkbox id="catering" {...register("catering")} />
                     <Label htmlFor="catering">Catering</Label>
                   </div>
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="specialNeeds" className="text-base font-medium">Special Needs (Optional)</Label>
+                <Label htmlFor="specialNeeds" className="text-base font-medium">
+                  Special Needs (Optional)
+                </Label>
                 <Textarea
                   id="specialNeeds"
-                  {...register('specialNeeds')}
+                  {...register("specialNeeds")}
                   className="mt-2"
                   placeholder="Describe any special needs or requirements"
                   rows={3}
@@ -478,46 +483,37 @@ const SchoolExperienceProgram = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="email" className="text-base font-medium">Email *</Label>
+                  <Label htmlFor="email" className="text-base font-medium">
+                    Email *
+                  </Label>
                   <Input
                     id="email"
                     type="email"
-                    {...register('email')}
+                    {...register("email")}
                     className="mt-2"
                     placeholder="school@email.com"
                   />
-                  {errors.email && (
-                    <p className="text-destructive text-sm mt-1">{errors.email.message}</p>
-                  )}
+                  {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="phone" className="text-base font-medium">Phone Number *</Label>
-                  <Input
-                    id="phone"
-                    {...register('phone')}
-                    className="mt-2"
-                    placeholder="+254 700 000 000"
-                  />
-                  {errors.phone && (
-                    <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>
-                  )}
+                  <Label htmlFor="phone" className="text-base font-medium">
+                    Phone Number *
+                  </Label>
+                  <Input id="phone" {...register("phone")} className="mt-2" placeholder="+254 700 000 000" />
+                  {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
                 </div>
               </div>
 
               <ConsentDialog
                 checked={consent}
-                onCheckedChange={(checked) => setValue('consent', checked)}
+                onCheckedChange={(checked) => setValue("consent", checked)}
                 error={errors.consent?.message}
               />
 
               <RefundPolicyDialog />
 
-              <Button
-                type="submit" 
-                className="w-full h-12 text-base"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Submitting...' : 'Submit School Registration'}
+              <Button type="submit" className="w-full h-12 text-base" disabled={isSubmitting}>
+                {isSubmitting ? "Submitting..." : "Submit School Registration"}
               </Button>
             </form>
           </Card>

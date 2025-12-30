@@ -105,11 +105,15 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
       case ROLES.ACCOUNTS:
         return [
           ...baseTabs,
+          { id: 'collections', label: 'Pending Collections', icon: Receipt },
           { id: 'invoices', label: 'Invoices', icon: FileText },
+          { id: 'bills', label: 'Bills (AP)', icon: FileText },
+          { id: 'vendors', label: 'Vendors', icon: Building },
           { id: 'payments', label: 'Payments', icon: CreditCard },
           { id: 'budget', label: 'Budget', icon: DollarSign },
           { id: 'expenses', label: 'Expenses', icon: Receipt },
           { id: 'reports', label: 'Reports', icon: BarChart3 },
+          { id: 'camp-analytics', label: 'Camp Analytics', icon: Tent },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       
@@ -143,6 +147,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'customer-management', label: 'Customer Management', icon: Users },
           { id: 'camp-registrations', label: 'Camp Registrations', icon: Tent },
           { id: 'program-registrations', label: 'Program Registrations', icon: Calendar },
+          { id: 'camp-analytics', label: 'Camp Analytics', icon: TrendingUp },
           { id: 'system', label: 'System Admin', icon: Database },
           { id: 'settings', label: 'System Settings', icon: Settings },
           { id: 'audit-logs', label: 'Audit Logs', icon: FileText },

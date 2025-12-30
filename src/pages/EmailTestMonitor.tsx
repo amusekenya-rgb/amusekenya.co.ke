@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from '@/integrations/supabase/client';
-import { Mail, CheckCircle, XCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { supabase } from "@/integrations/supabase/client";
+import { Mail, CheckCircle, XCircle, Clock, AlertTriangle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface EmailDelivery {
   id: string;
@@ -46,17 +46,17 @@ export default function EmailTestMonitor() {
     try {
       // Fetch recent email deliveries
       const { data: emails, error: emailError } = await (supabase as any)
-        .from('email_deliveries')
-        .select('*')
-        .order('sent_at', { ascending: false })
+        .from("email_deliveries")
+        .select("*")
+        .order("sent_at", { ascending: false })
         .limit(20);
 
       if (emailError) {
-        console.error('Error fetching email deliveries:', emailError);
+        console.error("Error fetching email deliveries:", emailError);
         toast({
           title: "Error",
           description: `Failed to load email deliveries: ${emailError.message}`,
-          variant: "destructive"
+          variant: "destructive",
         });
       } else {
         setEmailDeliveries((emails || []) as EmailDelivery[]);
@@ -64,23 +64,23 @@ export default function EmailTestMonitor() {
 
       // Fetch recent registrations
       const { data: regs, error: regError } = await supabase
-        .from('camp_registrations')
-        .select('*')
-        .order('created_at', { ascending: false })
+        .from("camp_registrations")
+        .select("*")
+        .order("created_at", { ascending: false })
         .limit(10);
 
       if (regError) {
-        console.error('Error fetching registrations:', regError);
+        console.error("Error fetching registrations:", regError);
         toast({
           title: "Error",
           description: `Failed to load registrations: ${regError.message}`,
-          variant: "destructive"
+          variant: "destructive",
         });
       } else {
         setRegistrations(regs || []);
       }
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error("Error loading data:", error);
     } finally {
       setIsLoading(false);
     }
@@ -91,43 +91,43 @@ export default function EmailTestMonitor() {
 
     // Set up real-time subscription for email_deliveries
     const emailChannel = supabase
-      .channel('email-deliveries-changes')
+      .channel("email-deliveries-changes")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'email_deliveries'
+          event: "*",
+          schema: "public",
+          table: "email_deliveries",
         },
         (payload) => {
-          console.log('📧 Email delivery change:', payload);
+          console.log("📧 Email delivery change:", payload);
           toast({
             title: "New Email Event",
-            description: `Email ${payload.eventType}: ${(payload.new as any)?.email || 'Unknown'}`,
+            description: `Email ${payload.eventType}: ${(payload.new as any)?.email || "Unknown"}`,
           });
           loadData();
-        }
+        },
       )
       .subscribe();
 
     // Set up real-time subscription for camp_registrations
     const regChannel = supabase
-      .channel('registrations-changes')
+      .channel("registrations-changes")
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'camp_registrations'
+          event: "INSERT",
+          schema: "public",
+          table: "camp_registrations",
         },
         (payload) => {
-          console.log('📝 New registration:', payload);
+          console.log("📝 New registration:", payload);
           toast({
             title: "New Registration",
             description: `Registration created for ${(payload.new as any)?.parent_name}`,
           });
           loadData();
-        }
+        },
       )
       .subscribe();
 
@@ -139,15 +139,15 @@ export default function EmailTestMonitor() {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { color: string; icon: any }> = {
-      sent: { color: 'bg-blue-100 text-blue-800', icon: Mail },
-      delivered: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
-      opened: { color: 'bg-purple-100 text-purple-800', icon: Mail },
-      clicked: { color: 'bg-indigo-100 text-indigo-800', icon: CheckCircle },
-      bounced: { color: 'bg-red-100 text-red-800', icon: XCircle },
-      spam: { color: 'bg-orange-100 text-orange-800', icon: AlertTriangle },
+      sent: { color: "bg-blue-100 text-blue-800", icon: Mail },
+      delivered: { color: "bg-green-100 text-green-800", icon: CheckCircle },
+      opened: { color: "bg-purple-100 text-purple-800", icon: Mail },
+      clicked: { color: "bg-indigo-100 text-indigo-800", icon: CheckCircle },
+      bounced: { color: "bg-red-100 text-red-800", icon: XCircle },
+      spam: { color: "bg-orange-100 text-orange-800", icon: AlertTriangle },
     };
 
-    const variant = variants[status] || { color: 'bg-gray-100 text-gray-800', icon: Clock };
+    const variant = variants[status] || { color: "bg-gray-100 text-gray-800", icon: Clock };
     const Icon = variant.icon;
 
     return (
@@ -196,7 +196,7 @@ export default function EmailTestMonitor() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-green-600">
-              {emailDeliveries.filter(e => e.status === 'delivered').length}
+              {emailDeliveries.filter((e) => e.status === "delivered").length}
             </div>
             <p className="text-xs text-muted-foreground">Delivered</p>
           </CardContent>
@@ -204,7 +204,7 @@ export default function EmailTestMonitor() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-red-600">
-              {emailDeliveries.filter(e => e.status === 'bounced').length}
+              {emailDeliveries.filter((e) => e.status === "bounced").length}
             </div>
             <p className="text-xs text-muted-foreground">Bounced</p>
           </CardContent>
@@ -238,7 +238,7 @@ export default function EmailTestMonitor() {
                     </div>
                     {getStatusBadge(email.status)}
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">Message ID:</span>
@@ -297,9 +297,7 @@ export default function EmailTestMonitor() {
         </CardHeader>
         <CardContent>
           {registrations.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No registrations yet.
-            </div>
+            <div className="text-center py-8 text-muted-foreground">No registrations yet.</div>
           ) : (
             <div className="space-y-3">
               {registrations.map((reg) => (
@@ -341,7 +339,7 @@ export default function EmailTestMonitor() {
             <li>Check your email inbox for the confirmation email</li>
             <li>Status will update from "sent" → "delivered" → "opened" as you interact with the email</li>
           </ul>
-          <p className="font-semibold mt-4">Expected Sender: peterokata47@gmail.com</p>
+          <p className="font-semibold mt-4">Expected Sender: amusekenya@gmail.com</p>
           <p className="font-semibold">Expected Subject: Registration Confirmed - [Camp Name]</p>
         </CardContent>
       </Card>

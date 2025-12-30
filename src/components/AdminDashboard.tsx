@@ -11,6 +11,7 @@ import AnalyticsDashboard from './analytics/AnalyticsDashboard';
 import CustomerDashboard from './admin/CustomerDashboard';
 import UserManagement from './admin/UserManagement';
 import AuditLogsViewer from './admin/AuditLogsViewer';
+import { CampReportsTab } from './portals/admin/camp/CampReportsTab';
 
 interface AdminDashboardProps {
   activeTab: string;
@@ -41,6 +42,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab }) => {
         return <CampRegistrationsManager />;
       case 'program-registrations':
         return <ProgramRegistrationsManager />;
+      case 'camp-analytics':
+        return <CampReportsTab />;
       case 'audit-logs':
         return <AuditLogsViewer />;
       default:

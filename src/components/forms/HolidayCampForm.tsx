@@ -20,6 +20,7 @@ import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
 import { leadsService } from '@/services/leadsService';
 import { DateSelector } from './DateSelector';
+import { invoiceService } from '@/services/invoiceService';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
@@ -74,6 +75,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
     setValue,
     watch,
     control,
+    reset,
     formState: { errors, isSubmitting }
   } = useForm<HolidayCampFormData>({
     resolver: zodResolver(holidayCampSchema),
@@ -179,23 +181,57 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         form_data: data,
         source: 'website_registration'
       });
+
+      // Auto-create invoice for registration
+      try {
+        await invoiceService.createFromRegistration({
+          id: registration.id,
+          type: 'camp',
+          parentName: data.parentName,
+          email: data.email,
+          programName: campTitle,
+          totalAmount: totalAmount,
+          children: data.children.map(child => ({
+            childName: child.childName,
+            price: child.totalPrice,
+            selectedDates: child.selectedDates
+          }))
+        });
+        console.log('✅ Auto-invoice created for registration');
+      } catch (invoiceError) {
+        console.error('⚠️ Failed to create auto-invoice:', invoiceError);
+        // Don't fail the registration if invoice creation fails
+      }
       
-      // Send confirmation email via Postmark
+      // Send confirmation email via Resend
+      console.log('📧 Attempting to send confirmation email...');
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.functions.invoke('send-program-confirmation', {
+      const emailResponse = await supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
-          name: data.parentName,
           programType: 'holiday-camp',
-          details: {
+          registrationDetails: {
+            parentName: data.parentName,
             campTitle: campTitle,
             children: data.children,
-            campType: campType
+            campType: campType,
+            registrationId: registration.id
           },
-          totalAmount: totalAmount,
-          registrationId: registration.id
+          invoiceDetails: {
+            totalAmount: totalAmount,
+            paymentMethod: buttonType === 'pay' ? 'online_payment' : 'cash'
+          }
         }
       });
+      
+      console.log('📧 Email response:', emailResponse);
+      
+      if (emailResponse.error) {
+        console.error('❌ Email sending failed:', emailResponse.error);
+        toast.warning('Registration successful, but confirmation email failed. We will contact you shortly.');
+      } else {
+        console.log('✅ Email sent successfully');
+      }
       
       // Set state for modal
       setRegistrationResult(registration);
@@ -219,6 +255,9 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
       // });
       
       toast.success(config.messages.registrationSuccess);
+      
+      // Reset form after successful submission
+      reset();
     } catch (error) {
       console.error('Registration error:', error);
       toast.error(config.messages.registrationError);

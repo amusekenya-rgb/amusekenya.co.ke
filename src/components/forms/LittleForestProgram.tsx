@@ -16,20 +16,21 @@ import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
+import SimpleDateSelector from './SimpleDateSelector';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { qrCodeService } from '@/services/qrCodeService';
 import { leadsService } from '@/services/leadsService';
+import { invoiceService } from '@/services/invoiceService';
 import type { CampRegistration } from '@/types/campRegistration';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
-import { mapDayNamesToCalendarDates } from '@/utils/dateMapper';
 
-// Child schema for multiple children support
+// Child schema for multiple children support with simple date selection
 const childSchema = z.object({
   childName: z.string().min(2, 'Child name must be at least 2 characters'),
   childAge: z.enum(['1-2', '2-3', '3-below'], {
     required_error: 'Please select child age',
   }),
-  selectedDays: z.array(z.string()).min(1, 'Select at least one day'),
+  selectedDates: z.array(z.string()).min(1, 'Select at least one date'),
   nannyRequired: z.boolean().default(false),
   price: z.number().default(0),
 });
@@ -47,8 +48,7 @@ type LittleForestFormData = z.infer<typeof littleForestSchema>;
 
 const LittleForestProgram = () => {
   const { config, isLoading: configLoading } = useLittleForestConfig();
-  const SESSION_PRICE = config.pricing.sessionRate;
-
+  
   const [submitType, setSubmitType] = useState<'register' | 'pay'>('register');
   const [showQRModal, setShowQRModal] = useState(false);
   const [registrationResult, setRegistrationResult] = useState<CampRegistration | null>(null);
@@ -61,6 +61,7 @@ const LittleForestProgram = () => {
     setValue,
     watch,
     control,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<LittleForestFormData>({
     resolver: zodResolver(littleForestSchema),
@@ -69,7 +70,7 @@ const LittleForestProgram = () => {
       children: [{
         childName: '',
         childAge: undefined,
-        selectedDays: [],
+        selectedDates: [],
         nannyRequired: false,
         price: 0,
       }],
@@ -84,20 +85,19 @@ const LittleForestProgram = () => {
   const watchChildren = watch('children');
   const watchConsent = watch('consent');
 
-  // Auto-calculate pricing - watch for changes in selected days
+  // Auto-calculate pricing based on selected dates (single rate)
   useEffect(() => {
     let total = 0;
     watchChildren.forEach((child, index) => {
-      const childPrice = (child.selectedDays?.length || 0) * SESSION_PRICE;
+      const childPrice = (child.selectedDates?.length || 0) * config.pricing.sessionRate;
       setValue(`children.${index}.price`, childPrice, { shouldValidate: false });
       total += childPrice;
     });
     setTotalAmount(total);
-  }, [watchChildren.map(c => `${c.childName}-${c.selectedDays?.join(',')}`).join('|'), setValue, SESSION_PRICE]);
+  }, [watchChildren.map(c => `${c.childName}-${c.selectedDates?.join(',')}`).join('|'), setValue, config.pricing.sessionRate]);
 
   const onSubmit = async (data: LittleForestFormData) => {
     try {
-      // Payment integration not yet available - all registrations are unpaid
       const registrationData = {
         camp_type: 'little-forest' as const,
         parent_name: data.parentName,
@@ -109,9 +109,9 @@ const LittleForestProgram = () => {
           dateOfBirth: '',
           ageRange: child.childAge,
           specialNeeds: child.nannyRequired ? 'Accompanied by Nanny' : '',
-          selectedDays: child.selectedDays,
-          selectedDates: [], // Little Forest uses day names, not specific dates yet
-          selectedSessions: child.selectedDays,
+          selectedDays: child.selectedDates.map((_, i) => `Day ${i + 1}`),
+          selectedDates: child.selectedDates,
+          selectedSessions: {},
           price: child.price,
         })),
         total_amount: totalAmount,
@@ -136,18 +136,38 @@ const LittleForestProgram = () => {
         email: data.email,
         phone: data.phone,
         program_type: 'little-forest',
-        program_name: 'Little Forest',
+        program_name: 'Little Forest Explorers',
         form_data: data,
         source: 'website'
       });
+
+      // Auto-create invoice for registration
+      try {
+        await invoiceService.createFromRegistration({
+          id: result.id,
+          type: 'camp',
+          parentName: data.parentName,
+          email: data.email,
+          programName: 'Little Forest Explorers',
+          totalAmount,
+          children: data.children.map(child => ({
+            childName: child.childName,
+            price: child.price,
+            selectedDates: child.selectedDates
+          }))
+        });
+        console.log('✅ Auto-invoice created for Little Forest registration');
+      } catch (invoiceError) {
+        console.error('⚠️ Failed to create auto-invoice:', invoiceError);
+      }
       
       setRegistrationResult(result);
       setQrCodeDataUrl(qrCodeUrl);
       setShowQRModal(true);
 
       toast.success(config.messages.registrationSuccess);
+      reset();
       
-      // Show payment integration message if user clicked "Register and Pay"
       if (submitType === 'pay') {
         setTimeout(() => {
           toast.info('Payment integration coming soon! You will receive an invoice with payment instructions via email.');
@@ -163,44 +183,36 @@ const LittleForestProgram = () => {
     append({
       childName: '',
       childAge: undefined,
-      selectedDays: [],
+      selectedDates: [],
       nannyRequired: false,
       price: 0,
     });
   };
 
-  const handleDayChange = (childIndex: number, day: string, checked: boolean) => {
-    const currentDays = watchChildren[childIndex]?.selectedDays || [];
-    const newDays = checked
-      ? [...currentDays, day]
-      : currentDays.filter((d) => d !== day);
-    setValue(`children.${childIndex}.selectedDays`, newDays);
+  const handleDatesChange = (childIndex: number, dates: string[]) => {
+    setValue(`children.${childIndex}.selectedDates`, dates);
   };
 
   const schedule = [{
     time: '10:00',
-    activity: 'Welcome Song & Nature Walk',
-    skills: 'Language, Motor'
+    activity: 'Welcome Circle & Warm-Up Songs',
+    skills: 'Social Skills, Language'
   }, {
-    time: '10:30',
-    activity: 'Mud Kitchen & Sensory Play',
-    skills: 'Sensory Exploration'
+    time: '10:20',
+    activity: 'Sensory Nature Exploration',
+    skills: 'Sensory Development, Motor Skills'
   }, {
-    time: '11:00',
-    activity: 'Swahili Story Circle',
-    skills: 'Listening'
+    time: '10:45',
+    activity: 'Swahili Story & Rhymes',
+    skills: 'Language, Listening'
   }, {
-    time: '11:30',
-    activity: 'Nature Craft & Drumming',
-    skills: 'Rhythm'
+    time: '11:10',
+    activity: 'Creative Play & Movement',
+    skills: 'Motor Skills, Creativity'
   }, {
-    time: '12:15',
-    activity: 'Snack & Free Play',
-    skills: 'Social Skills'
-  }, {
-    time: '12:45',
-    activity: 'Closing Song',
-    skills: 'Routine & Transition'
+    time: '11:40',
+    activity: 'Snack Time & Goodbye Songs',
+    skills: 'Routine, Transition'
   }];
 
   if (configLoading) {
@@ -363,32 +375,18 @@ const LittleForestProgram = () => {
                       )}
                     </div>
 
+                    {/* SimpleDateSelector Component */}
                     <div>
-                      <Label className="text-base font-medium">
-                        Select Days * ({config.pricing.currency} {SESSION_PRICE.toLocaleString()} per day)
-                      </Label>
-                      <div className="mt-3 flex gap-6">
-                        {(() => {
-                          const daysWithDates = mapDayNamesToCalendarDates(config.sessionSchedule);
-                          return daysWithDates.map(day => (
-                            <div key={day.value} className="flex items-center space-x-3">
-                              <Checkbox
-                                id={`${day.value}-${index}`}
-                                checked={watchChildren[index]?.selectedDays?.includes(day.value)}
-                                onCheckedChange={(checked) =>
-                                  handleDayChange(index, day.value, checked as boolean)
-                                }
-                              />
-                              <Label htmlFor={`${day.value}-${index}`} className="text-base">
-                                {day.label}
-                              </Label>
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                      {errors.children?.[index]?.selectedDays && (
+                      <SimpleDateSelector
+                        availableDates={config.availableDates || []}
+                        selectedDates={watchChildren[index]?.selectedDates || []}
+                        onDatesChange={(dates) => handleDatesChange(index, dates)}
+                        sessionRate={config.pricing.sessionRate}
+                        currency={config.pricing.currency}
+                      />
+                      {errors.children?.[index]?.selectedDates && (
                         <p className="text-destructive text-sm mt-1">
-                          {errors.children[index]?.selectedDays?.message}
+                          {errors.children[index]?.selectedDates?.message}
                         </p>
                       )}
                     </div>
@@ -411,14 +409,6 @@ const LittleForestProgram = () => {
                         </Label>
                       </div>
                     </div>
-
-                    {watchChildren[index]?.price > 0 && (
-                      <div className="pt-2 border-t">
-                        <p className="text-sm font-semibold">
-                          Subtotal: {config.pricing.currency} {watchChildren[index].price.toLocaleString()}
-                        </p>
-                      </div>
-                    )}
                   </Card>
                 ))}
               </div>

@@ -1,0 +1,466 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, Receipt, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { financialService, Expense, Budget } from '@/services/financialService';
+import { toast } from "@/hooks/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+
+const ExpenseManagement = () => {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [formData, setFormData] = useState({
+    description: '',
+    amount: '',
+    category: '',
+    department: '',
+    expense_date: new Date().toISOString().split('T')[0],
+    vendor: '',
+    budget_id: '',
+    notes: ''
+  });
+
+  const categories = [
+    'Office Supplies',
+    'Travel',
+    'Equipment',
+    'Software',
+    'Marketing',
+    'Events',
+    'Training',
+    'Utilities',
+    'Maintenance',
+    'Other'
+  ];
+
+  const departments = [
+    'Administration',
+    'Programs',
+    'Marketing',
+    'Operations',
+    'HR'
+  ];
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [expensesData, budgetsData] = await Promise.all([
+        financialService.getExpenses(),
+        financialService.getActiveBudgets()
+      ]);
+      setExpenses(expensesData);
+      setBudgets(budgetsData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load expense data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateExpense = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const newExpense = {
+        description: formData.description,
+        amount: parseFloat(formData.amount),
+        category: formData.category,
+        department: formData.department,
+        expense_date: formData.expense_date,
+        vendor: formData.vendor,
+        budget_id: formData.budget_id || undefined,
+        status: 'pending' as const,
+        notes: formData.notes,
+        created_by: user?.id
+      };
+
+      await financialService.createExpense(newExpense);
+      await loadData();
+      setIsCreateDialogOpen(false);
+      setFormData({
+        description: '',
+        amount: '',
+        category: '',
+        department: '',
+        expense_date: new Date().toISOString().split('T')[0],
+        vendor: '',
+        budget_id: '',
+        notes: ''
+      });
+
+      toast({
+        title: "Success",
+        description: "Expense submitted for approval.",
+      });
+    } catch (error) {
+      console.error('Error creating expense:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit expense.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleApproveExpense = async (expense: Expense) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await financialService.approveExpense(expense.id, user.id);
+      await loadData();
+      toast({
+        title: "Approved",
+        description: "Expense has been approved.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to approve expense.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRejectExpense = async (expense: Expense) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await financialService.rejectExpense(expense.id, user.id);
+      await loadData();
+      toast({
+        title: "Rejected",
+        description: "Expense has been rejected.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to reject expense.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteExpense = async (expense: Expense) => {
+    try {
+      await financialService.deleteExpense(expense.id);
+      await loadData();
+      toast({
+        title: "Deleted",
+        description: "Expense deleted.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete expense.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getStatusColor = (status: Expense['status']) => {
+    switch (status) {
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      case 'paid': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-8">Loading expenses...</div>;
+  }
+
+  const totalExpenses = expenses
+    .filter(e => e.status === 'approved' || e.status === 'paid')
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+
+  const pendingExpenses = expenses.filter(e => e.status === 'pending');
+  const pendingTotal = pendingExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold">Expense Management</h2>
+          <p className="text-sm text-muted-foreground">Track and approve expenses</p>
+        </div>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="w-full sm:w-auto">
+              <Plus className="h-4 w-4 mr-2" />
+              Submit Expense
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md mx-4 sm:mx-auto">
+            <DialogHeader>
+              <DialogTitle>Submit Expense</DialogTitle>
+              <DialogDescription>Submit an expense for approval</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="description">Description *</Label>
+                <Input
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  placeholder="Expense description"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="amount">Amount (KES) *</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="expense_date">Date *</Label>
+                  <Input
+                    id="expense_date"
+                    type="date"
+                    value={formData.expense_date}
+                    onChange={(e) => setFormData({...formData, expense_date: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="category">Category *</Label>
+                  <Select value={formData.category} onValueChange={(value) => setFormData({...formData, category: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(cat => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="department">Dept</Label>
+                  <Select value={formData.department} onValueChange={(value) => setFormData({...formData, department: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map(dept => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="vendor">Vendor</Label>
+                <Input
+                  id="vendor"
+                  value={formData.vendor}
+                  onChange={(e) => setFormData({...formData, vendor: e.target.value})}
+                  placeholder="Vendor name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="budget_id">Link to Budget</Label>
+                <Select value={formData.budget_id} onValueChange={(value) => setFormData({...formData, budget_id: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Budget (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {budgets.map(budget => (
+                      <SelectItem key={budget.id} value={budget.id}>
+                        {budget.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  placeholder="Additional notes..."
+                  rows={2}
+                />
+              </div>
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} className="w-full sm:w-auto">
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleCreateExpense}
+                disabled={!formData.description || !formData.amount || !formData.category || !formData.expense_date}
+                className="w-full sm:w-auto"
+              >
+                Submit Expense
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Approved</CardTitle>
+            <Receipt className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold">KES {totalExpenses.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold">{pendingExpenses.length}</div>
+            <p className="text-xs text-muted-foreground">KES {pendingTotal.toLocaleString()}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total</CardTitle>
+            <Receipt className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold">{expenses.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">All Expenses</CardTitle>
+          <CardDescription className="hidden sm:block">Review and approve submissions</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0 sm:p-6">
+          {expenses.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No expenses submitted yet.
+            </div>
+          ) : (
+            <>
+              {/* Mobile Card View */}
+              <div className="sm:hidden divide-y divide-border">
+                {expenses.map((expense) => (
+                  <div key={expense.id} className="p-4 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium">{expense.description}</div>
+                        <div className="text-sm text-muted-foreground">{expense.category}</div>
+                      </div>
+                      <Badge className={getStatusColor(expense.status)}>
+                        {expense.status.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">KES {Number(expense.amount).toLocaleString()}</span>
+                      <span className="text-muted-foreground">{new Date(expense.expense_date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      {expense.status === 'pending' && (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => handleApproveExpense(expense)}>
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleRejectExpense(expense)}>
+                            <XCircle className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </>
+                      )}
+                      <Button variant="outline" size="sm" onClick={() => handleDeleteExpense(expense)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop Table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="hidden md:table-cell">Vendor</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {expenses.map((expense) => (
+                      <TableRow key={expense.id}>
+                        <TableCell>{new Date(expense.expense_date).toLocaleDateString()}</TableCell>
+                        <TableCell className="font-medium">{expense.description}</TableCell>
+                        <TableCell>{expense.category}</TableCell>
+                        <TableCell className="hidden md:table-cell">{expense.vendor || '-'}</TableCell>
+                        <TableCell>KES {Number(expense.amount).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(expense.status)}>
+                            {expense.status.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {expense.status === 'pending' && (
+                              <>
+                                <Button variant="outline" size="sm" onClick={() => handleApproveExpense(expense)}>
+                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => handleRejectExpense(expense)}>
+                                  <XCircle className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </>
+                            )}
+                            <Button variant="outline" size="sm" onClick={() => handleDeleteExpense(expense)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default ExpenseManagement;

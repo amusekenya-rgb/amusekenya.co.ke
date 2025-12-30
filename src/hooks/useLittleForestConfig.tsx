@@ -27,15 +27,7 @@ export interface LittleForestFormConfig {
     chooseOption: string;
     paymentComingSoon: string;
   };
-  sessionSchedule?: {
-    Monday?: string; // YYYY-MM-DD format
-    Friday?: string; // YYYY-MM-DD format
-  };
-  dayOptions: Array<{
-    value: string;
-    label: string;
-    date?: string;
-  }>;
+  availableDates: string[];
   ageOptions: Array<{
     value: string;
     label: string;
@@ -68,13 +60,13 @@ export const defaultLittleForestConfig: LittleForestFormConfig = {
     chooseOption: 'Choose your registration option:',
     paymentComingSoon: 'Payment integration coming soon. Both options will complete your registration.'
   },
-  sessionSchedule: {
-    Monday: '2025-06-02',
-    Friday: '2025-06-06'
-  },
-  dayOptions: [
-    { value: 'Monday', label: 'Monday' },
-    { value: 'Friday', label: 'Friday' }
+  availableDates: [
+    '2025-06-02',
+    '2025-06-06',
+    '2025-06-09',
+    '2025-06-13',
+    '2025-06-16',
+    '2025-06-20'
   ],
   ageOptions: [
     { value: '1-2', label: '1-2 years' },
@@ -97,16 +89,17 @@ export const useLittleForestConfig = () => {
         const data = await cmsService.getContentBySlug('little-forest-form');
         
         if (data?.metadata?.formConfig) {
-          // Merge CMS config with default config to include sessionSchedule if missing
-          const mergedConfig = {
+          const cmsConfig = data.metadata.formConfig;
+          // Merge CMS config with default config
+          const mergedConfig: LittleForestFormConfig = {
             ...defaultLittleForestConfig,
-            ...data.metadata.formConfig,
-            // Ensure sessionSchedule from default is used if not in CMS
-            sessionSchedule: data.metadata.formConfig.sessionSchedule || defaultLittleForestConfig.sessionSchedule,
-            // Ensure dayOptions from default is used if not in CMS
-            dayOptions: data.metadata.formConfig.dayOptions || defaultLittleForestConfig.dayOptions,
-            // Ensure ageOptions from default is used if not in CMS
-            ageOptions: data.metadata.formConfig.ageOptions || defaultLittleForestConfig.ageOptions
+            ...cmsConfig,
+            pricing: {
+              ...defaultLittleForestConfig.pricing,
+              ...cmsConfig.pricing
+            },
+            availableDates: cmsConfig.availableDates || defaultLittleForestConfig.availableDates,
+            ageOptions: cmsConfig.ageOptions || defaultLittleForestConfig.ageOptions
           };
           setConfig(mergedConfig);
         } else {

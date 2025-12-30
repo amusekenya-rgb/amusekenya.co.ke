@@ -222,76 +222,82 @@ export const AllRegistrationsTab: React.FC = () => {
   return (
     <>
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>All Registrations ({registrations.length})</CardTitle>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleExportCSV}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                CSV
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <CardTitle className="text-lg sm:text-xl">All Registrations ({registrations.length})</CardTitle>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleExportCSV} className="text-xs sm:text-sm">
+                <FileSpreadsheet className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">CSV</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExportPDF}>
-                <FileText className="h-4 w-4 mr-2" />
-                PDF
+              <Button variant="outline" size="sm" onClick={handleExportPDF} className="text-xs sm:text-sm">
+                <FileText className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">PDF</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExportDetailedPDF}>
-                <FileText className="h-4 w-4 mr-2" />
-                Detailed
+              <Button variant="outline" size="sm" onClick={handleExportDetailedPDF} className="text-xs sm:text-sm hidden md:flex">
+                <FileText className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Detailed</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExportQRCodes}>
-                <QrCode className="h-4 w-4 mr-2" />
-                QR Codes
+              <Button variant="outline" size="sm" onClick={handleExportQRCodes} className="text-xs sm:text-sm">
+                <QrCode className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                <span className="hidden sm:inline">QR</span>
               </Button>
             </div>
           </div>
 
           {/* Search and basic filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mt-4">
-            <div className="flex-1 flex gap-2">
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-2">
               <Input
-                placeholder="Search by registration number, name, email, or phone..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="text-sm"
               />
-              <Button onClick={handleSearch}>
+              <Button onClick={handleSearch} size="sm">
                 <Search className="h-4 w-4" />
               </Button>
             </div>
-            <Select value={campTypeFilter} onValueChange={setCampTypeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Camp Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Camps</SelectItem>
-                <SelectItem value="easter">Easter</SelectItem>
-                <SelectItem value="summer">Summer</SelectItem>
-                <SelectItem value="end-year">End Year</SelectItem>
-                <SelectItem value="mid-term-1">Mid Term 1</SelectItem>
-                <SelectItem value="mid-term-2">Mid Term 2</SelectItem>
-                <SelectItem value="mid-term-3">Mid Term 3</SelectItem>
-                <SelectItem value="day-camps">Day Camps</SelectItem>
-                <SelectItem value="little-forest">Little Forest</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Payment" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Payments</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="unpaid">Unpaid</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              {showAdvancedFilters ? 'Hide' : 'More'} Filters
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Select value={campTypeFilter} onValueChange={setCampTypeFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Camp Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Camps</SelectItem>
+                  <SelectItem value="easter">Easter</SelectItem>
+                  <SelectItem value="summer">Summer</SelectItem>
+                  <SelectItem value="end-year">End Year</SelectItem>
+                  <SelectItem value="mid-term-1">Mid Term 1</SelectItem>
+                  <SelectItem value="mid-term-2">Mid Term 2</SelectItem>
+                  <SelectItem value="mid-term-3">Mid Term 3</SelectItem>
+                  <SelectItem value="day-camps">Day Camps</SelectItem>
+                  <SelectItem value="little-forest">Little Forest</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={paymentFilter} onValueChange={setPaymentFilter}>
+                <SelectTrigger className="w-full sm:w-[130px]">
+                  <SelectValue placeholder="Payment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payments</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="flex-1 sm:flex-none"
+              >
+                <Filter className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">{showAdvancedFilters ? 'Hide' : 'More'} Filters</span>
+                <span className="sm:hidden">Filters</span>
+              </Button>
+            </div>
           </div>
 
           {/* Advanced filters */}
@@ -390,26 +396,26 @@ export const AllRegistrationsTab: React.FC = () => {
           )}
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="px-3 sm:px-6">
           {/* Bulk actions toolbar */}
           {selectedIds.size > 0 && (
-            <div className="mb-4 p-3 bg-primary/10 rounded-lg flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium">{selectedIds.size} selected</span>
-              <div className="flex gap-2 flex-wrap">
-                <Button size="sm" variant="outline" onClick={() => handleBulkPaymentUpdate('paid')}>
-                  <CheckCircle className="h-4 w-4 mr-1" />
-                  Mark Paid
+            <div className="mb-4 p-2 sm:p-3 bg-primary/10 rounded-lg flex flex-col sm:flex-row sm:items-center gap-2">
+              <span className="text-xs sm:text-sm font-medium">{selectedIds.size} selected</span>
+              <div className="flex gap-1 sm:gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => handleBulkPaymentUpdate('paid')} className="text-xs px-2 py-1 h-7 sm:h-8">
+                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                  <span className="hidden sm:inline">Mark </span>Paid
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => handleBulkPaymentUpdate('unpaid')}>
-                  <XCircle className="h-4 w-4 mr-1" />
-                  Mark Unpaid
+                <Button size="sm" variant="outline" onClick={() => handleBulkPaymentUpdate('unpaid')} className="text-xs px-2 py-1 h-7 sm:h-8">
+                  <XCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                  <span className="hidden sm:inline">Mark </span>Unpaid
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => handleBulkStatusUpdate('cancelled')}>
-                  <Trash2 className="h-4 w-4 mr-1" />
+                <Button size="sm" variant="outline" onClick={() => handleBulkStatusUpdate('cancelled')} className="text-xs px-2 py-1 h-7 sm:h-8">
+                  <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                   Cancel
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => { setSelectedIds(new Set()); setSelectAll(false); }}>
-                  Clear Selection
+                <Button size="sm" variant="outline" onClick={() => { setSelectedIds(new Set()); setSelectAll(false); }} className="text-xs px-2 py-1 h-7 sm:h-8">
+                  Clear
                 </Button>
               </div>
             </div>
@@ -420,44 +426,44 @@ export const AllRegistrationsTab: React.FC = () => {
           ) : registrations.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No registrations found</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-x-auto -mx-3 sm:mx-0">
+              <Table className="min-w-[800px] sm:min-w-0">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[50px]">
+                    <TableHead className="w-[40px] px-2">
                       <Checkbox
                         checked={selectAll}
                         onCheckedChange={handleSelectAll}
                       />
                     </TableHead>
-                    <TableHead>Reg Number</TableHead>
-                    <TableHead>Parent Name</TableHead>
-                    <TableHead>Camp Type</TableHead>
-                    <TableHead>Children</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Reg #</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Parent</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden md:table-cell">Camp</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Kids</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Amount</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Status</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Type</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Date</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {registrations.map((reg) => (
                     <TableRow key={reg.id}>
-                      <TableCell>
+                      <TableCell className="px-2">
                         <Checkbox
                           checked={selectedIds.has(reg.id!)}
                           onCheckedChange={() => handleSelectOne(reg.id!)}
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{reg.registration_number}</TableCell>
-                      <TableCell>{reg.parent_name}</TableCell>
-                      <TableCell className="capitalize">{reg.camp_type.replace('-', ' ')}</TableCell>
-                      <TableCell>{reg.children.length}</TableCell>
-                      <TableCell>KES {reg.total_amount.toFixed(2)}</TableCell>
+                      <TableCell className="font-mono text-xs sm:text-sm">{reg.registration_number?.slice(-8)}</TableCell>
+                      <TableCell className="text-xs sm:text-sm max-w-[100px] truncate">{reg.parent_name}</TableCell>
+                      <TableCell className="capitalize text-xs sm:text-sm hidden md:table-cell">{reg.camp_type.replace('-', ' ')}</TableCell>
+                      <TableCell className="text-xs sm:text-sm">{reg.children.length}</TableCell>
+                      <TableCell className="text-xs sm:text-sm">KES {reg.total_amount.toFixed(0)}</TableCell>
                       <TableCell>{getPaymentBadge(reg.payment_status)}</TableCell>
-                      <TableCell className="capitalize text-xs">{reg.registration_type.replace('_', ' ')}</TableCell>
-                      <TableCell className="text-sm">
+                      <TableCell className="capitalize text-xs hidden lg:table-cell">{reg.registration_type.replace('_', ' ')}</TableCell>
+                      <TableCell className="text-xs sm:text-sm hidden sm:table-cell">
                         {new Date(reg.created_at!).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
@@ -465,6 +471,7 @@ export const AllRegistrationsTab: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleViewDetails(reg)}
+                          className="h-7 w-7 p-0"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>

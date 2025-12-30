@@ -1,42 +1,43 @@
-import React from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
-import { Mountain, MapPin, Calendar, ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import adventureImage from '@/assets/adventure.jpg';
-import { ConsentDialog } from './ConsentDialog';
-import { RefundPolicyDialog } from './RefundPolicyDialog';
-import DatePickerField from './DatePickerField';
-import { leadsService } from '@/services/leadsService';
+import React from "react";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { Mountain, MapPin, Calendar, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import adventureImage from "@/assets/adventure.jpg";
+import { ConsentDialog } from "./ConsentDialog";
+import { RefundPolicyDialog } from "./RefundPolicyDialog";
+import DatePickerField from "./DatePickerField";
+import { leadsService } from "@/services/leadsService";
+import { invoiceService } from "@/services/invoiceService";
 
 const participantSchema = z.object({
-  name: z.string().min(1, 'Participant name is required').max(100),
-  ageRange: z.enum(['9-12', '13-17'], { required_error: 'Age range is required' })
+  name: z.string().min(1, "Participant name is required").max(100),
+  ageRange: z.enum(["9-12", "13-17"], { required_error: "Age range is required" }),
 });
 
 const preferredDateSchema = z.object({
-  date: z.date({ required_error: 'Date is required' })
+  date: z.date({ required_error: "Date is required" }),
 });
 
 const kenyanExperiencesSchema = z.object({
-  parentLeader: z.string().min(1, 'Parent/Leader name is required').max(100),
-  participants: z.array(participantSchema).min(1, 'At least one participant is required'),
-  circuit: z.enum(['mt-kenya', 'coast', 'mara', 'chalbi', 'western']),
-  preferredDates: z.array(preferredDateSchema).min(1, 'At least one preferred date is required'),
+  parentLeader: z.string().min(1, "Parent/Leader name is required").max(100),
+  participants: z.array(participantSchema).min(1, "At least one participant is required"),
+  circuit: z.enum(["mt-kenya", "coast", "mara", "chalbi", "western"]),
+  preferredDates: z.array(preferredDateSchema).min(1, "At least one preferred date is required"),
   transport: z.boolean().default(false),
   specialMedicalNeeds: z.string().max(500),
-  email: z.string().email('Invalid email address'),
-  phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().refine(val => val === true, 'Consent is required')
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(1, "Phone number is required").max(20),
+  consent: z.boolean().refine((val) => val === true, "Consent is required"),
 });
 
 type KenyanExperiencesFormData = z.infer<typeof kenyanExperiencesSchema>;
@@ -48,33 +49,42 @@ const KenyanExperiencesProgram = () => {
     setValue,
     watch,
     control,
-    formState: { errors, isSubmitting }
+    reset,
+    formState: { errors, isSubmitting },
   } = useForm<KenyanExperiencesFormData>({
     resolver: zodResolver(kenyanExperiencesSchema),
     defaultValues: {
-      participants: [{ name: '', ageRange: '9-12' as const }],
+      participants: [{ name: "", ageRange: "9-12" as const }],
       preferredDates: [{ date: undefined as any }],
       transport: false,
-      consent: false
-    }
+      consent: false,
+    },
   });
 
-  const { fields: participantFields, append: appendParticipant, remove: removeParticipant } = useFieldArray({
+  const {
+    fields: participantFields,
+    append: appendParticipant,
+    remove: removeParticipant,
+  } = useFieldArray({
     control,
-    name: 'participants'
+    name: "participants",
   });
 
-  const { fields: dateFields, append: appendDate, remove: removeDate } = useFieldArray({
+  const {
+    fields: dateFields,
+    append: appendDate,
+    remove: removeDate,
+  } = useFieldArray({
     control,
-    name: 'preferredDates'
+    name: "preferredDates",
   });
 
-  const consent = watch('consent');
+  const consent = watch("consent");
 
   const onSubmit = async (data: KenyanExperiencesFormData) => {
     try {
       // Save to database
-      const { kenyanExperiencesService } = await import('@/services/programRegistrationService');
+      const { kenyanExperiencesService } = await import("@/services/programRegistrationService");
       const registration = await kenyanExperiencesService.create(data);
 
       // Capture lead
@@ -82,88 +92,118 @@ const KenyanExperiencesProgram = () => {
         full_name: data.parentLeader,
         email: data.email,
         phone: data.phone,
-        program_type: 'kenyan-experiences',
+        program_type: "kenyan-experiences",
         program_name: data.circuit,
         form_data: data,
-        source: 'website_registration'
+        source: "website_registration",
       });
 
-      // Send confirmation email
-      const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.functions.invoke('send-program-confirmation', {
+      // Auto-create invoice for registration (estimated pricing)
+      const circuitPricing: Record<string, number> = {
+        "mt-kenya": 75000,
+        coast: 85000,
+        mara: 95000,
+        chalbi: 70000,
+        western: 65000,
+      };
+      const basePrice = circuitPricing[data.circuit] || 75000;
+      const totalAmount = basePrice * data.participants.length;
+
+      try {
+        const registrationId = (registration as any)?.id || crypto.randomUUID();
+        await invoiceService.createFromRegistration({
+          id: String(registrationId),
+          type: "kenyan-experiences",
+          parentName: data.parentLeader,
+          email: data.email,
+          programName: `Kenyan Experiences - ${data.circuit.replace("-", " ").replace(/\b\w/g, (l) => l.toUpperCase())}`,
+          totalAmount,
+          children: data.participants.map((p) => ({
+            childName: p.name,
+            price: basePrice,
+          })),
+        });
+        console.log("✅ Auto-invoice created for Kenyan Experiences registration");
+      } catch (invoiceError) {
+        console.error("⚠️ Failed to create auto-invoice:", invoiceError);
+      }
+
+      // Send confirmation email via Resend
+      const { supabase } = await import("@/integrations/supabase/client");
+      await supabase.functions.invoke("send-confirmation-email", {
         body: {
           email: data.email,
-          name: data.parentLeader,
-          programType: 'kenyan-experiences',
-          details: {
+          programType: "kenyan-experiences",
+          registrationDetails: {
+            parentLeader: data.parentLeader,
             circuit: data.circuit,
             participants: data.participants,
-            transport: data.transport
+            transport: data.transport,
+            registrationId: registration && "id" in registration ? registration.id : undefined,
           },
-          totalAmount: 0, // TBD - will be confirmed by team
-          registrationId: registration && 'id' in registration ? registration.id : undefined
-        }
+        },
       });
 
-      toast.success('Registration submitted successfully! Check your email for confirmation.');
+      toast.success("Registration submitted successfully! Check your email for confirmation.");
+      reset();
     } catch (error: any) {
-      console.error('Registration error:', error);
-      console.error('Error details:', error?.message, error?.details, error?.hint);
-      toast.error(error?.message || 'Failed to submit registration. Please try again.');
+      console.error("Registration error:", error);
+      console.error("Error details:", error?.message, error?.details, error?.hint);
+      toast.error(error?.message || "Failed to submit registration. Please try again.");
     }
   };
 
   const circuits = [
     {
-      id: 'mt-kenya',
-      title: 'Mount Kenya Experiences',
-      description: 'Alpine hike, bushcraft, team course',
+      id: "mt-kenya",
+      title: "Mount Kenya Experiences",
+      description: "Alpine hike, bushcraft, team course",
       ageGroups: [
-        { range: '9–12', focus: 'Independence' },
-        { range: '13–17', focus: 'Expedition Leadership' }
+        { range: "9–12", focus: "Independence" },
+        { range: "13–17", focus: "Expedition Leadership" },
       ],
-      features: ['Alpine Environment', 'Bushcraft Skills', 'Team Challenges', 'Leadership Development']
+      features: ["Alpine Environment", "Bushcraft Skills", "Team Challenges", "Leadership Development"],
     },
     {
-      id: 'coast',
-      title: 'Swahili Coastal Experiences',
-      description: 'Marine ecology, kayaking, Swahili culture',
+      id: "coast",
+      title: "Swahili Coastal Experiences",
+      description: "Marine ecology, kayaking, Swahili culture",
       ageGroups: [
-        { range: '9–12', focus: 'Water Confidence' },
-        { range: '13–17', focus: 'Marine Stewardship' }
+        { range: "9–12", focus: "Water Confidence" },
+        { range: "13–17", focus: "Marine Stewardship" },
       ],
-      features: ['Marine Ecology', 'Cultural Immersion', 'Water Sports', 'Conservation Focus']
+      features: ["Marine Ecology", "Cultural Immersion", "Water Sports", "Conservation Focus"],
     },
     {
-      id: 'mara',
-      title: 'Mara Experiences',
-      description: 'Game drives, Maasai culture immersion',
+      id: "mara",
+      title: "Mara Experiences",
+      description: "Game drives, Maasai culture immersion",
       ageGroups: [
-        { range: '9–12', focus: 'Wildlife Journaling' },
-        { range: '13–17', focus: 'Conservation Projects' }
+        { range: "9–12", focus: "Wildlife Journaling" },
+        { range: "13–17", focus: "Conservation Projects" },
       ],
-      features: ['Wildlife Observation', 'Cultural Exchange', 'Conservation Education', 'Photography']
+      features: ["Wildlife Observation", "Cultural Exchange", "Conservation Education", "Photography"],
     },
     {
-      id: 'chalbi',
-      title: 'Rift-valley Experiences',
-      description: 'Desert trek, camel safari, shelter build',
+      id: "chalbi",
+      title: "Rift-valley Experiences",
+      description: "Desert trek, camel safari, shelter build",
       ageGroups: [
-        { range: '9–12', focus: 'Resilience' },
-        { range: '13–17', focus: 'Desert Survival Challenge' }
+        { range: "9–12", focus: "Resilience" },
+        { range: "13–17", focus: "Desert Survival Challenge" },
       ],
-      features: ['Desert Navigation', 'Survival Skills', 'Cultural Learning', 'Resilience Building']
+      features: ["Desert Navigation", "Survival Skills", "Cultural Learning", "Resilience Building"],
     },
     {
-      id: 'western',
-      title: 'Western Experiences',
-      description: 'Kakamega biodiversity, cultural visits',
+      id: "western",
+      title: "Western Experiences",
+      description: "Kakamega biodiversity, cultural visits",
       ageGroups: [
-        { range: '9–12', focus: 'Curiosity' },
-        { range: '13–17', focus: 'Community Project Leadership' }
+        { range: "9–12", focus: "Curiosity" },
+        { range: "13–17", focus: "Community Project Leadership" },
       ],
-      features: ['Biodiversity Study', 'Community Engagement', 'Forest Ecology', 'Project Leadership']
-    }
+      features: ["Biodiversity Study", "Community Engagement", "Forest Ecology", "Project Leadership"],
+    },
   ];
 
   return (
@@ -185,23 +225,20 @@ const KenyanExperiencesProgram = () => {
                   <Mountain className="w-8 h-8 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-primary">
-                    Kenyan Experiences
-                  </h1>
+                  <h1 className="text-4xl md:text-5xl font-bold text-primary">Kenyan Experiences</h1>
                   <p className="text-lg text-muted-foreground">(5-Day Programs)</p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Each 5-day camp is designed to progressively build resilience, teamwork, cultural awareness, and outdoor confidence through immersive experiences across Kenya's diverse landscapes.
+                Multi day experiences designed to immerse teens in the rich cultural, artistic, and natural diversity
+                that Kenya has to offer. These dynamic, adventure-packed programs combine outdoor activities with
+                opportunities to engage meaningfully with local communities and traditions, providing real-world
+                learning experiences that are both thrilling and transformative.
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
-              <img 
-                src={adventureImage} 
-                alt="Kenyan landscape adventures"
-                className="w-full h-full object-cover"
-              />
+              <img src={adventureImage} alt="Kenyan landscape adventures" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
 
@@ -216,7 +253,7 @@ const KenyanExperiencesProgram = () => {
                       <div className="flex-1">
                         <h4 className="text-xl font-semibold mb-2">{circuit.title}</h4>
                         <p className="text-muted-foreground mb-4">{circuit.description}</p>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                           {circuit.ageGroups.map((group, index) => (
                             <div key={index} className="bg-accent/30 p-3 rounded-lg">
@@ -225,7 +262,7 @@ const KenyanExperiencesProgram = () => {
                             </div>
                           ))}
                         </div>
-                        
+
                         <div className="flex flex-wrap gap-2">
                           {circuit.features.map((feature) => (
                             <span key={feature} className="bg-primary/10 text-primary text-sm px-3 py-1 rounded-full">
@@ -247,10 +284,18 @@ const KenyanExperiencesProgram = () => {
                 5-Day Progressive Learning
               </h4>
               <ul className="space-y-2 text-muted-foreground">
-                <li>• <strong>Day 1-2:</strong> Orientation and skill building</li>
-                <li>• <strong>Day 3:</strong> Challenge application and teamwork</li>
-                <li>• <strong>Day 4-5:</strong> Leadership development and reflection</li>
-                <li>• <strong>Cultural Integration:</strong> Local community engagement throughout</li>
+                <li>
+                  • <strong>Day 1-2:</strong> Orientation and skill building
+                </li>
+                <li>
+                  • <strong>Day 3:</strong> Challenge application and teamwork
+                </li>
+                <li>
+                  • <strong>Day 4-5:</strong> Leadership development and reflection
+                </li>
+                <li>
+                  • <strong>Cultural Integration:</strong> Local community engagement throughout
+                </li>
               </ul>
             </Card>
           </div>
@@ -258,19 +303,19 @@ const KenyanExperiencesProgram = () => {
           {/* Registration Form */}
           <Card className="p-8 sticky top-8">
             <h3 className="text-2xl font-bold text-primary mb-6">Register for Experience</h3>
-            
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
-                <Label htmlFor="parentLeader" className="text-base font-medium">Parent/Leader Name *</Label>
+                <Label htmlFor="parentLeader" className="text-base font-medium">
+                  Parent/Leader Name *
+                </Label>
                 <Input
                   id="parentLeader"
-                  {...register('parentLeader')}
+                  {...register("parentLeader")}
                   className="mt-2"
                   placeholder="Enter your full name"
                 />
-                {errors.parentLeader && (
-                  <p className="text-destructive text-sm mt-1">{errors.parentLeader.message}</p>
-                )}
+                {errors.parentLeader && <p className="text-destructive text-sm mt-1">{errors.parentLeader.message}</p>}
               </div>
 
               <div>
@@ -280,13 +325,13 @@ const KenyanExperiencesProgram = () => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => appendParticipant({ name: '', ageRange: '9-12' as const })}
+                    onClick={() => appendParticipant({ name: "", ageRange: "9-12" as const })}
                   >
                     <Plus className="w-4 h-4 mr-1" />
                     Add Participant
                   </Button>
                 </div>
-                
+
                 <div className="space-y-4">
                   {participantFields.map((field, index) => (
                     <div key={field.id} className="flex gap-3 items-start">
@@ -302,7 +347,7 @@ const KenyanExperiencesProgram = () => {
                             <p className="text-destructive text-sm mt-1">{errors.participants[index]?.name?.message}</p>
                           )}
                         </div>
-                        
+
                         <div>
                           <Label className="text-sm">Age Range</Label>
                           <Controller
@@ -321,11 +366,13 @@ const KenyanExperiencesProgram = () => {
                             )}
                           />
                           {errors.participants?.[index]?.ageRange && (
-                            <p className="text-destructive text-sm mt-1">{errors.participants[index]?.ageRange?.message}</p>
+                            <p className="text-destructive text-sm mt-1">
+                              {errors.participants[index]?.ageRange?.message}
+                            </p>
                           )}
                         </div>
                       </div>
-                      
+
                       {participantFields.length > 1 && (
                         <Button
                           type="button"
@@ -340,14 +387,14 @@ const KenyanExperiencesProgram = () => {
                     </div>
                   ))}
                 </div>
-                {errors.participants && typeof errors.participants.message === 'string' && (
+                {errors.participants && typeof errors.participants.message === "string" && (
                   <p className="text-destructive text-sm mt-1">{errors.participants.message}</p>
                 )}
               </div>
 
               <div>
                 <Label className="text-base font-medium">Circuit *</Label>
-                <Select onValueChange={(value) => setValue('circuit', value as any)}>
+                <Select onValueChange={(value) => setValue("circuit", value as any)}>
                   <SelectTrigger className="mt-2">
                     <SelectValue placeholder="Select a circuit" />
                   </SelectTrigger>
@@ -374,7 +421,7 @@ const KenyanExperiencesProgram = () => {
                     Add Date
                   </Button>
                 </div>
-                
+
                 <div className="space-y-3">
                   {dateFields.map((field, index) => (
                     <div key={field.id} className="flex gap-3 items-start">
@@ -393,31 +440,23 @@ const KenyanExperiencesProgram = () => {
                           )}
                         />
                       </div>
-                      
+
                       {dateFields.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          onClick={() => removeDate(index)}
-                        >
+                        <Button type="button" variant="destructive" size="icon" onClick={() => removeDate(index)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
                     </div>
                   ))}
                 </div>
-                {errors.preferredDates && typeof errors.preferredDates.message === 'string' && (
+                {errors.preferredDates && typeof errors.preferredDates.message === "string" && (
                   <p className="text-destructive text-sm mt-1">{errors.preferredDates.message}</p>
                 )}
               </div>
 
               <div className="bg-accent/30 p-4 rounded-lg">
                 <div className="flex items-center space-x-3">
-                  <Checkbox
-                    id="transport"
-                    {...register('transport')}
-                  />
+                  <Checkbox id="transport" {...register("transport")} />
                   <Label htmlFor="transport" className="text-base">
                     Transport Required
                   </Label>
@@ -428,10 +467,12 @@ const KenyanExperiencesProgram = () => {
               </div>
 
               <div>
-                <Label htmlFor="specialMedicalNeeds" className="text-base font-medium">Special/Medical Needs (Optional)</Label>
+                <Label htmlFor="specialMedicalNeeds" className="text-base font-medium">
+                  Special/Medical Needs (Optional)
+                </Label>
                 <Textarea
                   id="specialMedicalNeeds"
-                  {...register('specialMedicalNeeds')}
+                  {...register("specialMedicalNeeds")}
                   className="mt-2"
                   placeholder="Please describe any special needs, medical conditions, or dietary requirements"
                   rows={3}
@@ -440,46 +481,31 @@ const KenyanExperiencesProgram = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="email" className="text-base font-medium">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    {...register('email')}
-                    className="mt-2"
-                    placeholder="your@email.com"
-                  />
-                  {errors.email && (
-                    <p className="text-destructive text-sm mt-1">{errors.email.message}</p>
-                  )}
+                  <Label htmlFor="email" className="text-base font-medium">
+                    Email *
+                  </Label>
+                  <Input id="email" type="email" {...register("email")} className="mt-2" placeholder="your@email.com" />
+                  {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="phone" className="text-base font-medium">Phone Number *</Label>
-                  <Input
-                    id="phone"
-                    {...register('phone')}
-                    className="mt-2"
-                    placeholder="+254 700 000 000"
-                  />
-                  {errors.phone && (
-                    <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>
-                  )}
+                  <Label htmlFor="phone" className="text-base font-medium">
+                    Phone Number *
+                  </Label>
+                  <Input id="phone" {...register("phone")} className="mt-2" placeholder="+254 700 000 000" />
+                  {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
                 </div>
               </div>
 
               <ConsentDialog
                 checked={consent}
-                onCheckedChange={(checked) => setValue('consent', checked)}
+                onCheckedChange={(checked) => setValue("consent", checked)}
                 error={errors.consent?.message}
               />
 
               <RefundPolicyDialog />
 
-              <Button
-                type="submit" 
-                className="w-full h-12 text-base"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Submitting...' : 'Register for Experience'}
+              <Button type="submit" className="w-full h-12 text-base" disabled={isSubmitting}>
+                {isSubmitting ? "Submitting..." : "Register for Experience"}
               </Button>
             </form>
           </Card>

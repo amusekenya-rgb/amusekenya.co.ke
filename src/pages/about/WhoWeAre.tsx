@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import SEOHead from '@/components/SEOHead';
-import { cmsService, ContentItem } from '@/services/cmsService';
-import PillarColumn from '@/components/about/PillarColumn';
-import PillarDialog from '@/components/about/PillarDialog';
+import React, { useState, useEffect } from "react";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import SEOHead from "@/components/SEOHead";
+import { cmsService, ContentItem } from "@/services/cmsService";
+import PillarColumn from "@/components/about/PillarColumn";
+import PillarDialog from "@/components/about/PillarDialog";
 
 // Color mapping for the 7 pillars (in order)
 const pillarColors = [
-  '#2563eb', // Kenyan Based - Blue
-  '#16a34a', // Nature - Green
-  '#dc2626', // Holistic Skills - Red
-  '#06b6d4', // Fun - Cyan
-  '#84cc16', // Inclusivity - Yellow/Olive
-  '#d946ef', // Child Centered Approach - Magenta
-  '#92400e', // Environmental Approach - Brown
+  "#2563eb", // Kenyan Based - Blue
+  "#16a34a", // Nature - Green
+  "#dc2626", // Holistic Skills - Red
+  "#06b6d4", // Fun - Cyan
+  "#84cc16", // Inclusivity - Yellow/Olive
+  "#d946ef", // Child Centered Approach - Magenta
+  "#92400e", // Environmental Approach - Brown
 ];
 
 const WhoWeAre = () => {
@@ -31,9 +31,10 @@ const WhoWeAre = () => {
   const loadContent = async () => {
     try {
       const data = await cmsService.getAboutSections();
-      const intro = data.find(s => s.metadata?.section_type === 'intro');
+      const intro = data.find((s) => s.metadata?.section_type === "intro");
       // Only get the 7 pillars with section_type = 'pillar'
-      const pillars = data.filter(s => s.metadata?.section_type === 'pillar')
+      const pillars = data
+        .filter((s) => s.metadata?.section_type === "pillar")
         .sort((a, b) => {
           const orderA = a.metadata?.order || 0;
           const orderB = b.metadata?.order || 0;
@@ -42,7 +43,7 @@ const WhoWeAre = () => {
       setIntroSection(intro || null);
       setSections(pillars);
     } catch (error) {
-      console.error('Error loading about sections:', error);
+      console.error("Error loading about sections:", error);
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ const WhoWeAre = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <SEOHead 
+      <SEOHead
         title="Who We Are - Amuse Kenya"
         description="Learn about Amuse Kenya's mission to make outdoor learning meaningful, accessible, and unforgettable for children in Kenya."
       />
@@ -59,7 +60,7 @@ const WhoWeAre = () => {
         <div className="container mx-auto px-4 py-16">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">Who We Are</h1>
-            
+
             {loading ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">Loading...</p>
@@ -68,7 +69,7 @@ const WhoWeAre = () => {
               <>
                 <div className="prose prose-lg max-w-none mb-12">
                   <p className="text-lg text-muted-foreground leading-relaxed">
-                    {introSection?.content || 
+                    {introSection?.content ||
                       "At Amuse, we believe that the best way for children to learn is by exploring, experiencing, and engaging with the world around them. We specialize in creating outdoor programs that inspire curiosity, foster independence, and build lasting skills—all while having fun in nature."}
                   </p>
                 </div>
@@ -76,7 +77,7 @@ const WhoWeAre = () => {
                 {/* Our Pillars Section */}
                 <div className="mb-16">
                   <h2 className="text-3xl font-bold text-foreground mb-8 text-center">Our Pillars</h2>
-                  
+
                   {/* Temple Roof Decoration */}
                   <div className="max-w-5xl mx-auto mb-8">
                     <div className="h-2 bg-foreground/80 w-full rounded-sm mb-1"></div>
@@ -84,7 +85,7 @@ const WhoWeAre = () => {
                   </div>
 
                   {/* Pillars Container */}
-                  <div className="flex justify-center gap-3 md:gap-4 lg:gap-5 max-w-6xl mx-auto">
+                  <div className="flex justify-center gap-1 sm:gap-2 md:gap-4 lg:gap-5 max-w-6xl mx-auto px-2">
                     {sections.map((section, index) => (
                       <PillarColumn
                         key={section.id || index}
@@ -109,21 +110,26 @@ const WhoWeAre = () => {
                   <div>
                     <h2 className="text-3xl font-bold text-foreground mb-4">Our Purpose</h2>
                     <p className="text-lg text-muted-foreground leading-relaxed">
-                      To make outdoor learning meaningful, accessible, and unforgettable for children in Kenya by creating programs that connect them with nature, culture, and their own potential.
+                      Our purpose is to empower children and teens to discover their full potential through engaging and
+                      educational programs that foster creativity, curiosity, and a deep connection to the natural
+                      world.
                     </p>
                   </div>
 
                   <div>
                     <h2 className="text-3xl font-bold text-foreground mb-4">Our Mission</h2>
                     <p className="text-lg text-muted-foreground leading-relaxed">
-                      We design and deliver outdoor programs that inspire children to explore, learn, and grow through hands-on experiences rooted in Kenya's natural and cultural heritage.
+                      To inspire and empower children and teens through safe, fun, and transformative outdoor
+                      experiences that spark creativity, build character, and nurture a lifelong love for nature.
                     </p>
                   </div>
 
                   <div>
                     <h2 className="text-3xl font-bold text-foreground mb-4">Our Vision</h2>
                     <p className="text-lg text-muted-foreground leading-relaxed">
-                      A future where every child in Kenya has the opportunity to learn through nature, building skills and connections that empower them to thrive and care for their environment.
+                      To shape the future of experiential education in Africa by creating world-class outdoor
+                      experiences that inspire children and teens to learn boldly, live responsibly, and champion the
+                      protection of our natural spaces.
                     </p>
                   </div>
                 </div>

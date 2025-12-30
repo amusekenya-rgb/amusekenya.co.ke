@@ -1,21 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart3, DollarSign, Users, TrendingUp, Calendar as CalendarIcon } from 'lucide-react';
+import { DollarSign, Users, TrendingUp, Calendar as CalendarIcon, Filter, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { CampRegistration } from '@/types/campRegistration';
 import { exportService } from '@/services/exportService';
 import { 
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, 
+  BarChart, Bar, PieChart, Pie, Cell, 
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, isWithinInterval, subDays, differenceInDays } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
+
+type DatePreset = 'all' | 'this-month' | 'last-month' | 'last-3-months' | 'this-year' | 'custom';
+
+interface PeriodMetrics {
+  totalRevenue: number;
+  totalRegistrations: number;
+  totalChildren: number;
+  paidRevenue: number;
+  unpaidRevenue: number;
+  partialRevenue: number;
+  averagePerRegistration: number;
+}
+
+const calculatePeriodMetrics = (registrations: CampRegistration[]): PeriodMetrics => {
+  if (registrations.length === 0) {
+    return {
+      totalRevenue: 0,
+      totalRegistrations: 0,
+      totalChildren: 0,
+      paidRevenue: 0,
+      unpaidRevenue: 0,
+      partialRevenue: 0,
+      averagePerRegistration: 0,
+    };
+  }
+  const summary = exportService.calculateSummary(registrations);
+  return {
+    totalRevenue: summary?.totalRevenue || 0,
+    totalRegistrations: summary?.totalRegistrations || 0,
+    totalChildren: summary?.totalChildren || 0,
+    paidRevenue: summary?.paidRevenue || 0,
+    unpaidRevenue: summary?.unpaidRevenue || 0,
+    partialRevenue: summary?.partialRevenue || 0,
+    averagePerRegistration: summary?.averagePerRegistration || 0,
+  };
+};
+
+const getPercentageChange = (current: number, previous: number): number => {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return ((current - previous) / previous) * 100;
+};
+
+const ChangeIndicator: React.FC<{ current: number; previous: number }> = ({ current, previous }) => {
+  const change = getPercentageChange(current, previous);
+  const isPositive = change > 0;
+  const isNeutral = change === 0;
+
+  return (
+    <div className={cn(
+      "flex items-center gap-1 text-xs font-medium",
+      isPositive ? "text-green-600" : isNeutral ? "text-muted-foreground" : "text-red-600"
+    )}>
+      {isPositive ? (
+        <ArrowUpRight className="h-3 w-3" />
+      ) : isNeutral ? (
+        <Minus className="h-3 w-3" />
+      ) : (
+        <ArrowDownRight className="h-3 w-3" />
+      )}
+      <span>{Math.abs(change).toFixed(1)}%</span>
+      <span className="text-muted-foreground font-normal">vs prev</span>
+    </div>
+  );
+};
 
 export const CampReportsTab: React.FC = () => {
   const [registrations, setRegistrations] = useState<CampRegistration[]>([]);
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<any>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [showComparison, setShowComparison] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -26,9 +101,6 @@ export const CampReportsTab: React.FC = () => {
       setLoading(true);
       const data = await campRegistrationService.getAllRegistrations();
       setRegistrations(data);
-      
-      const summaryData = exportService.calculateSummary(data);
-      setSummary(summaryData);
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load reports data');
@@ -36,6 +108,87 @@ export const CampReportsTab: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const now = new Date();
+    switch (datePreset) {
+      case 'this-month':
+        setStartDate(startOfMonth(now));
+        setEndDate(endOfMonth(now));
+        break;
+      case 'last-month':
+        const lastMonth = subMonths(now, 1);
+        setStartDate(startOfMonth(lastMonth));
+        setEndDate(endOfMonth(lastMonth));
+        break;
+      case 'last-3-months':
+        setStartDate(startOfMonth(subMonths(now, 2)));
+        setEndDate(endOfMonth(now));
+        break;
+      case 'this-year':
+        setStartDate(startOfYear(now));
+        setEndDate(endOfYear(now));
+        break;
+      case 'all':
+        setStartDate(undefined);
+        setEndDate(undefined);
+        break;
+    }
+  }, [datePreset]);
+
+  const previousPeriod = useMemo(() => {
+    if (!startDate || !endDate) return { start: undefined, end: undefined };
+    const periodLength = differenceInDays(endDate, startDate) + 1;
+    const prevEnd = subDays(startDate, 1);
+    const prevStart = subDays(prevEnd, periodLength - 1);
+    return { start: prevStart, end: prevEnd };
+  }, [startDate, endDate]);
+
+  const filterByDateRange = (regs: CampRegistration[], start?: Date, end?: Date) => {
+    if (!start && !end) return regs;
+    return regs.filter(reg => {
+      const regDate = reg.created_at ? new Date(reg.created_at) : null;
+      if (!regDate) return false;
+      if (start && end) return isWithinInterval(regDate, { start, end });
+      if (start) return regDate >= start;
+      if (end) return regDate <= end;
+      return true;
+    });
+  };
+
+  const filteredRegistrations = useMemo(() => 
+    filterByDateRange(registrations, startDate, endDate),
+    [registrations, startDate, endDate]
+  );
+
+  const previousRegistrations = useMemo(() => 
+    filterByDateRange(registrations, previousPeriod.start, previousPeriod.end),
+    [registrations, previousPeriod]
+  );
+
+  const currentMetrics = useMemo(() => calculatePeriodMetrics(filteredRegistrations), [filteredRegistrations]);
+  const previousMetrics = useMemo(() => calculatePeriodMetrics(previousRegistrations), [previousRegistrations]);
+
+  const summary = useMemo(() => {
+    if (filteredRegistrations.length === 0) return null;
+    return exportService.calculateSummary(filteredRegistrations);
+  }, [filteredRegistrations]);
+
+  const handlePresetChange = (preset: DatePreset) => setDatePreset(preset);
+
+  const handleCustomDateChange = (type: 'start' | 'end', date: Date | undefined) => {
+    setDatePreset('custom');
+    if (type === 'start') setStartDate(date);
+    else setEndDate(date);
+  };
+
+  const clearFilters = () => {
+    setDatePreset('all');
+    setStartDate(undefined);
+    setEndDate(undefined);
+  };
+
+  const canShowComparison = startDate && endDate && showComparison;
 
   if (loading) {
     return (
@@ -47,63 +200,130 @@ export const CampReportsTab: React.FC = () => {
     );
   }
 
-  if (!summary) {
-    return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="text-center text-muted-foreground">No data available</div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Prepare data for charts
-  const campTypeData = Object.entries(summary.campTypeCounts).map(([name, count]) => ({
+  const campTypeData = summary ? Object.entries(summary.campTypeCounts).map(([name, count]) => ({
     name: name.replace('-', ' ').toUpperCase(),
     count,
-  }));
+  })) : [];
 
-  const paymentStatusData = [
-    { name: 'Paid', value: summary.paidRevenue, count: registrations.filter(r => r.payment_status === 'paid').length },
-    { name: 'Unpaid', value: summary.unpaidRevenue, count: registrations.filter(r => r.payment_status === 'unpaid').length },
-    { name: 'Partial', value: summary.partialRevenue, count: registrations.filter(r => r.payment_status === 'partial').length },
-  ].filter(item => item.count > 0);
+  const paymentStatusData = summary ? [
+    { name: 'Paid', value: summary.paidRevenue, count: filteredRegistrations.filter(r => r.payment_status === 'paid').length },
+    { name: 'Unpaid', value: summary.unpaidRevenue, count: filteredRegistrations.filter(r => r.payment_status === 'unpaid').length },
+    { name: 'Partial', value: summary.partialRevenue, count: filteredRegistrations.filter(r => r.payment_status === 'partial').length },
+  ].filter(item => item.count > 0) : [];
 
-  // Revenue by camp type
-  const revenueByType = Object.keys(summary.campTypeCounts).map(campType => {
-    const regs = registrations.filter(r => r.camp_type === campType);
-    const revenue = regs.reduce((sum, r) => sum + r.total_amount, 0);
+  const revenueByType = summary ? Object.keys(summary.campTypeCounts).map(campType => {
+    const currentRegs = filteredRegistrations.filter(r => r.camp_type === campType);
+    const prevRegs = previousRegistrations.filter(r => r.camp_type === campType);
     return {
       name: campType.replace('-', ' ').toUpperCase(),
-      revenue: Math.round(revenue),
-      registrations: regs.length,
+      current: Math.round(currentRegs.reduce((sum, r) => sum + r.total_amount, 0)),
+      previous: Math.round(prevRegs.reduce((sum, r) => sum + r.total_amount, 0)),
     };
-  });
+  }) : [];
 
-  // Children age distribution
   const ageDistribution: Record<string, number> = {};
-  registrations.forEach(reg => {
+  filteredRegistrations.forEach(reg => {
     reg.children.forEach(child => {
       const age = child.ageRange || 'Unknown';
       ageDistribution[age] = (ageDistribution[age] || 0) + 1;
     });
   });
+  const ageData = Object.entries(ageDistribution).map(([age, count]) => ({ age, count }));
 
-  const ageData = Object.entries(ageDistribution).map(([age, count]) => ({
-    age,
-    count,
-  }));
-
-  // Registration type breakdown
   const registrationTypeData = [
-    { name: 'Online Only', count: registrations.filter(r => r.registration_type === 'online_only').length },
-    { name: 'Online Paid', count: registrations.filter(r => r.registration_type === 'online_paid').length },
-    { name: 'Ground', count: registrations.filter(r => r.registration_type === 'ground_registration').length },
+    { name: 'Online Only', count: filteredRegistrations.filter(r => r.registration_type === 'online_only').length },
+    { name: 'Online Paid', count: filteredRegistrations.filter(r => r.registration_type === 'online_paid').length },
+    { name: 'Ground', count: filteredRegistrations.filter(r => r.registration_type === 'ground_registration').length },
   ].filter(item => item.count > 0);
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Date Range Filter Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Date Range Filter
+          </CardTitle>
+          <CardDescription>Filter analytics by registration date</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Quick Select</label>
+              <Select value={datePreset} onValueChange={(v) => handlePresetChange(v as DatePreset)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="this-month">This Month</SelectItem>
+                  <SelectItem value="last-month">Last Month</SelectItem>
+                  <SelectItem value="last-3-months">Last 3 Months</SelectItem>
+                  <SelectItem value="this-year">This Year</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Start Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "PPP") : "Pick start date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={startDate} onSelect={(date) => handleCustomDateChange('start', date)} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">End Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "PPP") : "Pick end date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={endDate} onSelect={(date) => handleCustomDateChange('end', date)} initialFocus />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch id="comparison-mode" checked={showComparison} onCheckedChange={setShowComparison} />
+              <Label htmlFor="comparison-mode">Compare periods</Label>
+            </div>
+
+            {(startDate || endDate) && (
+              <Button variant="ghost" onClick={clearFilters}>Clear Filters</Button>
+            )}
+          </div>
+
+          {(startDate || endDate) && (
+            <div className="mt-3 space-y-1">
+              <div className="text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">Current:</span> {filteredRegistrations.length} registrations
+                {startDate && endDate && ` (${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")})`}
+              </div>
+              {canShowComparison && previousPeriod.start && previousPeriod.end && (
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Previous:</span> {previousRegistrations.length} registrations
+                  {` (${format(previousPeriod.start, "MMM d")} - ${format(previousPeriod.end, "MMM d, yyyy")})`}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Summary Cards with Comparison */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -111,9 +331,10 @@ export const CampReportsTab: React.FC = () => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">KES {summary.totalRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">KES {currentMetrics.totalRevenue.toLocaleString()}</div>
+            {canShowComparison && <ChangeIndicator current={currentMetrics.totalRevenue} previous={previousMetrics.totalRevenue} />}
             <p className="text-xs text-muted-foreground mt-1">
-              Avg: KES {Math.round(summary.averagePerRegistration).toLocaleString()} per registration
+              Avg: KES {Math.round(currentMetrics.averagePerRegistration).toLocaleString()} per registration
             </p>
           </CardContent>
         </Card>
@@ -124,10 +345,9 @@ export const CampReportsTab: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.totalRegistrations}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary.totalChildren} children enrolled
-            </p>
+            <div className="text-2xl font-bold">{currentMetrics.totalRegistrations}</div>
+            {canShowComparison && <ChangeIndicator current={currentMetrics.totalRegistrations} previous={previousMetrics.totalRegistrations} />}
+            <p className="text-xs text-muted-foreground mt-1">{currentMetrics.totalChildren} children enrolled</p>
           </CardContent>
         </Card>
 
@@ -137,9 +357,10 @@ export const CampReportsTab: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">KES {summary.paidRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-success">KES {currentMetrics.paidRevenue.toLocaleString()}</div>
+            {canShowComparison && <ChangeIndicator current={currentMetrics.paidRevenue} previous={previousMetrics.paidRevenue} />}
             <p className="text-xs text-muted-foreground mt-1">
-              {Math.round((summary.paidRevenue / summary.totalRevenue) * 100)}% of total
+              {currentMetrics.totalRevenue > 0 ? `${Math.round((currentMetrics.paidRevenue / currentMetrics.totalRevenue) * 100)}% of total` : '0% of total'}
             </p>
           </CardContent>
         </Card>
@@ -150,20 +371,66 @@ export const CampReportsTab: React.FC = () => {
             <CalendarIcon className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">KES {summary.unpaidRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-destructive">KES {currentMetrics.unpaidRevenue.toLocaleString()}</div>
+            {canShowComparison && <ChangeIndicator current={currentMetrics.unpaidRevenue} previous={previousMetrics.unpaidRevenue} />}
             <p className="text-xs text-muted-foreground mt-1">
-              Unpaid + Partial: KES {(summary.unpaidRevenue + summary.partialRevenue).toLocaleString()}
+              Unpaid + Partial: KES {(currentMetrics.unpaidRevenue + currentMetrics.partialRevenue).toLocaleString()}
             </p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Comparison Summary Card */}
+      {canShowComparison && (
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="text-lg">Period Comparison Summary</CardTitle>
+            <CardDescription>
+              {startDate && format(startDate, "MMM d")} - {endDate && format(endDate, "MMM d, yyyy")} vs{' '}
+              {previousPeriod.start && format(previousPeriod.start, "MMM d")} - {previousPeriod.end && format(previousPeriod.end, "MMM d, yyyy")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-background rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Revenue Change</div>
+                <div className={cn("text-xl font-bold", getPercentageChange(currentMetrics.totalRevenue, previousMetrics.totalRevenue) >= 0 ? "text-green-600" : "text-red-600")}>
+                  {getPercentageChange(currentMetrics.totalRevenue, previousMetrics.totalRevenue) >= 0 ? '+' : ''}
+                  {getPercentageChange(currentMetrics.totalRevenue, previousMetrics.totalRevenue).toFixed(1)}%
+                </div>
+              </div>
+              <div className="text-center p-3 bg-background rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Registration Change</div>
+                <div className={cn("text-xl font-bold", getPercentageChange(currentMetrics.totalRegistrations, previousMetrics.totalRegistrations) >= 0 ? "text-green-600" : "text-red-600")}>
+                  {getPercentageChange(currentMetrics.totalRegistrations, previousMetrics.totalRegistrations) >= 0 ? '+' : ''}
+                  {getPercentageChange(currentMetrics.totalRegistrations, previousMetrics.totalRegistrations).toFixed(1)}%
+                </div>
+              </div>
+              <div className="text-center p-3 bg-background rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Children Change</div>
+                <div className={cn("text-xl font-bold", getPercentageChange(currentMetrics.totalChildren, previousMetrics.totalChildren) >= 0 ? "text-green-600" : "text-red-600")}>
+                  {getPercentageChange(currentMetrics.totalChildren, previousMetrics.totalChildren) >= 0 ? '+' : ''}
+                  {getPercentageChange(currentMetrics.totalChildren, previousMetrics.totalChildren).toFixed(1)}%
+                </div>
+              </div>
+              <div className="text-center p-3 bg-background rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Avg. Booking Value</div>
+                <div className={cn("text-xl font-bold", getPercentageChange(currentMetrics.averagePerRegistration, previousMetrics.averagePerRegistration) >= 0 ? "text-green-600" : "text-red-600")}>
+                  {getPercentageChange(currentMetrics.averagePerRegistration, previousMetrics.averagePerRegistration) >= 0 ? '+' : ''}
+                  {getPercentageChange(currentMetrics.averagePerRegistration, previousMetrics.averagePerRegistration).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Revenue by Camp Type</CardTitle>
-            <CardDescription>Total revenue generated per camp type</CardDescription>
+            <CardDescription>{canShowComparison ? 'Current vs Previous period' : 'Total revenue per camp type'}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -173,7 +440,8 @@ export const CampReportsTab: React.FC = () => {
                 <YAxis />
                 <Tooltip formatter={(value) => `KES ${Number(value).toLocaleString()}`} />
                 <Legend />
-                <Bar dataKey="revenue" fill="#22c55e" name="Revenue (KES)" />
+                <Bar dataKey="current" fill="#22c55e" name="Current Period (KES)" />
+                {canShowComparison && <Bar dataKey="previous" fill="#94a3b8" name="Previous Period (KES)" />}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -187,19 +455,8 @@ export const CampReportsTab: React.FC = () => {
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <Pie
-                  data={paymentStatusData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value, count }) => `${name}: KES ${value.toLocaleString()} (${count})`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {paymentStatusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
+                <Pie data={paymentStatusData} cx="50%" cy="50%" labelLine={false} label={({ name, value, count }) => `${name}: KES ${value.toLocaleString()} (${count})`} outerRadius={80} fill="#8884d8" dataKey="value">
+                  {paymentStatusData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
                 </Pie>
                 <Tooltip formatter={(value) => `KES ${Number(value).toLocaleString()}`} />
               </PieChart>
@@ -258,19 +515,8 @@ export const CampReportsTab: React.FC = () => {
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie
-                data={registrationTypeData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, count }) => `${name}: ${count}`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="count"
-              >
-                {registrationTypeData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
+              <Pie data={registrationTypeData} cx="50%" cy="50%" labelLine={false} label={({ name, count }) => `${name}: ${count}`} outerRadius={100} fill="#8884d8" dataKey="count">
+                {registrationTypeData.map((entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
               </Pie>
               <Tooltip />
             </PieChart>

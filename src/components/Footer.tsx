@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Instagram, Twitter, Facebook, ArrowUp, MessageCircle } from 'lucide-react';
 import { cmsService } from '@/services/cmsService';
 
@@ -84,14 +85,20 @@ const Footer = () => {
           <div className="md:w-1/3">
             <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-2">
-              {['Home', 'About', 'Programs', 'Announcements', 'Gallery', 'Testimonials', 'Contact'].map((item) => (
-                <li key={item}>
-                  <a 
-                    href={`#${item.toLowerCase()}`} 
+              {[
+                { label: 'Home', path: '/' },
+                { label: 'About Us', path: '/about/who-we-are' },
+                { label: 'Programs', path: '/programs' },
+                { label: 'Announcements', path: '/announcements' },
+                { label: 'Contact', path: '/contact' }
+              ].map((item) => (
+                <li key={item.label}>
+                  <Link 
+                    to={item.path} 
                     className="text-gray-300 hover:text-white transition-colors duration-300"
                   >
-                    {item}
-                  </a>
+                    {item.label}
+                  </Link>
                 </li>
               ))}
             </ul>

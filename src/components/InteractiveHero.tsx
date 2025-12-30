@@ -60,6 +60,34 @@ const InteractiveHero = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // Minimum swipe distance to trigger slide change
+  const minSwipeDistance = 50;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      nextSlide();
+    } else if (isRightSwipe) {
+      prevSlide();
+    }
+  };
 
   useEffect(() => {
     const loadSlides = async () => {
@@ -161,7 +189,12 @@ const InteractiveHero = () => {
   };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
+    <div 
+      className="relative w-full h-screen overflow-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {slides.map((slide, index) => (
         <div
           key={slide.id}
@@ -264,37 +297,41 @@ const InteractiveHero = () => {
         </div>
       ))}
 
-      <button
-        onClick={prevSlide}
-        className="absolute left-6 top-1/2 -translate-y-1/2 z-30 bg-black/30 backdrop-blur-sm text-white p-4 rounded-full hover:bg-black/50 transition-all group"
-        aria-label="Previous slide"
-      >
-        <ChevronLeft className="w-8 h-8 group-hover:-translate-x-1 transition-transform" />
-      </button>
+      {/* Navigation arrows positioned at bottom to avoid overlapping content */}
+      <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 z-30 flex items-center gap-8">
+        <button
+          onClick={prevSlide}
+          className="bg-black/30 backdrop-blur-sm text-white p-3 rounded-full hover:bg-black/50 transition-all group"
+          aria-label="Previous slide"
+        >
+          <ChevronLeft className="w-6 h-6 group-hover:-translate-x-0.5 transition-transform" />
+        </button>
 
-      <button
-        onClick={nextSlide}
-        className="absolute right-6 top-1/2 -translate-y-1/2 z-30 bg-black/30 backdrop-blur-sm text-white p-4 rounded-full hover:bg-black/50 transition-all group lg:hidden"
-        aria-label="Next slide"
-      >
-        <ChevronRight className="w-8 h-8 group-hover:translate-x-1 transition-transform" />
-      </button>
+        <div className="flex gap-2">
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={cn(
+                "w-3 h-3 rounded-full transition-all duration-300",
+                index === currentSlide
+                  ? "bg-white w-8"
+                  : "bg-white/50 hover:bg-white/75"
+              )}
+              aria-label={`Go to slide ${index + 1}`}
+            />
+          ))}
+        </div>
 
-      <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 flex gap-2 z-30">
-        {slides.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => goToSlide(index)}
-            className={cn(
-              "w-3 h-3 rounded-full transition-all duration-300",
-              index === currentSlide
-                ? "bg-white w-8"
-                : "bg-white/50 hover:bg-white/75"
-            )}
-            aria-label={`Go to slide ${index + 1}`}
-          />
-        ))}
+        <button
+          onClick={nextSlide}
+          className="bg-black/30 backdrop-blur-sm text-white p-3 rounded-full hover:bg-black/50 transition-all group lg:hidden"
+          aria-label="Next slide"
+        >
+          <ChevronRight className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
+        </button>
       </div>
+
 
       <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 z-30 flex flex-col items-center text-white">
         <span className="text-sm mb-2">Scroll Down</span>

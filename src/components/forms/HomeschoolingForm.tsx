@@ -76,14 +76,14 @@ const HomeschoolingForm = () => {
         source: 'website'
       });
 
-      // Send confirmation email
+      // Send confirmation email via Resend
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.functions.invoke('send-program-confirmation', {
+      await supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
-          name: data.parentName,
           programType: 'homeschooling',
-          details: {
+          registrationDetails: {
+            parentName: data.parentName,
             package: data.package,
             children: data.children,
             focus: data.focus

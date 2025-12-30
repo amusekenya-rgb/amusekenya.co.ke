@@ -43,6 +43,7 @@ const TeamBuildingProgram = () => {
     setValue,
     control,
     watch,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<TeamBuildingFormData>({
     resolver: zodResolver(teamBuildingSchema),
@@ -72,25 +73,24 @@ const TeamBuildingProgram = () => {
         source: 'website_registration'
       });
 
-      // Send confirmation email
+      // Send confirmation email via Resend
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.functions.invoke('send-program-confirmation', {
+      await supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
-          name: data.email, // Using email as name since there's no name field
           programType: 'team-building',
-          details: {
+          registrationDetails: {
             occasion: data.occasion,
             package: data.package,
             eventDate: data.eventDate,
-            location: data.location
-          },
-          totalAmount: 0, // TBD - will be confirmed by team
-          registrationId: registration && 'id' in registration ? registration.id : undefined
+            location: data.location,
+            registrationId: registration && 'id' in registration ? registration.id : undefined
+          }
         }
       });
 
       toast.success("Registration submitted successfully! Check your email for confirmation.");
+      reset();
     } catch (error: any) {
       console.error('Registration error:', error);
       console.error('Error details:', error?.message, error?.details, error?.hint);
