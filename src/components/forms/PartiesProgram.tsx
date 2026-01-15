@@ -16,7 +16,6 @@ import birthdayImage from "@/assets/birthday.jpg";
 import campingImage from "@/assets/camping.jpg";
 import adventureImage from "@/assets/adventure.jpg";
 import DatePickerField from "./DatePickerField";
-import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from '@/services/leadsService';
 
@@ -140,11 +139,9 @@ const PartiesProgram = () => {
 
   const onSubmit = async (data: PartiesFormData) => {
     try {
-      // Save to database
       const { partiesService } = await import('@/services/programRegistrationService');
       const registration = await partiesService.create(data);
 
-      // Capture lead
       await leadsService.createLead({
         full_name: data.parentName,
         email: data.email,
@@ -155,7 +152,6 @@ const PartiesProgram = () => {
         source: 'website_registration'
       });
 
-      // Send confirmation email via Resend
       const { supabase } = await import('@/integrations/supabase/client');
       await supabase.functions.invoke('send-confirmation-email', {
         body: {
@@ -210,45 +206,48 @@ const PartiesProgram = () => {
           </p>
         </div>
 
-        {/* Party Options - Clickable Cards */}
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold text-primary mb-4">Choose the birthday party that fits your child and your family's style:</h2>
-          <p className="text-muted-foreground mb-6">Click on any option to learn more about what's included.</p>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            {partyOptions.map((option) => (
-              <Card 
-                key={option.id} 
-                className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 overflow-hidden"
-                onClick={() => setSelectedPartyOption(option)}
-              >
-                <div className="relative h-48">
-                  <img src={option.image} alt={option.title} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                  <div className="absolute bottom-4 left-4 right-4 flex items-center gap-2">
-                    <div className="bg-white/20 backdrop-blur-sm rounded-full p-2 text-white">
-                      {option.icon}
-                    </div>
-                    <h3 className="text-lg font-bold text-white">{option.title}</h3>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <p className="text-muted-foreground mb-3">{option.shortDescription}</p>
-                  <Button variant="link" className="p-0 h-auto text-primary">
-                    Learn More →
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-
+        {/* Two Column Layout */}
         <div className="grid lg:grid-cols-2 gap-12 items-start">
-          {/* Party Information */}
+          {/* Left Column - Information */}
           <div className="space-y-8">
+            {/* Featured Image */}
             <div className="relative h-80 rounded-2xl overflow-hidden">
               <img src={birthdayImage} alt="Party celebrations" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+            </div>
+
+            {/* Party Options */}
+            <div>
+              <h2 className="text-xl font-bold text-primary mb-4">Choose the birthday party that fits your child and your family's style:</h2>
+              <p className="text-muted-foreground mb-4">Click on any option to learn more about what's included.</p>
+              
+              <div className="space-y-4">
+                {partyOptions.map((option) => (
+                  <Card 
+                    key={option.id} 
+                    className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50 overflow-hidden"
+                    onClick={() => setSelectedPartyOption(option)}
+                  >
+                    <div className="flex gap-4 p-4">
+                      <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0">
+                        <img src={option.image} alt={option.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="bg-primary/10 rounded-full p-1.5 text-primary">
+                            {option.icon}
+                          </div>
+                          <h3 className="font-bold">{option.title}</h3>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">{option.shortDescription}</p>
+                        <Button variant="link" className="p-0 h-auto text-primary text-sm">
+                          Learn More →
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </div>
 
             {/* What's Included */}
@@ -286,7 +285,7 @@ const PartiesProgram = () => {
             </Card>
           </div>
 
-          {/* Booking Form */}
+          {/* Right Column - Booking Form */}
           <Card className="p-8 sticky top-8">
             <h3 className="text-2xl font-bold text-primary mb-6">Book Your Party</h3>
 
@@ -336,11 +335,11 @@ const PartiesProgram = () => {
                   </Button>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {childrenFields.map((field, index) => (
-                    <div key={field.id} className="border rounded-lg p-4 space-y-4">
+                    <div key={field.id} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-medium">Child {index + 1}</h4>
+                        <h4 className="font-medium text-sm">Child {index + 1}</h4>
                         {childrenFields.length > 1 && (
                           <Button
                             type="button"
@@ -348,8 +347,7 @@ const PartiesProgram = () => {
                             size="sm"
                             onClick={() => removeChild(index)}
                           >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Remove
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
                       </div>

@@ -12,14 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { PartyPopper, Users, Target, ArrowLeft, CheckCircle, Mountain, Compass, Flame, Focus, Building, School, Heart } from "lucide-react";
 import { Link } from "react-router-dom";
-import birthdayImage from "@/assets/birthday.jpg";
 import adventureImage from "@/assets/adventure.jpg";
-import campingImage from "@/assets/camping.jpg";
 import DatePickerField from "./DatePickerField";
-import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from '@/services/leadsService';
 import { cmsService } from '@/services/cmsService';
+
 const teamBuildingSchema = z.object({
   occasion: z.enum(["birthday", "family", "corporate"]),
   adultsNumber: z.string().min(1, "Number of adults is required"),
@@ -36,7 +34,9 @@ const teamBuildingSchema = z.object({
   phone: z.string().min(1, "Phone number is required").max(20),
   consent: z.boolean().refine(val => val === true, "Consent is required")
 });
+
 type TeamBuildingFormData = z.infer<typeof teamBuildingSchema>;
+
 interface CMSConfig {
   title: string;
   subtitle: string;
@@ -61,6 +61,7 @@ interface CMSConfig {
     keywords: string;
   };
 }
+
 interface ActivityDetail {
   id: string;
   title: string;
@@ -69,6 +70,7 @@ interface ActivityDetail {
   fullDescription: string;
   benefits: string[];
 }
+
 const teamBuildingActivities: ActivityDetail[] = [{
   id: 'outdoor-challenges',
   title: 'Outdoor Challenges',
@@ -112,6 +114,7 @@ const teamBuildingActivities: ActivityDetail[] = [{
   fullDescription: 'Focus, precision, and encouragement in a fun, competitive environment. Team archery challenges build concentration while fostering friendly competition and mutual support.',
   benefits: ['Focus', 'Precision', 'Friendly Competition', 'Mutual Support']
 }];
+
 const audienceTypes = [{
   id: 'corporates',
   title: 'Corporates',
@@ -128,9 +131,11 @@ const audienceTypes = [{
   icon: <Heart className="w-6 h-6" />,
   description: 'Build confidence, cooperation, and problem-solving skills through active, hands-on learning.'
 }];
+
 const TeamBuildingProgram = () => {
   const [cmsConfig, setCmsConfig] = useState<CMSConfig | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<ActivityDetail | null>(null);
+
   useEffect(() => {
     const loadCMSContent = async () => {
       try {
@@ -147,6 +152,7 @@ const TeamBuildingProgram = () => {
     window.addEventListener('cms-content-updated', handleCMSUpdate);
     return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
   }, []);
+
   const {
     register,
     handleSubmit,
@@ -154,10 +160,7 @@ const TeamBuildingProgram = () => {
     control,
     watch,
     reset,
-    formState: {
-      errors,
-      isSubmitting
-    }
+    formState: { errors, isSubmitting }
   } = useForm<TeamBuildingFormData>({
     resolver: zodResolver(teamBuildingSchema),
     defaultValues: {
@@ -166,16 +169,14 @@ const TeamBuildingProgram = () => {
       consent: false
     }
   });
+
   const consent = watch("consent");
+
   const onSubmit = async (data: TeamBuildingFormData) => {
     try {
-      // Save to database
-      const {
-        teamBuildingService
-      } = await import('@/services/programRegistrationService');
+      const { teamBuildingService } = await import('@/services/programRegistrationService');
       const registration = await teamBuildingService.create(data);
 
-      // Capture lead
       await leadsService.createLead({
         full_name: 'Team Building Inquiry',
         email: data.email,
@@ -186,10 +187,7 @@ const TeamBuildingProgram = () => {
         source: 'website_registration'
       });
 
-      // Send confirmation email via Resend
-      const {
-        supabase
-      } = await import('@/integrations/supabase/client');
+      const { supabase } = await import('@/integrations/supabase/client');
       await supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
@@ -211,7 +209,9 @@ const TeamBuildingProgram = () => {
       toast.error(error?.message || "Failed to submit registration. Please try again.");
     }
   };
-  return <div className="min-h-screen bg-background">
+
+  return (
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <Link to="/" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
@@ -236,238 +236,269 @@ const TeamBuildingProgram = () => {
           </p>
         </div>
 
-        {/* Why Choose Us */}
-        <div className="bg-accent/30 rounded-2xl p-8 mb-12">
-          <h2 className="text-2xl font-bold text-primary mb-6">Why Choose Amuse Kenya for Team-Building?</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-1" />
-                <div>
-                  <strong>Adventure-Focused Learning:</strong> Engaging activities like orienteering, archery, obstacle courses, mountain biking, and bushcraft build problem-solving, communication, and leadership skills.
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-1" />
-                <div>
-                  <strong>Tailored Programs:</strong> Each session is customized to your team's size, objectives, and skill levels, ensuring maximum impact.
-                </div>
-              </div>
+        {/* Two Column Layout */}
+        <div className="grid lg:grid-cols-2 gap-12 items-start">
+          {/* Left Column - Information */}
+          <div className="space-y-8">
+            {/* Featured Image */}
+            <div className="relative h-80 rounded-2xl overflow-hidden">
+              <img src={adventureImage} alt="Team building activities" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-1" />
-                <div>
-                  <strong>Safe & Professional:</strong> All activities are guided by trained facilitators with a focus on safety, inclusivity, and structured fun.
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-1" />
-                <div>
-                  <strong>Measurable Outcomes:</strong> Our programs are designed to improve teamwork, morale, resilience, and strategic thinking.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Translating Adventure Section */}
-        <Card className="p-6 bg-primary/5 mb-12">
-          <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <Target className="w-5 h-5 text-primary" />
-            Translating Adventure into Workplace Success
-          </h3>
-          <p className="text-muted-foreground mb-4">Our approach ensures that the skills your team develops outdoors carry over to the team environment:</p>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="bg-background rounded-lg p-4">
-              <strong className="text-primary">Communication:</strong>
-              <p className="text-sm text-muted-foreground">Participants practice listening, clear messaging, and feedback in real-time challenges.</p>
-            </div>
-            <div className="bg-background rounded-lg p-4">
-              <strong className="text-primary">Collaboration:</strong>
-              <p className="text-sm text-muted-foreground">Team tasks reinforce trust, cooperation, and shared responsibility.</p>
-            </div>
-            <div className="bg-background rounded-lg p-4">
-              <strong className="text-primary">Leadership:</strong>
-              <p className="text-sm text-muted-foreground">Adventure scenarios allow natural leaders to emerge and inspire their peers.</p>
-            </div>
-            <div className="bg-background rounded-lg p-4">
-              <strong className="text-primary">Problem-Solving:</strong>
-              <p className="text-sm text-muted-foreground">Teams develop strategies, adapt to change, and think creatively under pressure.</p>
-            </div>
-            <div className="bg-background rounded-lg p-4">
-              <strong className="text-primary">Resilience & Morale:</strong>
-              <p className="text-sm text-muted-foreground">Overcoming outdoor challenges fosters confidence, motivation, and a positive team culture.</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Activities We Offer - Clickable Cards */}
-        
-
-        {/* Who We Work With */}
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold text-primary mb-6">Who We Work With</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {audienceTypes.map(audience => <Card key={audience.id} className="p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="bg-primary/10 rounded-full p-2 text-primary">
-                    {audience.icon}
+            {/* Why Choose Us */}
+            <Card className="p-6 bg-accent/30">
+              <h2 className="text-xl font-bold text-primary mb-4">Why Choose Amuse Kenya for Team-Building?</h2>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-1" />
+                  <div>
+                    <strong>Adventure-Focused Learning:</strong> Engaging activities like orienteering, archery, obstacle courses, mountain biking, and bushcraft build problem-solving, communication, and leadership skills.
                   </div>
-                  <h4 className="font-semibold text-lg">{audience.title}</h4>
                 </div>
-                <p className="text-muted-foreground">{audience.description}</p>
-              </Card>)}
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-1" />
+                  <div>
+                    <strong>Tailored Programs:</strong> Each session is customized to your team's size, objectives, and skill levels, ensuring maximum impact.
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-1" />
+                  <div>
+                    <strong>Safe & Professional:</strong> All activities are guided by trained facilitators with a focus on safety, inclusivity, and structured fun.
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-1" />
+                  <div>
+                    <strong>Measurable Outcomes:</strong> Our programs are designed to improve teamwork, morale, resilience, and strategic thinking.
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Translating Adventure Section */}
+            <Card className="p-6 bg-primary/5">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <Target className="w-5 h-5 text-primary" />
+                Translating Adventure into Workplace Success
+              </h3>
+              <p className="text-muted-foreground mb-4">Our approach ensures that the skills your team develops outdoors carry over to the team environment:</p>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="bg-background rounded-lg p-3">
+                  <strong className="text-primary">Communication:</strong>
+                  <p className="text-sm text-muted-foreground">Participants practice listening, clear messaging, and feedback in real-time challenges.</p>
+                </div>
+                <div className="bg-background rounded-lg p-3">
+                  <strong className="text-primary">Collaboration:</strong>
+                  <p className="text-sm text-muted-foreground">Team tasks reinforce trust, cooperation, and shared responsibility.</p>
+                </div>
+                <div className="bg-background rounded-lg p-3">
+                  <strong className="text-primary">Leadership:</strong>
+                  <p className="text-sm text-muted-foreground">Adventure scenarios allow natural leaders to emerge and inspire their peers.</p>
+                </div>
+                <div className="bg-background rounded-lg p-3">
+                  <strong className="text-primary">Problem-Solving:</strong>
+                  <p className="text-sm text-muted-foreground">Teams develop strategies, adapt to change, and think creatively under pressure.</p>
+                </div>
+                <div className="bg-background rounded-lg p-3">
+                  <strong className="text-primary">Resilience & Morale:</strong>
+                  <p className="text-sm text-muted-foreground">Overcoming outdoor challenges fosters confidence, motivation, and a positive team culture.</p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Activities We Offer */}
+            <div>
+              <h2 className="text-xl font-bold text-primary mb-4">Team-Building Activities We Offer</h2>
+              <p className="text-muted-foreground mb-4">Click on any activity to learn more:</p>
+              <div className="grid grid-cols-2 gap-3">
+                {teamBuildingActivities.map((activity) => (
+                  <Card 
+                    key={activity.id} 
+                    className="p-4 cursor-pointer hover:shadow-lg transition-all hover:border-primary/50"
+                    onClick={() => setSelectedActivity(activity)}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="bg-primary/10 rounded-full p-2 text-primary">
+                        {activity.icon}
+                      </div>
+                      <h4 className="font-semibold text-sm">{activity.title}</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{activity.shortDescription}</p>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Who We Work With */}
+            <div>
+              <h2 className="text-xl font-bold text-primary mb-4">Who We Work With</h2>
+              <div className="space-y-3">
+                {audienceTypes.map(audience => (
+                  <Card key={audience.id} className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 rounded-full p-2 text-primary">
+                        {audience.icon}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold">{audience.title}</h4>
+                        <p className="text-sm text-muted-foreground">{audience.description}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* CTA Section */}
-        <div className="bg-primary/10 rounded-2xl p-8 mb-12 text-center">
-          <h2 className="text-2xl font-bold text-primary mb-4">Ready to Build a Stronger Team?</h2>
-          <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-            Bring your team to Amuse Kenya and watch them bond, grow, and thrive through adventure and experiential learning. Customized programs and flexible dates available to suit your group!
-          </p>
-        </div>
+          {/* Right Column - Registration Form */}
+          <Card className="p-8 sticky top-8">
+            <h3 className="text-2xl font-bold text-primary mb-6">Book Your Team-Building Experience</h3>
 
-        {/* Registration Form */}
-        <Card className="p-8 max-w-2xl mx-auto">
-          <h3 className="text-2xl font-bold text-primary mb-6">Book Your Team-Building Experience</h3>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div>
-              <Label className="text-base font-medium">Occasion *</Label>
-              <Select onValueChange={value => setValue("occasion", value as any)}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select occasion" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="birthday">Birthday</SelectItem>
-                  <SelectItem value="family">Family</SelectItem>
-                  <SelectItem value="corporate">Corporate</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
-                <Label htmlFor="adultsNumber" className="text-base font-medium">
-                  Adults *
-                </Label>
-                <Input id="adultsNumber" {...register("adultsNumber")} type="number" className="mt-2" placeholder="Number of adults" />
-                {errors.adultsNumber && <p className="text-destructive text-sm mt-1">{errors.adultsNumber.message}</p>}
+                <Label className="text-base font-medium">Occasion *</Label>
+                <Select onValueChange={value => setValue("occasion", value as any)}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select occasion" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="birthday">Birthday</SelectItem>
+                    <SelectItem value="family">Family</SelectItem>
+                    <SelectItem value="corporate">Corporate</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <Label htmlFor="childrenNumber" className="text-base font-medium">
-                  Children *
-                </Label>
-                <Input id="childrenNumber" {...register("childrenNumber")} type="number" className="mt-2" placeholder="Number of children" />
-                {errors.childrenNumber && <p className="text-destructive text-sm mt-1">{errors.childrenNumber.message}</p>}
-              </div>
-            </div>
 
-            <div>
-              <Label className="text-base font-medium">Age Range *</Label>
-              <Select onValueChange={value => setValue("ageRange", value as any)}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select age range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="3-below">3 & Below</SelectItem>
-                  <SelectItem value="4-6">4-6 years</SelectItem>
-                  <SelectItem value="7-10">7-10 years</SelectItem>
-                  <SelectItem value="11-13">11-13 years</SelectItem>
-                  <SelectItem value="14-17">14-17 years</SelectItem>
-                  <SelectItem value="18+">18+ years</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.ageRange && <p className="text-destructive text-sm mt-1">{errors.ageRange.message}</p>}
-            </div>
-
-            <div>
-              <Label className="text-base font-medium">Package *</Label>
-              <Select onValueChange={value => setValue("package", value as any)}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select a package" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="adventure">Outdoor Challenges</SelectItem>
-                  <SelectItem value="bushcraft">Bushcraft & Survival</SelectItem>
-                  <SelectItem value="nature-carnival">Leadership Programs</SelectItem>
-                  <SelectItem value="family-corporate">Mountain Biking & Orienteering</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Controller name="eventDate" control={control} render={({
-            field
-          }) => <DatePickerField label="Event Date" placeholder="Select event date" value={field.value} onChange={field.onChange} error={errors.eventDate?.message} required />} />
-
-            <div>
-              <Label className="text-base font-medium">Location *</Label>
-              <Select onValueChange={value => setValue("location", value as any)}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="karura-gate-f">Karura Gate F</SelectItem>
-                  <SelectItem value="karura-gate-a">Karura Gate A</SelectItem>
-                  <SelectItem value="tigoni">Tigoni</SelectItem>
-                  <SelectItem value="ngong">Ngong</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.location && <p className="text-destructive text-sm mt-1">{errors.location.message}</p>}
-            </div>
-
-            <div>
-              <Label className="text-base font-medium">Add-Ons</Label>
-              <div className="mt-3 space-y-3">
-                <div className="flex items-center space-x-3">
-                  <Checkbox id="decor" {...register("decor")} />
-                  <Label htmlFor="decor">Decoration</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="adultsNumber" className="text-base font-medium">
+                    Adults *
+                  </Label>
+                  <Input id="adultsNumber" {...register("adultsNumber")} type="number" className="mt-2" placeholder="Number of adults" />
+                  {errors.adultsNumber && <p className="text-destructive text-sm mt-1">{errors.adultsNumber.message}</p>}
                 </div>
-                <div className="flex items-center space-x-3">
-                  <Checkbox id="catering" {...register("catering")} />
-                  <Label htmlFor="catering">Catering</Label>
+                <div>
+                  <Label htmlFor="childrenNumber" className="text-base font-medium">
+                    Children *
+                  </Label>
+                  <Input id="childrenNumber" {...register("childrenNumber")} type="number" className="mt-2" placeholder="Number of children" />
+                  {errors.childrenNumber && <p className="text-destructive text-sm mt-1">{errors.childrenNumber.message}</p>}
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="email" className="text-base font-medium">
-                  Email *
-                </Label>
-                <Input id="email" type="email" {...register("email")} className="mt-2" placeholder="your@email.com" />
-                {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
+                <Label className="text-base font-medium">Age Range *</Label>
+                <Select onValueChange={value => setValue("ageRange", value as any)}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select age range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3-below">3 & Below</SelectItem>
+                    <SelectItem value="4-6">4-6 years</SelectItem>
+                    <SelectItem value="7-10">7-10 years</SelectItem>
+                    <SelectItem value="11-13">11-13 years</SelectItem>
+                    <SelectItem value="14-17">14-17 years</SelectItem>
+                    <SelectItem value="18+">18+ years</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.ageRange && <p className="text-destructive text-sm mt-1">{errors.ageRange.message}</p>}
               </div>
+
               <div>
-                <Label htmlFor="phone" className="text-base font-medium">
-                  Phone *
-                </Label>
-                <Input id="phone" {...register("phone")} className="mt-2" placeholder="+254 700 000 000" />
-                {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
+                <Label className="text-base font-medium">Package *</Label>
+                <Select onValueChange={value => setValue("package", value as any)}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select a package" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="adventure">Outdoor Challenges</SelectItem>
+                    <SelectItem value="bushcraft">Bushcraft & Survival</SelectItem>
+                    <SelectItem value="nature-carnival">Leadership Programs</SelectItem>
+                    <SelectItem value="family-corporate">Mountain Biking & Orienteering</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
 
-            <div className="flex items-start space-x-3 pt-4">
-              <Controller name="consent" control={control} render={({
-              field
-            }) => <Checkbox id="consent" checked={field.value} onCheckedChange={field.onChange} />} />
-              <Label htmlFor="consent" className="text-sm leading-relaxed">
-                I agree to the terms and conditions and consent to participate in the team-building activities. *
-              </Label>
-            </div>
-            {errors.consent && <p className="text-destructive text-sm">{errors.consent.message}</p>}
+              <Controller name="eventDate" control={control} render={({ field }) => (
+                <DatePickerField 
+                  label="Event Date" 
+                  placeholder="Select event date" 
+                  value={field.value} 
+                  onChange={field.onChange} 
+                  error={errors.eventDate?.message} 
+                  required 
+                />
+              )} />
 
-            <div className="flex flex-wrap gap-4 pt-4">
-              <RefundPolicyDialog />
-            </div>
+              <div>
+                <Label className="text-base font-medium">Location *</Label>
+                <Select onValueChange={value => setValue("location", value as any)}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="karura-gate-f">Karura Gate F</SelectItem>
+                    <SelectItem value="karura-gate-a">Karura Gate A</SelectItem>
+                    <SelectItem value="tigoni">Tigoni</SelectItem>
+                    <SelectItem value="ngong">Ngong</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.location && <p className="text-destructive text-sm mt-1">{errors.location.message}</p>}
+              </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Submitting..." : "Book Experience"}
-            </Button>
-          </form>
-        </Card>
+              <div>
+                <Label className="text-base font-medium">Add-Ons</Label>
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox id="decor" {...register("decor")} />
+                    <Label htmlFor="decor">Decoration</Label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <Checkbox id="catering" {...register("catering")} />
+                    <Label htmlFor="catering">Catering</Label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="email" className="text-base font-medium">
+                    Email *
+                  </Label>
+                  <Input id="email" type="email" {...register("email")} className="mt-2" placeholder="your@email.com" />
+                  {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="phone" className="text-base font-medium">
+                    Phone *
+                  </Label>
+                  <Input id="phone" {...register("phone")} className="mt-2" placeholder="+254 700 000 000" />
+                  {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 pt-4">
+                <Controller name="consent" control={control} render={({ field }) => (
+                  <Checkbox id="consent" checked={field.value} onCheckedChange={field.onChange} />
+                )} />
+                <Label htmlFor="consent" className="text-sm leading-relaxed">
+                  I agree to the terms and conditions and consent to participate in the team-building activities. *
+                </Label>
+              </div>
+              {errors.consent && <p className="text-destructive text-sm">{errors.consent.message}</p>}
+
+              <div className="flex flex-wrap gap-4 pt-4">
+                <RefundPolicyDialog />
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Submitting..." : "Book Experience"}
+              </Button>
+            </form>
+          </Card>
+        </div>
       </div>
 
       {/* Activity Detail Dialog */}
@@ -487,13 +518,17 @@ const TeamBuildingProgram = () => {
           <div className="mt-4">
             <h4 className="font-semibold mb-3">Key Benefits:</h4>
             <div className="flex flex-wrap gap-2">
-              {selectedActivity?.benefits.map((benefit, index) => <span key={index} className="bg-primary/10 text-primary text-sm px-3 py-1 rounded-full">
+              {selectedActivity?.benefits.map((benefit, index) => (
+                <span key={index} className="bg-primary/10 text-primary text-sm px-3 py-1 rounded-full">
                   {benefit}
-                </span>)}
+                </span>
+              ))}
             </div>
           </div>
         </DialogContent>
       </Dialog>
-    </div>;
+    </div>
+  );
 };
+
 export default TeamBuildingProgram;
