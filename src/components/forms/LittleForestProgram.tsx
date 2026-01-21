@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Baby, Clock, Heart, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import dailyActivitiesImage from '@/assets/daily-activities.jpg';
+import dailyActivitiesImage from '@/assets/little-explo.jpg';
 import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';

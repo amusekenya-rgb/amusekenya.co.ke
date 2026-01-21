@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { PartyPopper, Gift, ArrowLeft, Plus, Trash2, TreePine, Home, Moon, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import birthdayImage from "@/assets/birthday.jpg";
+import birthdayImage from "@/assets/party.jpg";
 import campingImage from "@/assets/camping.jpg";
 import adventureImage from "@/assets/adventure.jpg";
 import DatePickerField from "./DatePickerField";

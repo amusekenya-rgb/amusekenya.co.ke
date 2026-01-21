@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { GraduationCap, MapPin, Users, ArrowLeft, CheckCircle, Plus, X, TreePine, Bus, Factory, Tent, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import schoolsImage from "@/assets/schools.jpg";
+import schoolsImage from "@/assets/shule.jpg";
 import DatePickerField from "./DatePickerField";
 import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";

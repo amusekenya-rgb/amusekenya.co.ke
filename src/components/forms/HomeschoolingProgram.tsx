@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Clock, Users, Target, CheckCircle, ArrowLeft, Plus, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import schoolsImage from "@/assets/schools.jpg";
+import schoolsImage from "@/assets/schools.jpeg";
 import DatePickerField from "./DatePickerField";
 import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
