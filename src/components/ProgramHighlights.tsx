@@ -32,7 +32,7 @@ const ProgramHighlights = () => {
     },
     {
       id: "school-experience",
-      title: "School Adventure",
+      title: "School Adventures",
       description: "Curriculum-aligned outdoor education, field trips, forest school experiences, and sleep-away camps.",
       image: homeschoolingImage,
       icon: GraduationCap,

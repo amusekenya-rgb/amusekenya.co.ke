@@ -65,6 +65,9 @@ const Footer = () => {
               label: 'Programs',
               path: '/programs'
             }, {
+              label: 'Gallery',
+              path: '/gallery'
+            }, {
               label: 'Announcements',
               path: '/announcements'
             }, {

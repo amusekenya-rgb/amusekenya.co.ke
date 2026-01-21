@@ -101,7 +101,7 @@ VALUES (
   '{
     "formConfig": {
       "programInfo": {
-        "title": "School Experience Packages",
+        "title": "School Adventures",
         "subtitle": "(Ages 6-17 years)",
         "description": "Designed to complement curriculum with immersive experiential learning. International schools receive curriculum tie-in and reflection journals. Kenyan schools gain accessible packages focusing on practical life skills."
       },

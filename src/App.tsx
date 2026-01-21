@@ -20,7 +20,6 @@ import DayCamps from "./pages/camps/DayCamps";
 import KenyanExperiencesPage from "./pages/experiences/KenyanExperiences";
 import TeamBuilding from "./pages/group-activities/TeamBuilding";
 import Parties from "./pages/group-activities/Parties";
-import PartiesBooking from "./pages/group-activities/PartiesBooking";
 import Homeschooling from "./pages/programs/Homeschooling";
 import Team from "./pages/about/Team";
 import WhoWeAre from "./pages/about/WhoWeAre";
@@ -74,7 +73,6 @@ function App() {
               {/* Group Activities Routes */}
               <Route path="/group-activities/team-building" element={<TeamBuilding />} />
               <Route path="/group-activities/parties" element={<Parties />} />
-              <Route path="/group-activities/parties/booking" element={<PartiesBooking />} />
           <Route path="/about/team" element={<Team />} />
           <Route path="/about/who-we-are" element={<WhoWeAre />} />
           <Route path="/about/what-we-do" element={<WhatWeDo />} />

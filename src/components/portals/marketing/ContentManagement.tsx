@@ -29,9 +29,12 @@ import { LegalPageEditor } from './editors/LegalPageEditor';
 import { PartiesPageEditor } from './editors/PartiesPageEditor';
 import { TeamBuildingEditor } from './editors/TeamBuildingEditor';
 import { ExperiencePageEditor } from './editors/ExperiencePageEditor';
+import { SchoolAdventuresPageEditor } from './editors/SchoolAdventuresPageEditor';
+import { HomeschoolingPageEditor } from './editors/HomeschoolingPageEditor';
+import { KenyanExperiencesPageEditor } from './editors/KenyanExperiencesPageEditor';
 import MediaLibrary from './MediaLibrary';
 
-type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | 'camp-page' | 'camp-form' | 'little-forest' | 'program-form' | 'activity-detail' | 'legal-terms' | 'legal-privacy' | 'parties-page' | 'team-building-page' | 'experience-page' | null;
+type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | 'camp-page' | 'camp-form' | 'little-forest' | 'program-form' | 'activity-detail' | 'legal-terms' | 'legal-privacy' | 'parties-page' | 'team-building-page' | 'experience-page' | 'school-adventures-page' | 'homeschooling-page' | 'kenyan-experiences-page' | null;
 
 const ContentManagement = () => {
   const isMobile = useIsMobile();
@@ -546,66 +549,45 @@ const ContentManagement = () => {
         <TabsContent value="experiences" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Experience Pages</CardTitle>
-              <CardDescription>Manage experience page media (photos or videos)</CardDescription>
+              <CardTitle>Registration Pages (Non-Camp)</CardTitle>
+              <CardDescription>Manage page content, media, forms, and SEO for registration pages</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="text-center py-4">Loading...</div>
-              ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {experiencePages.length > 0 ? (
-                    experiencePages.map((page) => (
-                      <Card key={page.id} className="hover:shadow-md transition-shadow">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-base">{page.title}</CardTitle>
-                          <p className="text-xs text-muted-foreground">{page.slug}</p>
-                          {page.metadata?.mediaType && (
-                            <Badge variant="outline" className="w-fit mt-1">
-                              {page.metadata.mediaType === 'video' ? '🎬 Video' : '📷 Photo'}
-                            </Badge>
-                          )}
-                        </CardHeader>
-                        <CardContent>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            onClick={() => {
-                              setActiveEditor('experience-page');
-                              setEditingItem(page.slug);
-                            }}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit Media
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))
-                  ) : (
-                    <Card className="hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Kenyan Experiences</CardTitle>
-                        <p className="text-xs text-muted-foreground">kenyan-experiences</p>
-                      </CardHeader>
-                      <CardContent>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => {
-                            setActiveEditor('experience-page');
-                            setEditingItem('kenyan-experiences');
-                          }}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit Media
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              )}
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Card className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Kenyan Experiences</CardTitle>
+                    <p className="text-xs text-muted-foreground">/experiences/kenyan-experiences</p>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => setActiveEditor('kenyan-experiences-page')}>
+                      <Edit className="h-4 w-4 mr-2" /> Edit Page
+                    </Button>
+                  </CardContent>
+                </Card>
+                <Card className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Homeschooling</CardTitle>
+                    <p className="text-xs text-muted-foreground">/programs/homeschooling</p>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => setActiveEditor('homeschooling-page')}>
+                      <Edit className="h-4 w-4 mr-2" /> Edit Page
+                    </Button>
+                  </CardContent>
+                </Card>
+                <Card className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">School Adventures</CardTitle>
+                    <p className="text-xs text-muted-foreground">/programs/school-experience</p>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => setActiveEditor('school-adventures-page')}>
+                      <Edit className="h-4 w-4 mr-2" /> Edit Page
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -844,6 +826,18 @@ const ContentManagement = () => {
           experienceSlug={editingItem}
           onSave={handleSave}
         />
+      )}
+
+      {activeEditor === 'school-adventures-page' && (
+        <SchoolAdventuresPageEditor isOpen={true} onClose={closeEditor} onSave={handleSave} />
+      )}
+
+      {activeEditor === 'homeschooling-page' && (
+        <HomeschoolingPageEditor isOpen={true} onClose={closeEditor} onSave={handleSave} />
+      )}
+
+      {activeEditor === 'kenyan-experiences-page' && (
+        <KenyanExperiencesPageEditor isOpen={true} onClose={closeEditor} onSave={handleSave} />
       )}
     </div>
   );

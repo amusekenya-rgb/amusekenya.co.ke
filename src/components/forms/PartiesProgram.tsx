@@ -181,12 +181,12 @@ const PartiesProgram = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <Link to="/group-activities/parties" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
+          <Link to="/programs" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
             <ArrowLeft size={20} />
-            Back to Parties Info
+            Back to Programs
           </Link>
         </div>
 

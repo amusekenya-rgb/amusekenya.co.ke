@@ -81,7 +81,7 @@ const seedServiceItems = async () => {
       metadata: { icon: "Baby", order: 2 },
     },
     {
-      title: "School Experience Packages",
+      title: "School Adventures",
       slug: "service-school-experience",
       content: "Tailored trips and clubs to complement school curriculum.",
       content_type: "service_item" as const,
@@ -222,7 +222,7 @@ export const seedPrograms = async () => {
       },
     },
     {
-      title: "School Experience Packages",
+      title: "School Adventures",
       slug: "school-experience",
       content: "Complement curriculum with immersive experiential learning for schools.",
       content_type: "program" as const,

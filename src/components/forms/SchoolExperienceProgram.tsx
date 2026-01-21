@@ -17,14 +17,7 @@ import DatePickerField from "./DatePickerField";
 import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from "@/services/leadsService";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 const schoolExperienceSchema = z.object({
   schoolName: z.string().min(1, "School name is required").max(200),
   numberOfKids: z.string().min(1, "Number of kids is required"),
@@ -46,9 +39,7 @@ const schoolExperienceSchema = z.object({
   phone: z.string().min(1, "Phone number is required").max(20),
   consent: z.boolean().refine(val => val === true, "Consent is required")
 });
-
 type SchoolExperienceFormData = z.infer<typeof schoolExperienceSchema>;
-
 interface ProgramDetail {
   id: string;
   title: string;
@@ -56,89 +47,73 @@ interface ProgramDetail {
   icon: React.ElementType;
   description: string;
   keyFeatures: string[];
-  examples?: { title: string; description: string }[];
+  examples?: {
+    title: string;
+    description: string;
+  }[];
   benefits?: string[];
   idealFor?: string;
 }
-
-const programDetails: ProgramDetail[] = [
-  {
-    id: "forest-days",
-    title: "Forest Days",
-    tagline: "Where Nature Becomes the Teacher",
-    icon: TreePine,
-    description: "Forest Days at Amuse Kenya are designed to complement school curricula by transforming forests and green spaces into living classrooms. Here, learning is experiential, sensory-rich, and deeply engaging—allowing children to explore concepts through direct interaction with nature.",
-    keyFeatures: [
-      "Curriculum-Aligned Programs: We co-create customized outdoor learning experiences aligned with your school's curriculum, learning objectives, and age group.",
-      "Flexible Duration: Forest Days can run as a one-day experience, week-long program, term-based integration, or a fully customized schedule.",
-      "Hands-On Learning: Activities include nature exploration, storytelling, creative play, observation exercises, and guided inquiry-based learning.",
-      "Environmental Stewardship: Students develop respect for nature while learning about ecosystems, conservation, and sustainability."
-    ],
-    idealFor: "Schools seeking forest school programs in Nairobi, outdoor education for students, and nature-based learning experiences."
-  },
-  {
-    id: "field-trips",
-    title: "School Field Trips",
-    tagline: "Learning Beyond the Classroom",
-    icon: Bus,
-    description: "Our school field trips are designed to extend classroom lessons into the great outdoors, giving students hands-on opportunities to explore, discover, and grow. Field trips aren't just fun—they're proven to boost academic engagement, curiosity, teamwork, and critical thinking.",
-    keyFeatures: [
-      "Curriculum-Aligned Learning: Every activity is designed to reinforce what students are learning in science, geography, history, environmental studies, and more.",
-      "Interactive Experiences: Students participate in guided nature walks, scavenger hunts, problem-solving challenges, and outdoor lessons.",
-      "Teamwork and Social Skills: Activities encourage collaboration, communication, and leadership—skills essential for academic and personal growth.",
-      "Flexible Programs: Field trips can be tailored for one day, multiple days, or specific subjects."
-    ],
-    examples: [
-      { title: "Forests & Nature Reserves", description: "Explore ecosystems, biodiversity, and conservation in action (e.g., Karura Forest)." },
-      { title: "Farms & Agricultural Centers", description: "Learn about food systems, sustainability, and agribusiness." },
-      { title: "Wetlands & Water Bodies", description: "Study climate, water cycles, and environmental science hands-on." },
-      { title: "Heritage & Cultural Sites", description: "Bring history and social studies to life with immersive cultural experiences." }
-    ]
-  },
-  {
-    id: "industrial-visits",
-    title: "Industrial Visits",
-    tagline: "Bridging Classroom Learning and the Real World",
-    icon: Factory,
-    description: "We bring learning to life through industrial visits that take students beyond textbooks and into real workplaces. These visits provide a unique opportunity for students to observe, engage, and understand how classroom concepts are applied in real-world industries.",
-    keyFeatures: [
-      "Practical Learning: Students see firsthand how science, geography, business, technology, and environmental concepts are applied in real industries.",
-      "Career Exposure: Early exposure to professionals and workplaces helps students understand potential career pathways and develop ambition.",
-      "Critical Thinking & Problem Solving: Observing processes, systems, and workflows encourages analytical thinking and practical problem-solving skills.",
-      "Curriculum Integration: Visits are aligned with learning objectives, reinforcing academic lessons in a tangible, interactive environment."
-    ],
-    examples: [
-      { title: "Manufacturing Plants", description: "Explore production processes, quality control, workplace safety, and efficiency systems." },
-      { title: "Renewable Energy Sites", description: "Visit solar farms, biogas facilities, and other sustainable energy projects." },
-      { title: "Recycling & Waste Management", description: "Understand sustainable practices and environmental responsibility." },
-      { title: "Agricultural Processing Centers", description: "Observe farms, dairies, greenhouses, and food processing units." }
-    ],
-    benefits: [
-      "Connect theory to practice in science, technology, geography, business, and environmental studies",
-      "Develop workplace awareness, professionalism, and curiosity",
-      "Build teamwork, communication, and problem-solving skills",
-      "Gain inspiration for future careers and further studies"
-    ]
-  },
-  {
-    id: "sleep-away",
-    title: "Sleep-Away Camps for Schools",
-    tagline: "Immersive Outdoor Adventures That Build Life Skills",
-    icon: Tent,
-    description: "Our sleep-away school experiences offer students a unique opportunity to disconnect from routine and fully immerse themselves in nature. These multi-day experiences are carefully designed to foster independence, resilience, teamwork, and meaningful peer connections.",
-    keyFeatures: [
-      "Multi-Day Camping Experiences: Students stay in spacious tents and engage in activities such as archery, orienteering, bushcraft, team challenges, and guided night hikes.",
-      "Confidence & Independence Building: Camp life encourages responsibility, decision-making, cooperation, and leadership.",
-      "Evenings Under the Stars: Campfire stories, reflection sessions, bonding activities, and outdoor movie nights create endless memories.",
-      "Safe & Supportive Environment: Low student-to-instructor ratios, trained facilitators, and comprehensive safety protocols ensure peace of mind."
-    ],
-    idealFor: "Schools looking for school camping trips in Kenya, educational sleep-away camps, and outdoor leadership programs for students. Suitable for primary through high school."
-  }
-];
-
+const programDetails: ProgramDetail[] = [{
+  id: "forest-days",
+  title: "Forest Days",
+  tagline: "Where Nature Becomes the Teacher",
+  icon: TreePine,
+  description: "Forest Days at Amuse Kenya are designed to complement school curricula by transforming forests and green spaces into living classrooms. Here, learning is experiential, sensory-rich, and deeply engaging—allowing children to explore concepts through direct interaction with nature.",
+  keyFeatures: ["Curriculum-Aligned Programs: We co-create customized outdoor learning experiences aligned with your school's curriculum, learning objectives, and age group.", "Flexible Duration: Forest Days can run as a one-day experience, week-long program, term-based integration, or a fully customized schedule.", "Hands-On Learning: Activities include nature exploration, storytelling, creative play, observation exercises, and guided inquiry-based learning.", "Environmental Stewardship: Students develop respect for nature while learning about ecosystems, conservation, and sustainability."],
+  idealFor: "Schools seeking forest school programs in Nairobi, outdoor education for students, and nature-based learning experiences."
+}, {
+  id: "field-trips",
+  title: "School Field Trips",
+  tagline: "Learning Beyond the Classroom",
+  icon: Bus,
+  description: "Our school field trips are designed to extend classroom lessons into the great outdoors, giving students hands-on opportunities to explore, discover, and grow. Field trips aren't just fun—they're proven to boost academic engagement, curiosity, teamwork, and critical thinking.",
+  keyFeatures: ["Curriculum-Aligned Learning: Every activity is designed to reinforce what students are learning in science, geography, history, environmental studies, and more.", "Interactive Experiences: Students participate in guided nature walks, scavenger hunts, problem-solving challenges, and outdoor lessons.", "Teamwork and Social Skills: Activities encourage collaboration, communication, and leadership—skills essential for academic and personal growth.", "Flexible Programs: Field trips can be tailored for one day, multiple days, or specific subjects."],
+  examples: [{
+    title: "Forests & Nature Reserves",
+    description: "Explore ecosystems, biodiversity, and conservation in action (e.g., Karura Forest)."
+  }, {
+    title: "Farms & Agricultural Centers",
+    description: "Learn about food systems, sustainability, and agribusiness."
+  }, {
+    title: "Wetlands & Water Bodies",
+    description: "Study climate, water cycles, and environmental science hands-on."
+  }, {
+    title: "Heritage & Cultural Sites",
+    description: "Bring history and social studies to life with immersive cultural experiences."
+  }]
+}, {
+  id: "industrial-visits",
+  title: "Industrial Visits",
+  tagline: "Bridging Classroom Learning and the Real World",
+  icon: Factory,
+  description: "We bring learning to life through industrial visits that take students beyond textbooks and into real workplaces. These visits provide a unique opportunity for students to observe, engage, and understand how classroom concepts are applied in real-world industries.",
+  keyFeatures: ["Practical Learning: Students see firsthand how science, geography, business, technology, and environmental concepts are applied in real industries.", "Career Exposure: Early exposure to professionals and workplaces helps students understand potential career pathways and develop ambition.", "Critical Thinking & Problem Solving: Observing processes, systems, and workflows encourages analytical thinking and practical problem-solving skills.", "Curriculum Integration: Visits are aligned with learning objectives, reinforcing academic lessons in a tangible, interactive environment."],
+  examples: [{
+    title: "Manufacturing Plants",
+    description: "Explore production processes, quality control, workplace safety, and efficiency systems."
+  }, {
+    title: "Renewable Energy Sites",
+    description: "Visit solar farms, biogas facilities, and other sustainable energy projects."
+  }, {
+    title: "Recycling & Waste Management",
+    description: "Understand sustainable practices and environmental responsibility."
+  }, {
+    title: "Agricultural Processing Centers",
+    description: "Observe farms, dairies, greenhouses, and food processing units."
+  }],
+  benefits: ["Connect theory to practice in science, technology, geography, business, and environmental studies", "Develop workplace awareness, professionalism, and curiosity", "Build teamwork, communication, and problem-solving skills", "Gain inspiration for future careers and further studies"]
+}, {
+  id: "sleep-away",
+  title: "Sleep-Away Camps for Schools",
+  tagline: "Immersive Outdoor Adventures That Build Life Skills",
+  icon: Tent,
+  description: "Our sleep-away school experiences offer students a unique opportunity to disconnect from routine and fully immerse themselves in nature. These multi-day experiences are carefully designed to foster independence, resilience, teamwork, and meaningful peer connections.",
+  keyFeatures: ["Multi-Day Camping Experiences: Students stay in spacious tents and engage in activities such as archery, orienteering, bushcraft, team challenges, and guided night hikes.", "Confidence & Independence Building: Camp life encourages responsibility, decision-making, cooperation, and leadership.", "Evenings Under the Stars: Campfire stories, reflection sessions, bonding activities, and outdoor movie nights create endless memories.", "Safe & Supportive Environment: Low student-to-instructor ratios, trained facilitators, and comprehensive safety protocols ensure peace of mind."],
+  idealFor: "Schools looking for school camping trips in Kenya, educational sleep-away camps, and outdoor leadership programs for students. Suitable for primary through high school."
+}];
 const SchoolExperienceProgram = () => {
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
-
   const {
     register,
     handleSubmit,
@@ -163,7 +138,6 @@ const SchoolExperienceProgram = () => {
       consent: false
     }
   });
-
   const {
     fields: ageRangeFields,
     append: appendAgeRange,
@@ -172,7 +146,6 @@ const SchoolExperienceProgram = () => {
     control,
     name: "ageRanges"
   });
-
   const {
     fields: dateFields,
     append: appendDate,
@@ -181,16 +154,13 @@ const SchoolExperienceProgram = () => {
     control,
     name: "preferredDates"
   });
-
   const consent = watch("consent");
-
   const onSubmit = async (data: SchoolExperienceFormData) => {
     try {
       const {
         schoolExperienceService
       } = await import("@/services/programRegistrationService");
       const registration = await schoolExperienceService.create(data);
-
       await leadsService.createLead({
         full_name: data.schoolName,
         email: data.email,
@@ -200,7 +170,6 @@ const SchoolExperienceProgram = () => {
         form_data: data,
         source: "website_registration"
       });
-
       const {
         supabase
       } = await import("@/integrations/supabase/client");
@@ -224,11 +193,8 @@ const SchoolExperienceProgram = () => {
       toast.error(error?.message || "Failed to submit registration. Please try again.");
     }
   };
-
   const selectedProgramData = programDetails.find(p => p.id === selectedProgram);
-
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <Link to="/" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
@@ -246,7 +212,7 @@ const SchoolExperienceProgram = () => {
                   <GraduationCap className="w-8 h-8 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-primary">School Adventure</h1>
+                  <h1 className="text-4xl md:text-5xl font-bold text-primary">School Adventures</h1>
                   <p className="text-lg text-muted-foreground">(Ages 6-17 years)</p>
                 </div>
               </div>
@@ -272,14 +238,9 @@ const SchoolExperienceProgram = () => {
 
             {/* Program Cards with Learn More */}
             <div className="space-y-4">
-              {programDetails.map((program) => {
-                const IconComponent = program.icon;
-                return (
-                  <Card 
-                    key={program.id} 
-                    className="p-6 hover:shadow-lg transition-shadow cursor-pointer group"
-                    onClick={() => setSelectedProgram(program.id)}
-                  >
+              {programDetails.map(program => {
+              const IconComponent = program.icon;
+              return <Card key={program.id} className="p-6 hover:shadow-lg transition-shadow cursor-pointer group" onClick={() => setSelectedProgram(program.id)}>
                     <div className="flex items-start gap-4">
                       <div className="bg-primary/10 rounded-full p-3 shrink-0">
                         <IconComponent className="w-6 h-6 text-primary" />
@@ -293,9 +254,8 @@ const SchoolExperienceProgram = () => {
                       </div>
                       <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
                     </div>
-                  </Card>
-                );
-              })}
+                  </Card>;
+            })}
             </div>
 
             {/* Rainy Day Plans */}
@@ -344,14 +304,11 @@ const SchoolExperienceProgram = () => {
               <div>
                 <Label className="text-base font-medium mb-2 block">Age Ranges *</Label>
                 <div className="space-y-3">
-                  {ageRangeFields.map((field, index) => (
-                    <div key={field.id} className="flex gap-3 items-start">
+                  {ageRangeFields.map((field, index) => <div key={field.id} className="flex gap-3 items-start">
                       <div className="flex-1">
-                        <Controller 
-                          name={`ageRanges.${index}.range`} 
-                          control={control} 
-                          render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
+                        <Controller name={`ageRanges.${index}.range`} control={control} render={({
+                      field
+                    }) => <Select onValueChange={field.onChange} value={field.value}>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select age range" />
                               </SelectTrigger>
@@ -361,32 +318,20 @@ const SchoolExperienceProgram = () => {
                                 <SelectItem value="12-14">12-14 years</SelectItem>
                                 <SelectItem value="15-17">15-17 years</SelectItem>
                               </SelectContent>
-                            </Select>
-                          )} 
-                        />
-                        {errors.ageRanges?.[index]?.range && (
-                          <p className="text-destructive text-sm mt-1">{errors.ageRanges[index]?.range?.message}</p>
-                        )}
+                            </Select>} />
+                        {errors.ageRanges?.[index]?.range && <p className="text-destructive text-sm mt-1">{errors.ageRanges[index]?.range?.message}</p>}
                       </div>
-                      {ageRangeFields.length > 1 && (
-                        <Button type="button" variant="outline" size="icon" onClick={() => removeAgeRange(index)} className="shrink-0">
+                      {ageRangeFields.length > 1 && <Button type="button" variant="outline" size="icon" onClick={() => removeAgeRange(index)} className="shrink-0">
                           <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => appendAgeRange({ range: undefined as any })} 
-                    className="w-full"
-                  >
+                        </Button>}
+                    </div>)}
+                  <Button type="button" variant="outline" onClick={() => appendAgeRange({
+                  range: undefined as any
+                })} className="w-full">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Age Range
                   </Button>
-                  {errors.ageRanges && typeof errors.ageRanges.message === "string" && (
-                    <p className="text-destructive text-sm mt-1">{errors.ageRanges.message}</p>
-                  )}
+                  {errors.ageRanges && typeof errors.ageRanges.message === "string" && <p className="text-destructive text-sm mt-1">{errors.ageRanges.message}</p>}
                 </div>
               </div>
 
@@ -408,42 +353,23 @@ const SchoolExperienceProgram = () => {
               <div>
                 <Label className="text-base font-medium mb-2 block">Preferred Dates *</Label>
                 <div className="space-y-3">
-                  {dateFields.map((field, index) => (
-                    <div key={field.id} className="flex gap-3 items-start">
+                  {dateFields.map((field, index) => <div key={field.id} className="flex gap-3 items-start">
                       <div className="flex-1">
-                        <Controller 
-                          name={`preferredDates.${index}.date`} 
-                          control={control} 
-                          render={({ field }) => (
-                            <DatePickerField 
-                              label="" 
-                              placeholder="Select date" 
-                              value={field.value} 
-                              onChange={field.onChange} 
-                              error={errors.preferredDates?.[index]?.date?.message} 
-                            />
-                          )} 
-                        />
+                        <Controller name={`preferredDates.${index}.date`} control={control} render={({
+                      field
+                    }) => <DatePickerField label="" placeholder="Select date" value={field.value} onChange={field.onChange} error={errors.preferredDates?.[index]?.date?.message} />} />
                       </div>
-                      {dateFields.length > 1 && (
-                        <Button type="button" variant="outline" size="icon" onClick={() => removeDate(index)} className="shrink-0 mt-2">
+                      {dateFields.length > 1 && <Button type="button" variant="outline" size="icon" onClick={() => removeDate(index)} className="shrink-0 mt-2">
                           <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => appendDate({ date: undefined as any })} 
-                    className="w-full"
-                  >
+                        </Button>}
+                    </div>)}
+                  <Button type="button" variant="outline" onClick={() => appendDate({
+                  date: undefined as any
+                })} className="w-full">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Date
                   </Button>
-                  {errors.preferredDates && typeof errors.preferredDates.message === "string" && (
-                    <p className="text-destructive text-sm mt-1">{errors.preferredDates.message}</p>
-                  )}
+                  {errors.preferredDates && typeof errors.preferredDates.message === "string" && <p className="text-destructive text-sm mt-1">{errors.preferredDates.message}</p>}
                 </div>
               </div>
 
@@ -498,13 +424,7 @@ const SchoolExperienceProgram = () => {
                 <Label htmlFor="specialNeeds" className="text-base font-medium">
                   Special Needs (Optional)
                 </Label>
-                <Textarea 
-                  id="specialNeeds" 
-                  {...register("specialNeeds")} 
-                  className="mt-2" 
-                  placeholder="Any special requirements or considerations" 
-                  rows={3} 
-                />
+                <Textarea id="specialNeeds" {...register("specialNeeds")} className="mt-2" placeholder="Any special requirements or considerations" rows={3} />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -525,11 +445,7 @@ const SchoolExperienceProgram = () => {
               </div>
 
               <div className="space-y-4 pt-4 border-t">
-                <ConsentDialog 
-                  checked={consent} 
-                  onCheckedChange={(checked) => setValue("consent", checked as boolean)} 
-                  error={errors.consent?.message}
-                />
+                <ConsentDialog checked={consent} onCheckedChange={checked => setValue("consent", checked as boolean)} error={errors.consent?.message} />
                 <div className="text-sm text-muted-foreground">
                   Please also review our <RefundPolicyDialog />
                 </div>
@@ -544,10 +460,9 @@ const SchoolExperienceProgram = () => {
       </div>
 
       {/* Program Detail Dialog */}
-      <Dialog open={!!selectedProgram} onOpenChange={(open) => !open && setSelectedProgram(null)}>
+      <Dialog open={!!selectedProgram} onOpenChange={open => !open && setSelectedProgram(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedProgramData && (
-            <>
+          {selectedProgramData && <>
               <DialogHeader>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="bg-primary/10 rounded-full p-2">
@@ -570,62 +485,47 @@ const SchoolExperienceProgram = () => {
                 <div>
                   <h4 className="font-semibold text-lg mb-3">Key Features</h4>
                   <ul className="space-y-2">
-                    {selectedProgramData.keyFeatures.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-2">
+                    {selectedProgramData.keyFeatures.map((feature, index) => <li key={index} className="flex items-start gap-2">
                         <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                         <span className="text-muted-foreground">{feature}</span>
-                      </li>
-                    ))}
+                      </li>)}
                   </ul>
                 </div>
 
-                {selectedProgramData.examples && (
-                  <div>
+                {selectedProgramData.examples && <div>
                     <h4 className="font-semibold text-lg mb-3">Examples</h4>
                     <div className="grid gap-3">
-                      {selectedProgramData.examples.map((example, index) => (
-                        <div key={index} className="bg-accent/30 rounded-lg p-4">
+                      {selectedProgramData.examples.map((example, index) => <div key={index} className="bg-accent/30 rounded-lg p-4">
                           <h5 className="font-medium text-primary">{example.title}</h5>
                           <p className="text-sm text-muted-foreground">{example.description}</p>
-                        </div>
-                      ))}
+                        </div>)}
                     </div>
-                  </div>
-                )}
+                  </div>}
 
-                {selectedProgramData.benefits && (
-                  <div>
+                {selectedProgramData.benefits && <div>
                     <h4 className="font-semibold text-lg mb-3">Benefits for Students</h4>
                     <ul className="space-y-2">
-                      {selectedProgramData.benefits.map((benefit, index) => (
-                        <li key={index} className="flex items-start gap-2">
+                      {selectedProgramData.benefits.map((benefit, index) => <li key={index} className="flex items-start gap-2">
                           <CheckCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                           <span className="text-sm text-muted-foreground">{benefit}</span>
-                        </li>
-                      ))}
+                        </li>)}
                     </ul>
-                  </div>
-                )}
+                  </div>}
 
-                {selectedProgramData.idealFor && (
-                  <div className="bg-primary/5 rounded-lg p-4 border border-primary/20">
+                {selectedProgramData.idealFor && <div className="bg-primary/5 rounded-lg p-4 border border-primary/20">
                     <p className="text-sm">
                       <span className="font-medium">Ideal for: </span>
                       <span className="text-muted-foreground">{selectedProgramData.idealFor}</span>
                     </p>
-                  </div>
-                )}
+                  </div>}
 
                 <Button onClick={() => setSelectedProgram(null)} className="w-full">
                   Book This Program
                 </Button>
               </div>
-            </>
-          )}
+            </>}
         </DialogContent>
       </Dialog>
-    </div>
-  );
+    </div>;
 };
-
 export default SchoolExperienceProgram;
