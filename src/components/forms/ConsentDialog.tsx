@@ -26,7 +26,7 @@ export const ConsentDialog = ({ checked, onCheckedChange, error }: ConsentDialog
         <Checkbox
           id="consent"
           checked={checked}
-          onCheckedChange={onCheckedChange}
+          onCheckedChange={(v) => onCheckedChange(v === true)}
         />
         <div className="flex-1">
           <div className="flex items-center gap-1 flex-wrap">

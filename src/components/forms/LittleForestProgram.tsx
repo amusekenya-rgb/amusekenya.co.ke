@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -32,7 +32,6 @@ const childSchema = z.object({
   }),
   selectedDates: z.array(z.string()).min(1, 'Select at least one date'),
   nannyRequired: z.boolean().default(false),
-  price: z.number().default(0),
 });
 
 const littleForestSchema = z.object({
@@ -53,7 +52,6 @@ const LittleForestProgram = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [registrationResult, setRegistrationResult] = useState<CampRegistration | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  const [totalAmount, setTotalAmount] = useState(0);
 
   const {
     register,
@@ -72,7 +70,6 @@ const LittleForestProgram = () => {
         childAge: undefined,
         selectedDates: [],
         nannyRequired: false,
-        price: 0,
       }],
     },
   });
@@ -85,16 +82,33 @@ const LittleForestProgram = () => {
   const watchChildren = watch('children');
   const watchConsent = watch('consent');
 
-  // Auto-calculate pricing based on selected dates (single rate)
-  useEffect(() => {
-    let total = 0;
-    watchChildren.forEach((child, index) => {
-      const childPrice = (child.selectedDates?.length || 0) * config.pricing.sessionRate;
-      setValue(`children.${index}.price`, childPrice, { shouldValidate: false });
-      total += childPrice;
-    });
-    setTotalAmount(total);
-  }, [watchChildren.map(c => `${c.childName}-${c.selectedDates?.join(',')}`).join('|'), setValue, config.pricing.sessionRate]);
+  const handleDatesChange = useCallback(
+    (childIndex: number, dates: string[]) => {
+      setValue(`children.${childIndex}.selectedDates`, dates, { shouldDirty: true });
+    },
+    [setValue]
+  );
+
+  const handleConsentChange = useCallback(
+    (checked: boolean) => {
+      setValue('consent', checked, { shouldDirty: true });
+    },
+    [setValue]
+  );
+
+  // Calculate total amount.
+  // NOTE: react-hook-form may mutate the `children` array in-place for nested updates.
+  // Avoid memoizing directly on `watchChildren` reference (can become stale) so the
+  // bottom Total Amount always reflects the latest selectedDates.
+  const totalAmount = watchChildren.reduce((total, child) => {
+    return total + (child.selectedDates?.length || 0) * config.pricing.sessionRate;
+  }, 0);
+
+  // Calculate price per child for display
+  const getChildPrice = (childIndex: number) => {
+    const child = watchChildren[childIndex];
+    return (child?.selectedDates?.length || 0) * config.pricing.sessionRate;
+  };
 
   const onSubmit = async (data: LittleForestFormData) => {
     try {
@@ -104,7 +118,7 @@ const LittleForestProgram = () => {
         email: data.email,
         phone: data.phone,
         emergency_contact: data.emergencyContact,
-        children: data.children.map(child => ({
+        children: data.children.map((child, index) => ({
           childName: child.childName,
           dateOfBirth: '',
           ageRange: child.childAge,
@@ -112,7 +126,7 @@ const LittleForestProgram = () => {
           selectedDays: child.selectedDates.map((_, i) => `Day ${i + 1}`),
           selectedDates: child.selectedDates,
           selectedSessions: {},
-          price: child.price,
+          price: getChildPrice(index),
         })),
         total_amount: totalAmount,
         payment_status: 'unpaid' as const,
@@ -150,9 +164,9 @@ const LittleForestProgram = () => {
           email: data.email,
           programName: 'Little Forest Explorers',
           totalAmount,
-          children: data.children.map(child => ({
+          children: data.children.map((child, index) => ({
             childName: child.childName,
-            price: child.price,
+            price: getChildPrice(index),
             selectedDates: child.selectedDates
           }))
         });
@@ -185,12 +199,7 @@ const LittleForestProgram = () => {
       childAge: undefined,
       selectedDates: [],
       nannyRequired: false,
-      price: 0,
     });
-  };
-
-  const handleDatesChange = (childIndex: number, dates: string[]) => {
-    setValue(`children.${childIndex}.selectedDates`, dates);
   };
 
   const schedule = [{
@@ -354,7 +363,9 @@ const LittleForestProgram = () => {
                         name={`children.${index}.childAge`}
                         control={control}
                         render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          // NOTE: Radix Select can misbehave when forced into a controlled empty-string value.
+                          // Keep it uncontrolled (defaultValue) until the user makes a selection.
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <SelectTrigger className="mt-2">
                               <SelectValue placeholder={config.fields.childAge.placeholder} />
                             </SelectTrigger>
@@ -399,8 +410,8 @@ const LittleForestProgram = () => {
                           render={({ field }) => (
                             <Checkbox
                               id={`nanny-${index}`}
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
+                              checked={!!field.value}
+                              onCheckedChange={(v) => field.onChange(v === true)}
                             />
                           )}
                         />
@@ -441,7 +452,7 @@ const LittleForestProgram = () => {
 
               <ConsentDialog
                 checked={watchConsent}
-                onCheckedChange={(checked) => setValue('consent', checked)}
+                onCheckedChange={handleConsentChange}
                 error={errors.consent?.message}
               />
 

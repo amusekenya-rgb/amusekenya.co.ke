@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Mountain, MapPin, Calendar, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { Mountain, MapPin, Calendar, ArrowLeft, Plus, Trash2, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import adventureImage from "@/assets/adventure.jpg";
 import { ConsentDialog } from "./ConsentDialog";
@@ -18,7 +18,7 @@ import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import DatePickerField from "./DatePickerField";
 import { leadsService } from "@/services/leadsService";
 import { invoiceService } from "@/services/invoiceService";
-import { useExperiencePageConfig } from "@/hooks/useExperiencePageConfig";
+import { useKenyanExperiencesPageConfig } from "@/hooks/useKenyanExperiencesPageConfig";
 import DynamicMedia from "@/components/content/DynamicMedia";
 
 const participantSchema = z.object({
@@ -44,18 +44,86 @@ const kenyanExperiencesSchema = z.object({
 
 type KenyanExperiencesFormData = z.infer<typeof kenyanExperiencesSchema>;
 
-const KenyanExperiencesProgram = () => {
-  const { config: mediaConfig, refresh: refreshMedia } = useExperiencePageConfig('kenyan-experiences');
+// Default circuits as fallback
+const defaultCircuits = [
+  {
+    id: "mt-kenya",
+    title: "Mount Kenya Experiences",
+    description: "Alpine hike, bushcraft, team course",
+    ageGroups: [
+      { range: "9–12", focus: "Independence" },
+      { range: "13–17", focus: "Expedition Leadership" },
+    ],
+    features: ["Alpine Environment", "Bushcraft Skills", "Team Challenges", "Leadership Development"],
+  },
+  {
+    id: "coast",
+    title: "Swahili Coastal Experiences",
+    description: "Marine ecology, kayaking, Swahili culture",
+    ageGroups: [
+      { range: "9–12", focus: "Water Confidence" },
+      { range: "13–17", focus: "Marine Stewardship" },
+    ],
+    features: ["Marine Ecology", "Cultural Immersion", "Water Sports", "Conservation Focus"],
+  },
+  {
+    id: "mara",
+    title: "Mara Experiences",
+    description: "Game drives, Maasai culture immersion",
+    ageGroups: [
+      { range: "9–12", focus: "Wildlife Journaling" },
+      { range: "13–17", focus: "Conservation Projects" },
+    ],
+    features: ["Wildlife Observation", "Cultural Exchange", "Conservation Education", "Photography"],
+  },
+  {
+    id: "chalbi",
+    title: "Rift-valley Experiences",
+    description: "Desert trek, camel safari, shelter build",
+    ageGroups: [
+      { range: "9–12", focus: "Resilience" },
+      { range: "13–17", focus: "Desert Survival Challenge" },
+    ],
+    features: ["Desert Navigation", "Survival Skills", "Cultural Learning", "Resilience Building"],
+  },
+  {
+    id: "western",
+    title: "Western Experiences",
+    description: "Kakamega biodiversity, cultural visits",
+    ageGroups: [
+      { range: "9–12", focus: "Curiosity" },
+      { range: "13–17", focus: "Community Project Leadership" },
+    ],
+    features: ["Biodiversity Study", "Community Engagement", "Forest Ecology", "Project Leadership"],
+  },
+];
 
-  // Listen for CMS updates and refresh config
+const KenyanExperiencesProgram = () => {
+  const { config, isLoading, refresh } = useKenyanExperiencesPageConfig();
+
+  // Listen for CMS updates
   useEffect(() => {
     const handleCMSUpdate = () => {
-      refreshMedia?.();
+      refresh?.();
     };
     
     window.addEventListener('cms-content-updated', handleCMSUpdate);
     return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
-  }, [refreshMedia]);
+  }, [refresh]);
+
+  // Convert CMS experiences to circuit format
+  const circuits = config?.experiences?.length
+    ? config.experiences.map(exp => ({
+        id: exp.id,
+        title: exp.title,
+        description: exp.description,
+        ageGroups: [
+          { range: exp.ageGroup || "All ages", focus: exp.duration || "" }
+        ],
+        features: exp.highlights || [],
+      }))
+    : defaultCircuits;
+
   const {
     register,
     handleSubmit,
@@ -160,67 +228,22 @@ const KenyanExperiencesProgram = () => {
       if (emailError) {
         throw emailError;
       }
-      toast.success("Registration submitted successfully! Check your email for confirmation.");
+      toast.success(config?.formConfig?.messages?.successMessage || "Registration submitted successfully! Check your email for confirmation.");
       reset();
     } catch (error: any) {
       console.error("Registration error:", error);
       console.error("Error details:", error?.message, error?.details, error?.hint);
-      toast.error(error?.message || "Failed to submit registration. Please try again.");
+      toast.error(config?.formConfig?.messages?.errorMessage || error?.message || "Failed to submit registration. Please try again.");
     }
   };
 
-  const circuits = [
-    {
-      id: "mt-kenya",
-      title: "Mount Kenya Experiences",
-      description: "Alpine hike, bushcraft, team course",
-      ageGroups: [
-        { range: "9–12", focus: "Independence" },
-        { range: "13–17", focus: "Expedition Leadership" },
-      ],
-      features: ["Alpine Environment", "Bushcraft Skills", "Team Challenges", "Leadership Development"],
-    },
-    {
-      id: "coast",
-      title: "Swahili Coastal Experiences",
-      description: "Marine ecology, kayaking, Swahili culture",
-      ageGroups: [
-        { range: "9–12", focus: "Water Confidence" },
-        { range: "13–17", focus: "Marine Stewardship" },
-      ],
-      features: ["Marine Ecology", "Cultural Immersion", "Water Sports", "Conservation Focus"],
-    },
-    {
-      id: "mara",
-      title: "Mara Experiences",
-      description: "Game drives, Maasai culture immersion",
-      ageGroups: [
-        { range: "9–12", focus: "Wildlife Journaling" },
-        { range: "13–17", focus: "Conservation Projects" },
-      ],
-      features: ["Wildlife Observation", "Cultural Exchange", "Conservation Education", "Photography"],
-    },
-    {
-      id: "chalbi",
-      title: "Rift-valley Experiences",
-      description: "Desert trek, camel safari, shelter build",
-      ageGroups: [
-        { range: "9–12", focus: "Resilience" },
-        { range: "13–17", focus: "Desert Survival Challenge" },
-      ],
-      features: ["Desert Navigation", "Survival Skills", "Cultural Learning", "Resilience Building"],
-    },
-    {
-      id: "western",
-      title: "Western Experiences",
-      description: "Kakamega biodiversity, cultural visits",
-      ageGroups: [
-        { range: "9–12", focus: "Curiosity" },
-        { range: "13–17", focus: "Community Project Leadership" },
-      ],
-      features: ["Biodiversity Study", "Community Engagement", "Forest Ecology", "Project Leadership"],
-    },
-  ];
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -228,7 +251,7 @@ const KenyanExperiencesProgram = () => {
         <div className="mb-8">
           <Link to="/" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
             <ArrowLeft size={20} />
-            Back to Home
+            {config?.formConfig?.buttons?.back || "Back to Home"}
           </Link>
         </div>
 
@@ -241,25 +264,26 @@ const KenyanExperiencesProgram = () => {
                   <Mountain className="w-8 h-8 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-primary">Kenyan Experiences</h1>
-                  <p className="text-lg text-muted-foreground">(5-Night, 6-Day Programs)</p>
+                  <h1 className="text-4xl md:text-5xl font-bold text-primary">
+                    {config?.title || "Kenyan Experiences"}
+                  </h1>
+                  <p className="text-lg text-muted-foreground">
+                    {config?.subtitle || "(5-Night, 6-Day Programs)"}
+                  </p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Exploring Kenya, one region at a time. Sleep-away adventures for teens and preteens that shape 
-                confidence, character, and curiosity through real-world learning. From roaring rivers and mountain 
-                trails to cultural heartlands, campers tackle challenges, work as teams, and engage in community 
-                projects—raising a generation that thinks boldly and leads responsibly.
+                {config?.description || "Exploring Kenya, one region at a time. Sleep-away adventures for teens and preteens that shape confidence, character, and curiosity through real-world learning. From roaring rivers and mountain trails to cultural heartlands, campers tackle challenges, work as teams, and engage in community projects—raising a generation that thinks boldly and leads responsibly."}
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
               <DynamicMedia
-                mediaType={mediaConfig?.mediaType || 'photo'}
-                mediaUrl={mediaConfig?.mediaUrl || adventureImage}
+                mediaType={config?.mediaType || 'photo'}
+                mediaUrl={config?.featuredMediaUrl || adventureImage}
                 fallbackImage={adventureImage}
-                thumbnailUrl={mediaConfig?.videoThumbnail}
-                altText={mediaConfig?.mediaAltText || "Kenyan landscape adventures"}
+                thumbnailUrl={config?.videoThumbnail}
+                altText="Kenyan landscape adventures"
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -330,13 +354,13 @@ const KenyanExperiencesProgram = () => {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
                 <Label htmlFor="parentLeader" className="text-base font-medium">
-                  Parent/Leader Name *
+                  {config?.formConfig?.fields?.leaderName?.label || "Parent/Leader Name"} *
                 </Label>
                 <Input
                   id="parentLeader"
                   {...register("parentLeader")}
                   className="mt-2"
-                  placeholder="Enter your full name"
+                  placeholder={config?.formConfig?.fields?.leaderName?.placeholder || "Enter your full name"}
                 />
                 {errors.parentLeader && <p className="text-destructive text-sm mt-1">{errors.parentLeader.message}</p>}
               </div>
@@ -416,24 +440,28 @@ const KenyanExperiencesProgram = () => {
               </div>
 
               <div>
-                <Label className="text-base font-medium">Circuit *</Label>
+                <Label className="text-base font-medium">
+                  {config?.formConfig?.fields?.experience?.label || "Circuit"} *
+                </Label>
                 <Select onValueChange={(value) => setValue("circuit", value as any)}>
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Select a circuit" />
+                    <SelectValue placeholder={config?.formConfig?.fields?.experience?.placeholder || "Select a circuit"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mt-kenya">Mt Kenya</SelectItem>
-                    <SelectItem value="coast">Coast</SelectItem>
+                    <SelectItem value="coast">Swahili Coast</SelectItem>
                     <SelectItem value="mara">Mara</SelectItem>
-                    <SelectItem value="chalbi">Chalbi</SelectItem>
-                    <SelectItem value="western">Western</SelectItem>
+                    <SelectItem value="chalbi">Rift-valley</SelectItem>
+                    <SelectItem value="western">Western Kenya</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <Label className="text-base font-medium">Preferred Dates * (5-day program)</Label>
+                  <Label className="text-base font-medium">
+                    {config?.formConfig?.fields?.preferredDates?.label || "Preferred Dates"} *
+                  </Label>
                   <Button
                     type="button"
                     variant="outline"
@@ -455,7 +483,7 @@ const KenyanExperiencesProgram = () => {
                           render={({ field }) => (
                             <DatePickerField
                               label=""
-                              placeholder="Select start date of 5-day program"
+                              placeholder={config?.formConfig?.fields?.preferredDates?.placeholder || "Select preferred date"}
                               value={field.value}
                               onChange={field.onChange}
                               error={errors.preferredDates?.[index]?.date?.message}
@@ -463,9 +491,14 @@ const KenyanExperiencesProgram = () => {
                           )}
                         />
                       </div>
-
                       {dateFields.length > 1 && (
-                        <Button type="button" variant="destructive" size="icon" onClick={() => removeDate(index)}>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => removeDate(index)}
+                          className="mt-2"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
@@ -477,27 +510,25 @@ const KenyanExperiencesProgram = () => {
                 )}
               </div>
 
-              <div className="bg-accent/30 p-4 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Checkbox id="transport" {...register("transport")} />
-                  <Label htmlFor="transport" className="text-base">
-                    Transport Required
-                  </Label>
+              <div>
+                <Label className="text-base font-medium">Add-Ons</Label>
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox id="transport" {...register("transport")} />
+                    <Label htmlFor="transport">Transport (Nairobi Pickup/Drop-off)</Label>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2 ml-7">
-                  Check if you need transportation to/from the circuit location
-                </p>
               </div>
 
               <div>
                 <Label htmlFor="specialMedicalNeeds" className="text-base font-medium">
-                  Special/Medical Needs (Optional)
+                  {config?.formConfig?.fields?.specialRequirements?.label || "Special Medical Needs"} (Optional)
                 </Label>
                 <Textarea
                   id="specialMedicalNeeds"
                   {...register("specialMedicalNeeds")}
                   className="mt-2"
-                  placeholder="Please describe any special needs, medical conditions, or dietary requirements"
+                  placeholder={config?.formConfig?.fields?.specialRequirements?.placeholder || "Any medical conditions, allergies, or special requirements"}
                   rows={3}
                 />
               </div>
@@ -505,16 +536,27 @@ const KenyanExperiencesProgram = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="email" className="text-base font-medium">
-                    Email *
+                    {config?.formConfig?.fields?.email?.label || "Email Address"} *
                   </Label>
-                  <Input id="email" type="email" {...register("email")} className="mt-2" placeholder="your@email.com" />
+                  <Input
+                    id="email"
+                    type="email"
+                    {...register("email")}
+                    className="mt-2"
+                    placeholder={config?.formConfig?.fields?.email?.placeholder || "your@email.com"}
+                  />
                   {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
                 </div>
                 <div>
                   <Label htmlFor="phone" className="text-base font-medium">
-                    Phone Number *
+                    {config?.formConfig?.fields?.phone?.label || "Phone Number"} *
                   </Label>
-                  <Input id="phone" {...register("phone")} className="mt-2" placeholder="+254 700 000 000" />
+                  <Input
+                    id="phone"
+                    {...register("phone")}
+                    className="mt-2"
+                    placeholder={config?.formConfig?.fields?.phone?.placeholder || "+254 700 000 000"}
+                  />
                   {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
                 </div>
               </div>
@@ -528,7 +570,10 @@ const KenyanExperiencesProgram = () => {
               <RefundPolicyDialog />
 
               <Button type="submit" className="w-full h-12 text-base" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Register for Experience"}
+                {isSubmitting 
+                  ? (config?.formConfig?.messages?.loadingMessage || "Submitting...") 
+                  : (config?.formConfig?.buttons?.submit || "Submit Registration")
+                }
               </Button>
             </form>
           </Card>

@@ -31,22 +31,36 @@ const Gallery = () => {
       const { data: files, error } = await supabase.storage
         .from('marketing-assets')
         .list('gallery-images', {
-          limit: 100,
+          limit: 500,
           offset: 0,
           sortBy: { column: 'created_at', order: 'desc' }
         });
 
       if (error) throw error;
 
-      const images = files.map(file => {
+      // Filter out placeholder files and process images
+      const validFiles = files.filter(file => 
+        !file.name.startsWith('.') && 
+        file.name !== '.emptyFolderPlaceholder' &&
+        /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)
+      );
+
+      const images = validFiles.map(file => {
         const { data: { publicUrl } } = supabase.storage
           .from('marketing-assets')
           .getPublicUrl(`gallery-images/${file.name}`);
         
+        // Remove file extension first
+        let caption = file.name.replace(/\.[^/.]+$/, '');
+        // Remove timestamp prefix (13-digit number at the start followed by space or underscore)
+        caption = caption.replace(/^\d{13}[_\s]?/, '');
+        // Replace remaining hyphens/underscores with spaces
+        caption = caption.replace(/[-_]/g, ' ').trim();
+        
         return {
           src: publicUrl,
-          alt: file.name.replace(/\.[^/.]+$/, '').replace(/-/g, ' '),
-          caption: file.name.replace(/\.[^/.]+$/, '').replace(/-/g, ' ')
+          alt: caption || 'Gallery image',
+          caption: caption || 'Gallery image'
         };
       });
 

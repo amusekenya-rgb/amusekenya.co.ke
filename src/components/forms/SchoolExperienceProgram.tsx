@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { GraduationCap, MapPin, Users, ArrowLeft, CheckCircle, Plus, X, TreePine, Bus, Factory, Tent, ChevronRight } from "lucide-react";
+import { GraduationCap, MapPin, Users, ArrowLeft, CheckCircle, Plus, X, TreePine, Bus, Factory, Tent, ChevronRight, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import schoolsImage from "@/assets/shule.jpg";
 import DatePickerField from "./DatePickerField";
@@ -18,6 +18,9 @@ import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from "@/services/leadsService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useSchoolAdventuresPageConfig } from "@/hooks/useSchoolAdventuresPageConfig";
+import DynamicMedia from "@/components/content/DynamicMedia";
+
 const schoolExperienceSchema = z.object({
   schoolName: z.string().min(1, "School name is required").max(200),
   numberOfKids: z.string().min(1, "Number of kids is required"),
@@ -39,7 +42,21 @@ const schoolExperienceSchema = z.object({
   phone: z.string().min(1, "Phone number is required").max(20),
   consent: z.boolean().refine(val => val === true, "Consent is required")
 });
+
 type SchoolExperienceFormData = z.infer<typeof schoolExperienceSchema>;
+
+// Icon mapping for CMS program icons
+const iconMap: Record<string, React.ElementType> = {
+  Trees: TreePine,
+  TreePine: TreePine,
+  MapPin: MapPin,
+  Bus: Bus,
+  Building2: Factory,
+  Factory: Factory,
+  Tent: Tent,
+  Users: Users,
+};
+
 interface ProgramDetail {
   id: string;
   title: string;
@@ -54,7 +71,9 @@ interface ProgramDetail {
   benefits?: string[];
   idealFor?: string;
 }
-const programDetails: ProgramDetail[] = [{
+
+// Default programs as fallback
+const defaultProgramDetails: ProgramDetail[] = [{
   id: "forest-days",
   title: "Forest Days",
   tagline: "Where Nature Becomes the Teacher",
@@ -112,14 +131,41 @@ const programDetails: ProgramDetail[] = [{
   keyFeatures: ["Multi-Day Camping Experiences: Students stay in spacious tents and engage in activities such as archery, orienteering, bushcraft, team challenges, and guided night hikes.", "Confidence & Independence Building: Camp life encourages responsibility, decision-making, cooperation, and leadership.", "Evenings Under the Stars: Campfire stories, reflection sessions, bonding activities, and outdoor movie nights create endless memories.", "Safe & Supportive Environment: Low student-to-instructor ratios, trained facilitators, and comprehensive safety protocols ensure peace of mind."],
   idealFor: "Schools looking for school camping trips in Kenya, educational sleep-away camps, and outdoor leadership programs for students. Suitable for primary through high school."
 }];
+
 const SchoolExperienceProgram = () => {
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
+  const { config, isLoading, refresh } = useSchoolAdventuresPageConfig();
+
+  // Listen for CMS updates
+  useEffect(() => {
+    const handleCMSUpdate = () => {
+      refresh?.();
+    };
+    
+    window.addEventListener('cms-content-updated', handleCMSUpdate);
+    return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
+  }, [refresh]);
+
+  // Convert CMS programs to component format
+  const programDetails: ProgramDetail[] = config?.programs?.length 
+    ? config.programs.map(p => ({
+        id: p.id,
+        title: p.title,
+        tagline: p.tagline,
+        icon: iconMap[p.icon] || TreePine,
+        description: p.description,
+        keyFeatures: p.features || [],
+        examples: p.examples?.map(e => ({ title: e, description: '' })),
+      }))
+    : defaultProgramDetails;
+
   const {
     register,
     handleSubmit,
     setValue,
     control,
     watch,
+    reset,
     formState: {
       errors,
       isSubmitting
@@ -138,6 +184,7 @@ const SchoolExperienceProgram = () => {
       consent: false
     }
   });
+
   const {
     fields: ageRangeFields,
     append: appendAgeRange,
@@ -146,6 +193,7 @@ const SchoolExperienceProgram = () => {
     control,
     name: "ageRanges"
   });
+
   const {
     fields: dateFields,
     append: appendDate,
@@ -154,7 +202,9 @@ const SchoolExperienceProgram = () => {
     control,
     name: "preferredDates"
   });
+
   const consent = watch("consent");
+
   const onSubmit = async (data: SchoolExperienceFormData) => {
     try {
       const {
@@ -186,20 +236,32 @@ const SchoolExperienceProgram = () => {
           }
         }
       });
-      toast.success("Registration submitted successfully! Check your email for confirmation.");
+      toast.success(config?.formConfig?.messages?.successMessage || "Registration submitted successfully! Check your email for confirmation.");
+      reset();
     } catch (error: any) {
       console.error("Registration error:", error);
       console.error("Error details:", error?.message, error?.details, error?.hint);
-      toast.error(error?.message || "Failed to submit registration. Please try again.");
+      toast.error(config?.formConfig?.messages?.errorMessage || error?.message || "Failed to submit registration. Please try again.");
     }
   };
+
   const selectedProgramData = programDetails.find(p => p.id === selectedProgram);
-  return <div className="min-h-screen bg-background">
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <Link to="/" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
             <ArrowLeft size={20} />
-            Back to Home
+            {config?.formConfig?.buttons?.back || "Back to Home"}
           </Link>
         </div>
 
@@ -212,19 +274,27 @@ const SchoolExperienceProgram = () => {
                   <GraduationCap className="w-8 h-8 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-primary">School Adventures</h1>
-                  <p className="text-lg text-muted-foreground">(Ages 6-17 years)</p>
+                  <h1 className="text-4xl md:text-5xl font-bold text-primary">
+                    {config?.title || "School Adventures"}
+                  </h1>
+                  <p className="text-lg text-muted-foreground">
+                    {config?.subtitle || "(Ages 6-17 years)"}
+                  </p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                We partner with schools across Nairobi and Kenya to deliver curriculum-aligned outdoor education programs, 
-                school field trips, forest school experiences, and sleep-away camps that enhance academic learning while 
-                nurturing holistic child development and environmental stewardship.
+                {config?.description || "We partner with schools across Nairobi and Kenya to deliver curriculum-aligned outdoor education programs, school field trips, forest school experiences, and sleep-away camps that enhance academic learning while nurturing holistic child development and environmental stewardship."}
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
-              <img src={schoolsImage} alt="School groups in nature" className="w-full h-full object-cover" />
+              <DynamicMedia
+                mediaType="photo"
+                mediaUrl={config?.featuredImage || schoolsImage}
+                fallbackImage={schoolsImage}
+                altText="School groups in nature"
+                className="w-full h-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
 
@@ -239,8 +309,13 @@ const SchoolExperienceProgram = () => {
             {/* Program Cards with Learn More */}
             <div className="space-y-4">
               {programDetails.map(program => {
-              const IconComponent = program.icon;
-              return <Card key={program.id} className="p-6 hover:shadow-lg transition-shadow cursor-pointer group" onClick={() => setSelectedProgram(program.id)}>
+                const IconComponent = program.icon;
+                return (
+                  <Card 
+                    key={program.id} 
+                    className="p-6 hover:shadow-lg transition-shadow cursor-pointer group" 
+                    onClick={() => setSelectedProgram(program.id)}
+                  >
                     <div className="flex items-start gap-4">
                       <div className="bg-primary/10 rounded-full p-3 shrink-0">
                         <IconComponent className="w-6 h-6 text-primary" />
@@ -254,8 +329,9 @@ const SchoolExperienceProgram = () => {
                       </div>
                       <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
                     </div>
-                  </Card>;
-            })}
+                  </Card>
+                );
+              })}
             </div>
 
             {/* Rainy Day Plans */}
@@ -278,9 +354,14 @@ const SchoolExperienceProgram = () => {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
                 <Label htmlFor="schoolName" className="text-base font-medium">
-                  School Name *
+                  {config?.formConfig?.fields?.schoolName?.label || "School Name"} *
                 </Label>
-                <Input id="schoolName" {...register("schoolName")} className="mt-2" placeholder="Enter school name" />
+                <Input 
+                  id="schoolName" 
+                  {...register("schoolName")} 
+                  className="mt-2" 
+                  placeholder={config?.formConfig?.fields?.schoolName?.placeholder || "Enter school name"} 
+                />
                 {errors.schoolName && <p className="text-destructive text-sm mt-1">{errors.schoolName.message}</p>}
               </div>
 
@@ -304,11 +385,14 @@ const SchoolExperienceProgram = () => {
               <div>
                 <Label className="text-base font-medium mb-2 block">Age Ranges *</Label>
                 <div className="space-y-3">
-                  {ageRangeFields.map((field, index) => <div key={field.id} className="flex gap-3 items-start">
+                  {ageRangeFields.map((field, index) => (
+                    <div key={field.id} className="flex gap-3 items-start">
                       <div className="flex-1">
-                        <Controller name={`ageRanges.${index}.range`} control={control} render={({
-                      field
-                    }) => <Select onValueChange={field.onChange} value={field.value}>
+                        <Controller 
+                          name={`ageRanges.${index}.range`} 
+                          control={control} 
+                          render={({ field }) => (
+                            <Select onValueChange={field.onChange} value={field.value}>
                               <SelectTrigger>
                                 <SelectValue placeholder="Select age range" />
                               </SelectTrigger>
@@ -318,28 +402,42 @@ const SchoolExperienceProgram = () => {
                                 <SelectItem value="12-14">12-14 years</SelectItem>
                                 <SelectItem value="15-17">15-17 years</SelectItem>
                               </SelectContent>
-                            </Select>} />
-                        {errors.ageRanges?.[index]?.range && <p className="text-destructive text-sm mt-1">{errors.ageRanges[index]?.range?.message}</p>}
+                            </Select>
+                          )} 
+                        />
+                        {errors.ageRanges?.[index]?.range && (
+                          <p className="text-destructive text-sm mt-1">{errors.ageRanges[index]?.range?.message}</p>
+                        )}
                       </div>
-                      {ageRangeFields.length > 1 && <Button type="button" variant="outline" size="icon" onClick={() => removeAgeRange(index)} className="shrink-0">
+                      {ageRangeFields.length > 1 && (
+                        <Button type="button" variant="outline" size="icon" onClick={() => removeAgeRange(index)} className="shrink-0">
                           <X className="h-4 w-4" />
-                        </Button>}
-                    </div>)}
-                  <Button type="button" variant="outline" onClick={() => appendAgeRange({
-                  range: undefined as any
-                })} className="w-full">
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => appendAgeRange({ range: undefined as any })} 
+                    className="w-full"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Age Range
                   </Button>
-                  {errors.ageRanges && typeof errors.ageRanges.message === "string" && <p className="text-destructive text-sm mt-1">{errors.ageRanges.message}</p>}
+                  {errors.ageRanges && typeof errors.ageRanges.message === "string" && (
+                    <p className="text-destructive text-sm mt-1">{errors.ageRanges.message}</p>
+                  )}
                 </div>
               </div>
 
               <div>
-                <Label className="text-base font-medium">Package *</Label>
+                <Label className="text-base font-medium">
+                  {config?.formConfig?.fields?.programType?.label || "Package"} *
+                </Label>
                 <Select onValueChange={value => setValue("package", value as any)}>
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Select a package" />
+                    <SelectValue placeholder={config?.formConfig?.fields?.programType?.placeholder || "Select a package"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="day-trip">Day Trip</SelectItem>
@@ -351,25 +449,46 @@ const SchoolExperienceProgram = () => {
               </div>
 
               <div>
-                <Label className="text-base font-medium mb-2 block">Preferred Dates *</Label>
+                <Label className="text-base font-medium mb-2 block">
+                  {config?.formConfig?.fields?.preferredDates?.label || "Preferred Dates"} *
+                </Label>
                 <div className="space-y-3">
-                  {dateFields.map((field, index) => <div key={field.id} className="flex gap-3 items-start">
+                  {dateFields.map((field, index) => (
+                    <div key={field.id} className="flex gap-3 items-start">
                       <div className="flex-1">
-                        <Controller name={`preferredDates.${index}.date`} control={control} render={({
-                      field
-                    }) => <DatePickerField label="" placeholder="Select date" value={field.value} onChange={field.onChange} error={errors.preferredDates?.[index]?.date?.message} />} />
+                        <Controller 
+                          name={`preferredDates.${index}.date`} 
+                          control={control} 
+                          render={({ field }) => (
+                            <DatePickerField 
+                              label="" 
+                              placeholder={config?.formConfig?.fields?.preferredDates?.placeholder || "Select date"} 
+                              value={field.value} 
+                              onChange={field.onChange} 
+                              error={errors.preferredDates?.[index]?.date?.message} 
+                            />
+                          )} 
+                        />
                       </div>
-                      {dateFields.length > 1 && <Button type="button" variant="outline" size="icon" onClick={() => removeDate(index)} className="shrink-0 mt-2">
+                      {dateFields.length > 1 && (
+                        <Button type="button" variant="outline" size="icon" onClick={() => removeDate(index)} className="shrink-0 mt-2">
                           <X className="h-4 w-4" />
-                        </Button>}
-                    </div>)}
-                  <Button type="button" variant="outline" onClick={() => appendDate({
-                  date: undefined as any
-                })} className="w-full">
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => appendDate({ date: undefined as any })} 
+                    className="w-full"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Another Date
                   </Button>
-                  {errors.preferredDates && typeof errors.preferredDates.message === "string" && <p className="text-destructive text-sm mt-1">{errors.preferredDates.message}</p>}
+                  {errors.preferredDates && typeof errors.preferredDates.message === "string" && (
+                    <p className="text-destructive text-sm mt-1">{errors.preferredDates.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -392,9 +511,14 @@ const SchoolExperienceProgram = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="numberOfStudents" className="text-base font-medium">
-                    No. of Students *
+                    {config?.formConfig?.fields?.numberOfStudents?.label || "No. of Students"} *
                   </Label>
-                  <Input id="numberOfStudents" {...register("numberOfStudents")} className="mt-2" placeholder="Total students" />
+                  <Input 
+                    id="numberOfStudents" 
+                    {...register("numberOfStudents")} 
+                    className="mt-2" 
+                    placeholder={config?.formConfig?.fields?.numberOfStudents?.placeholder || "Total students"} 
+                  />
                   {errors.numberOfStudents && <p className="text-destructive text-sm mt-1">{errors.numberOfStudents.message}</p>}
                 </div>
                 <div>
@@ -424,35 +548,59 @@ const SchoolExperienceProgram = () => {
                 <Label htmlFor="specialNeeds" className="text-base font-medium">
                   Special Needs (Optional)
                 </Label>
-                <Textarea id="specialNeeds" {...register("specialNeeds")} className="mt-2" placeholder="Any special requirements or considerations" rows={3} />
+                <Textarea 
+                  id="specialNeeds" 
+                  {...register("specialNeeds")} 
+                  className="mt-2" 
+                  placeholder="Any special requirements or considerations" 
+                  rows={3} 
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="email" className="text-base font-medium">
-                    Email Address *
+                    {config?.formConfig?.fields?.email?.label || "Email Address"} *
                   </Label>
-                  <Input id="email" {...register("email")} className="mt-2" placeholder="school@email.com" type="email" />
+                  <Input 
+                    id="email" 
+                    {...register("email")} 
+                    className="mt-2" 
+                    placeholder={config?.formConfig?.fields?.email?.placeholder || "school@email.com"} 
+                    type="email" 
+                  />
                   {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
                 </div>
                 <div>
                   <Label htmlFor="phone" className="text-base font-medium">
-                    Phone Number *
+                    {config?.formConfig?.fields?.phone?.label || "Phone Number"} *
                   </Label>
-                  <Input id="phone" {...register("phone")} className="mt-2" placeholder="+254 XXX XXX XXX" />
+                  <Input 
+                    id="phone" 
+                    {...register("phone")} 
+                    className="mt-2" 
+                    placeholder={config?.formConfig?.fields?.phone?.placeholder || "+254 XXX XXX XXX"} 
+                  />
                   {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-4 pt-4 border-t">
-                <ConsentDialog checked={consent} onCheckedChange={checked => setValue("consent", checked as boolean)} error={errors.consent?.message} />
+                <ConsentDialog 
+                  checked={consent} 
+                  onCheckedChange={checked => setValue("consent", checked as boolean)} 
+                  error={errors.consent?.message} 
+                />
                 <div className="text-sm text-muted-foreground">
                   Please also review our <RefundPolicyDialog />
                 </div>
               </div>
 
               <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Submit Registration"}
+                {isSubmitting 
+                  ? (config?.formConfig?.messages?.loadingMessage || "Submitting...") 
+                  : (config?.formConfig?.buttons?.submit || "Submit Registration")
+                }
               </Button>
             </form>
           </Card>
@@ -462,7 +610,8 @@ const SchoolExperienceProgram = () => {
       {/* Program Detail Dialog */}
       <Dialog open={!!selectedProgram} onOpenChange={open => !open && setSelectedProgram(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedProgramData && <>
+          {selectedProgramData && (
+            <>
               <DialogHeader>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="bg-primary/10 rounded-full p-2">
@@ -485,47 +634,64 @@ const SchoolExperienceProgram = () => {
                 <div>
                   <h4 className="font-semibold text-lg mb-3">Key Features</h4>
                   <ul className="space-y-2">
-                    {selectedProgramData.keyFeatures.map((feature, index) => <li key={index} className="flex items-start gap-2">
+                    {selectedProgramData.keyFeatures.map((feature, index) => (
+                      <li key={index} className="flex items-start gap-2">
                         <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                         <span className="text-muted-foreground">{feature}</span>
-                      </li>)}
+                      </li>
+                    ))}
                   </ul>
                 </div>
 
-                {selectedProgramData.examples && <div>
+                {selectedProgramData.examples && selectedProgramData.examples.length > 0 && (
+                  <div>
                     <h4 className="font-semibold text-lg mb-3">Examples</h4>
                     <div className="grid gap-3">
-                      {selectedProgramData.examples.map((example, index) => <div key={index} className="bg-accent/30 rounded-lg p-4">
+                      {selectedProgramData.examples.map((example, index) => (
+                        <div key={index} className="bg-accent/30 rounded-lg p-4">
                           <h5 className="font-medium text-primary">{example.title}</h5>
-                          <p className="text-sm text-muted-foreground">{example.description}</p>
-                        </div>)}
+                          {example.description && (
+                            <p className="text-sm text-muted-foreground">{example.description}</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  </div>}
+                  </div>
+                )}
 
-                {selectedProgramData.benefits && <div>
+                {selectedProgramData.benefits && selectedProgramData.benefits.length > 0 && (
+                  <div>
                     <h4 className="font-semibold text-lg mb-3">Benefits for Students</h4>
                     <ul className="space-y-2">
-                      {selectedProgramData.benefits.map((benefit, index) => <li key={index} className="flex items-start gap-2">
+                      {selectedProgramData.benefits.map((benefit, index) => (
+                        <li key={index} className="flex items-start gap-2">
                           <CheckCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                           <span className="text-sm text-muted-foreground">{benefit}</span>
-                        </li>)}
+                        </li>
+                      ))}
                     </ul>
-                  </div>}
+                  </div>
+                )}
 
-                {selectedProgramData.idealFor && <div className="bg-primary/5 rounded-lg p-4 border border-primary/20">
+                {selectedProgramData.idealFor && (
+                  <div className="bg-primary/5 rounded-lg p-4 border border-primary/20">
                     <p className="text-sm">
                       <span className="font-medium">Ideal for: </span>
                       <span className="text-muted-foreground">{selectedProgramData.idealFor}</span>
                     </p>
-                  </div>}
+                  </div>
+                )}
 
                 <Button onClick={() => setSelectedProgram(null)} className="w-full">
                   Book This Program
                 </Button>
               </div>
-            </>}
+            </>
+          )}
         </DialogContent>
       </Dialog>
-    </div>;
+    </div>
+  );
 };
+
 export default SchoolExperienceProgram;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
@@ -26,49 +26,52 @@ const SimpleDateSelector: React.FC<SimpleDateSelectorProps> = ({
   currency,
   disabled = false
 }) => {
-  // Group dates by week
-  const groupDatesByWeek = (dates: string[]) => {
-    const weeks: { [key: string]: string[] } = {};
-    
-    dates.forEach(dateStr => {
+  // Group dates by week (memoized to avoid unnecessary re-renders)
+  const weeks = useMemo(() => {
+    const dates = [...availableDates].sort();
+    const grouped: { [key: string]: string[] } = {};
+
+    dates.forEach((dateStr) => {
       const date = parseLocalDate(dateStr);
       const weekStart = startOfWeek(date, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
       const weekKey = `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d, yyyy')}`;
-      
-      if (!weeks[weekKey]) {
-        weeks[weekKey] = [];
-      }
-      weeks[weekKey].push(dateStr);
+
+      if (!grouped[weekKey]) grouped[weekKey] = [];
+      grouped[weekKey].push(dateStr);
     });
-    
-    return weeks;
-  };
 
-  const handleDateToggle = (dateStr: string) => {
-    if (disabled) return;
-    
-    if (selectedDates.includes(dateStr)) {
-      onDatesChange(selectedDates.filter(d => d !== dateStr));
-    } else {
-      onDatesChange([...selectedDates, dateStr].sort());
-    }
-  };
+    return grouped;
+  }, [availableDates]);
 
-  const handleSelectAllWeek = (weekDates: string[]) => {
-    if (disabled) return;
-    
-    const allSelected = weekDates.every(d => selectedDates.includes(d));
-    if (allSelected) {
-      onDatesChange(selectedDates.filter(d => !weekDates.includes(d)));
-    } else {
-      const newDates = [...new Set([...selectedDates, ...weekDates])].sort();
-      onDatesChange(newDates);
-    }
-  };
+  const totalPrice = useMemo(() => selectedDates.length * sessionRate, [selectedDates.length, sessionRate]);
 
-  const weeks = groupDatesByWeek(availableDates);
-  const totalPrice = selectedDates.length * sessionRate;
+  const handleDateToggle = useCallback(
+    (dateStr: string, nextChecked: boolean) => {
+      if (disabled) return;
+
+      if (nextChecked) {
+        onDatesChange([...new Set([...selectedDates, dateStr])].sort());
+      } else {
+        onDatesChange(selectedDates.filter((d) => d !== dateStr));
+      }
+    },
+    [disabled, onDatesChange, selectedDates]
+  );
+
+  const handleSelectAllWeek = useCallback(
+    (weekDates: string[]) => {
+      if (disabled) return;
+
+      const allSelected = weekDates.every((d) => selectedDates.includes(d));
+      if (allSelected) {
+        onDatesChange(selectedDates.filter((d) => !weekDates.includes(d)));
+      } else {
+        onDatesChange([...new Set([...selectedDates, ...weekDates])].sort());
+      }
+    },
+    [disabled, onDatesChange, selectedDates]
+  );
 
   if (availableDates.length === 0) {
     return (
@@ -102,6 +105,7 @@ const SimpleDateSelector: React.FC<SimpleDateSelectorProps> = ({
               {weekDates.map(dateStr => {
                 const date = parseLocalDate(dateStr);
                 const isSelected = selectedDates.includes(dateStr);
+                const checkboxId = `date-${dateStr}`;
                 
                 return (
                   <div
@@ -111,14 +115,14 @@ const SimpleDateSelector: React.FC<SimpleDateSelectorProps> = ({
                         ? 'bg-primary/10 border-primary' 
                         : 'bg-background hover:bg-muted/50 border-border'
                     } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    onClick={() => handleDateToggle(dateStr)}
                   >
                     <Checkbox
+                      id={checkboxId}
                       checked={isSelected}
                       disabled={disabled}
-                      onCheckedChange={() => handleDateToggle(dateStr)}
+                      onCheckedChange={(v) => handleDateToggle(dateStr, v === true)}
                     />
-                    <Label className="cursor-pointer flex-1">
+                    <Label htmlFor={checkboxId} className="cursor-pointer flex-1">
                       <span className="font-medium">{format(date, 'EEEE')}</span>
                       <span className="text-muted-foreground ml-2 text-sm">
                         {format(date, 'MMM d, yyyy')}
