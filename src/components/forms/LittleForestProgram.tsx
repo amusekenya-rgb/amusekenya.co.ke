@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Baby, Clock, Heart, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import dailyActivitiesImage from '@/assets/little-explo.jpg';
+import dailyActivitiesImage from '@/assets/daily-activities.jpg';
 import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
@@ -23,6 +23,7 @@ import { leadsService } from '@/services/leadsService';
 import { invoiceService } from '@/services/invoiceService';
 import type { CampRegistration } from '@/types/campRegistration';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
+import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 
 // Child schema for multiple children support with simple date selection
 const childSchema = z.object({
@@ -111,6 +112,13 @@ const LittleForestProgram = () => {
   };
 
   const onSubmit = async (data: LittleForestFormData) => {
+    // Security checks: prevent duplicates and rate limiting
+    const securityCheck = await performSecurityChecks(data, 'little-forest');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+    
     try {
       const registrationData = {
         camp_type: 'little-forest' as const,
@@ -180,6 +188,10 @@ const LittleForestProgram = () => {
       setShowQRModal(true);
 
       toast.success(config.messages.registrationSuccess);
+      
+      // Record successful submission for duplicate prevention
+      await recordSubmission(data, 'little-forest');
+      
       reset();
       
       if (submitType === 'pay') {

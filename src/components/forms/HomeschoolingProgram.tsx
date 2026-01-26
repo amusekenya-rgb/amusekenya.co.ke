@@ -12,13 +12,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Clock, Users, Target, CheckCircle, ArrowLeft, Plus, X, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import schoolsImage from "@/assets/schools.jpeg";
+import schoolsImage from "@/assets/schools.jpg";
 import DatePickerField from "./DatePickerField";
 import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from "@/services/leadsService";
 import { useHomeschoolingPageConfig } from "@/hooks/useHomeschoolingPageConfig";
 import DynamicMedia from "@/components/content/DynamicMedia";
+import { performSecurityChecks, recordSubmission } from "@/services/formSecurityService";
 
 const homeschoolingSchema = z.object({
   parentName: z.string().min(1, "Parent name is required").max(100),
@@ -116,6 +117,13 @@ const HomeschoolingProgram = () => {
   const consent = watch("consent");
 
   const onSubmit = async (data: HomeschoolingFormData) => {
+    // Security checks: prevent duplicates and rate limiting
+    const securityCheck = await performSecurityChecks(data, 'homeschooling');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+    
     try {
       // Save to database
       const { homeschoolingService } = await import("@/services/programRegistrationService");
@@ -152,6 +160,10 @@ const HomeschoolingProgram = () => {
         throw emailError;
       }
       toast.success(config?.formConfig?.messages?.successMessage || "Registration submitted successfully! Check your email for confirmation.");
+      
+      // Record successful submission for duplicate prevention
+      await recordSubmission(data, 'homeschooling');
+      
       reset();
     } catch (error: any) {
       console.error("Registration error:", error);

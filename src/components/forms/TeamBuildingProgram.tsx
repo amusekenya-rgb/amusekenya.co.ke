@@ -12,11 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { PartyPopper, Users, Target, ArrowLeft, CheckCircle, Mountain, Compass, Flame, Focus, Building, School, Heart } from "lucide-react";
 import { Link } from "react-router-dom";
-import adventureImage from "@/assets/teambuilding.png";
+import adventureImage from "@/assets/adventure.jpg";
 import DatePickerField from "./DatePickerField";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from '@/services/leadsService';
 import { cmsService } from '@/services/cmsService';
+import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 
 const teamBuildingSchema = z.object({
   occasion: z.enum(["birthday", "family", "corporate"]),
@@ -173,6 +174,13 @@ const TeamBuildingProgram = () => {
   const consent = watch("consent");
 
   const onSubmit = async (data: TeamBuildingFormData) => {
+    // Security checks: prevent duplicates and rate limiting
+    const securityCheck = await performSecurityChecks(data, 'team-building');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+    
     try {
       const { teamBuildingService } = await import('@/services/programRegistrationService');
       const registration = await teamBuildingService.create(data);
@@ -206,6 +214,10 @@ const TeamBuildingProgram = () => {
         throw emailError;
       }
       toast.success("Registration submitted successfully! Check your email for confirmation.");
+      
+      // Record successful submission for duplicate prevention
+      await recordSubmission(data, 'team-building');
+      
       reset();
     } catch (error: any) {
       console.error('Registration error:', error);

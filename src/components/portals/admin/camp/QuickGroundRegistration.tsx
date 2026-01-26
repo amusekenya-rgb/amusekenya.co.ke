@@ -15,6 +15,7 @@ import { qrCodeService } from '@/services/qrCodeService';
 import { leadsService } from '@/services/leadsService';
 import { CampRegistration } from '@/types/campRegistration';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 
 const childSchema = z.object({
   childName: z.string().min(2, 'Name required'),
@@ -85,6 +86,13 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
   const totalAmount = children.length * sessionPrice;
 
   const onSubmit = async (data: QuickRegForm) => {
+    // Security checks: prevent duplicates and rate limiting (higher limit for admin)
+    const securityCheck = await performSecurityChecks(data, 'ground-registration');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -151,6 +159,10 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         });
 
         toast.success(`Registered! #${registration.registration_number}`);
+        
+        // Record successful submission for duplicate prevention
+        await recordSubmission(data, 'ground-registration');
+        
         reset();
         onComplete();
       }

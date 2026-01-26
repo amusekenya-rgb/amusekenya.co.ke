@@ -1,93 +1,83 @@
-
 import React, { useState, useEffect } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { GalleryUploadForm } from './gallery/GalleryUploadForm';
 import { GalleryGrid } from './gallery/GalleryGrid';
 import { GalleryEditDialog } from './gallery/GalleryEditDialog';
-import { supabase } from '@/integrations/supabase/client';
-
-interface ImageItem {
-  id: string;
-  url: string;
-  alt: string;
-  section: string;
-  uploadedAt: string;
-}
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
+import { 
+  galleryService, 
+  GalleryItem, 
+  GalleryCategory 
+} from '@/services/galleryService';
 
 interface AdminGalleryManagerProps {
   currentAdminUsername: string;
 }
 
 const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminUsername }) => {
-  const [images, setImages] = useState<ImageItem[]>([]);
+  const [images, setImages] = useState<GalleryItem[]>([]);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [isMigrating, setIsMigrating] = useState<boolean>(false);
   const [editDialogOpen, setEditDialogOpen] = useState<boolean>(false);
-  const [currentImage, setCurrentImage] = useState<ImageItem | null>(null);
-  const [newImageAlt, setNewImageAlt] = useState<string>('');
+  const [currentImage, setCurrentImage] = useState<GalleryItem | null>(null);
+  const [newCaption, setNewCaption] = useState<string>('');
+  const [newCategory, setNewCategory] = useState<GalleryCategory>('all');
 
-  // Load images from Supabase on mount
   useEffect(() => {
     loadGalleryImages();
   }, []);
 
   const loadGalleryImages = async () => {
     try {
-      const { data: files, error } = await supabase.storage
-        .from('marketing-assets')
-        .list('gallery-images', {
-          limit: 100,
-          offset: 0,
-          sortBy: { column: 'created_at', order: 'desc' }
-        });
-
-      if (error) throw error;
-
-      const imageItems: ImageItem[] = files.map(file => {
-        const { data: { publicUrl } } = supabase.storage
-          .from('marketing-assets')
-          .getPublicUrl(`gallery-images/${file.name}`);
-
-        return {
-          id: file.id,
-          url: publicUrl,
-          alt: file.name.replace(/\.[^/.]+$/, ''),
-          section: 'gallery',
-          uploadedAt: file.created_at || new Date().toISOString()
-        };
-      });
-
-      setImages(imageItems);
+      const items = await galleryService.getAllItems();
+      setImages(items);
     } catch (error) {
       console.error('Error loading gallery images:', error);
       toast({
         title: 'Failed to load images',
-        description: 'Could not load gallery images',
+        description: 'Could not load gallery images. You may need to run the migration first.',
         variant: 'destructive'
       });
     }
   };
 
-  // Filter only gallery images
-  const galleryImages = images.filter(img => img.section === 'gallery');
+  const handleMigrateExisting = async () => {
+    setIsMigrating(true);
+    try {
+      const count = await galleryService.migrateExistingImages();
+      await loadGalleryImages();
+      toast({
+        title: 'Migration complete',
+        description: `Migrated ${count} existing images to the new system.`
+      });
+    } catch (error) {
+      console.error('Migration error:', error);
+      toast({
+        title: 'Migration failed',
+        description: 'Could not migrate existing images. Please ensure the database migration has been applied.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
-  const handleUpload = async (file: File, caption: string) => {
+  const handleUpload = async (file: File, caption: string, category: GalleryCategory) => {
     setIsUploading(true);
 
     try {
-      // Check for HEIC/HEIF files (not web-compatible)
+      // Check for HEIC/HEIF files
       const lowerFileName = file.name.toLowerCase();
-      const isHeic = lowerFileName.endsWith('.heic') || lowerFileName.endsWith('.heif');
-      
-      if (isHeic) {
+      if (lowerFileName.endsWith('.heic') || lowerFileName.endsWith('.heif')) {
         toast({
           title: 'HEIC format not supported',
-          description: 'Please convert to JPG or PNG first. HEIC images cannot be displayed on websites.',
+          description: 'Please convert to JPG or PNG first.',
           variant: 'destructive'
         });
         return;
       }
 
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         toast({
           title: 'Invalid file type',
@@ -97,7 +87,6 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
         return;
       }
 
-      // Validate file size (5MB)
       if (file.size > 5 * 1024 * 1024) {
         toast({
           title: 'File too large',
@@ -107,26 +96,15 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
         return;
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${caption.replace(/\s+/g, '-')}.${fileExt}`;
-      const filePath = `gallery-images/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('marketing-assets')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // Reload images
+      await galleryService.uploadAndCreate(file, caption, category);
       await loadGalleryImages();
       
       toast({
         title: "Gallery image added",
-        description: "Your image has been added to the gallery",
+        description: `Image added to ${category} category`,
       });
 
-      // Log the action for audit purposes
-      console.log(`Admin ${currentAdminUsername} added gallery image: ${fileName}`);
+      console.log(`Admin ${currentAdminUsername} added gallery image in category: ${category}`);
     } catch (error) {
       console.error('Error uploading image:', error);
       toast({
@@ -139,27 +117,10 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, storagePath: string) => {
     if (window.confirm('Are you sure you want to delete this gallery image?')) {
       try {
-        // Find the image to get its path
-        const imageToDelete = images.find(img => img.id === id);
-        
-        if (imageToDelete) {
-          // Extract file name from URL
-          const fileName = imageToDelete.url.split('/').pop();
-          if (fileName) {
-            const filePath = `gallery-images/${fileName}`;
-            
-            const { error } = await supabase.storage
-              .from('marketing-assets')
-              .remove([filePath]);
-
-            if (error) throw error;
-          }
-        }
-        
-        // Reload images
+        await galleryService.deleteItem(id, storagePath);
         await loadGalleryImages();
         
         toast({
@@ -167,7 +128,6 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
           description: "The image has been removed from the gallery",
         });
 
-        // Log the action for audit purposes
         console.log(`Admin ${currentAdminUsername} deleted gallery image: ${id}`);
       } catch (error) {
         console.error('Error deleting image:', error);
@@ -180,47 +140,99 @@ const AdminGalleryManager: React.FC<AdminGalleryManagerProps> = ({ currentAdminU
     }
   };
 
-  const openEditDialog = (image: ImageItem) => {
+  const handleCategoryChange = async (id: string, category: GalleryCategory) => {
+    try {
+      await galleryService.updateItem(id, { category });
+      setImages(prev => prev.map(img => 
+        img.id === id ? { ...img, category } : img
+      ));
+      toast({
+        title: "Category updated",
+        description: "Image category has been changed"
+      });
+    } catch (error) {
+      console.error('Error updating category:', error);
+      toast({
+        title: "Update failed",
+        description: "Could not update the category",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const openEditDialog = (image: GalleryItem) => {
     setCurrentImage(image);
-    setNewImageAlt(image.alt);
+    setNewCaption(image.caption);
+    setNewCategory(image.category);
     setEditDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!currentImage) return;
 
-    const updatedImages = images.map(img => 
-      img.id === currentImage.id ? {...img, alt: newImageAlt} : img
-    );
+    try {
+      await galleryService.updateItem(currentImage.id, {
+        caption: newCaption,
+        category: newCategory
+      });
+      
+      setImages(prev => prev.map(img => 
+        img.id === currentImage.id 
+          ? { ...img, caption: newCaption, category: newCategory } 
+          : img
+      ));
+      
+      setEditDialogOpen(false);
+      
+      toast({
+        title: "Image updated",
+        description: "Caption and category updated successfully",
+      });
 
-    setImages(updatedImages);
-    setEditDialogOpen(false);
-    
-    toast({
-      title: "Image updated",
-      description: "The caption has been updated successfully",
-    });
-
-    // Log the action for audit purposes
-    console.log(`Admin ${currentAdminUsername} updated gallery image: ${currentImage.id}`);
+      console.log(`Admin ${currentAdminUsername} updated gallery image: ${currentImage.id}`);
+    } catch (error) {
+      console.error('Error updating image:', error);
+      toast({
+        title: "Update failed",
+        description: "Could not update the image",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
     <div className="space-y-6">
-      <GalleryUploadForm onUpload={handleUpload} isUploading={isUploading} />
+      <div className="flex justify-end">
+        <Button 
+          variant="outline" 
+          onClick={handleMigrateExisting}
+          disabled={isMigrating}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${isMigrating ? 'animate-spin' : ''}`} />
+          {isMigrating ? 'Migrating...' : 'Migrate Existing Images'}
+        </Button>
+      </div>
+
+      <GalleryUploadForm 
+        onUpload={handleUpload} 
+        isUploading={isUploading} 
+      />
 
       <GalleryGrid 
-        galleryImages={galleryImages} 
+        galleryImages={images} 
         onEdit={openEditDialog} 
-        onDelete={handleDelete} 
+        onDelete={handleDelete}
+        onCategoryChange={handleCategoryChange}
       />
 
       <GalleryEditDialog 
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         currentImage={currentImage}
-        newAlt={newImageAlt}
-        onAltChange={setNewImageAlt}
+        newCaption={newCaption}
+        onCaptionChange={setNewCaption}
+        newCategory={newCategory}
+        onCategoryChange={setNewCategory}
         onSave={handleSaveEdit}
       />
     </div>

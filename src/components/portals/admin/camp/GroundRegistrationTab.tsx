@@ -17,6 +17,7 @@ import { leadsService } from '@/services/leadsService';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
 import { CampRegistration } from '@/types/campRegistration';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 
 const childSchema = z.object({
   childName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name too long'),
@@ -132,6 +133,13 @@ export const GroundRegistrationTab: React.FC = () => {
   };
 
   const onSubmit = async (data: GroundRegistrationForm) => {
+    // Security checks: prevent duplicates and rate limiting
+    const securityCheck = await performSecurityChecks(data, 'ground-registration');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -205,6 +213,9 @@ export const GroundRegistrationTab: React.FC = () => {
         setQrCodeDataUrl(qrData);
         setCompletedRegistration(registration);
         setShowQRModal(true);
+
+        // Record successful submission for duplicate prevention
+        await recordSubmission(data, 'ground-registration');
 
         toast.success('Ground registration completed successfully!');
       }

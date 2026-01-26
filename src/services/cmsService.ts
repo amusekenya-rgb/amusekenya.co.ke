@@ -634,6 +634,15 @@ export const cmsService = {
       const slug = `${experienceType}-page`;
       const { data: { user } } = await supabase.auth.getUser();
       
+      // Extract pageConfig if passed nested, otherwise use config directly
+      const pageConfig = config.pageConfig || config;
+      
+      // Build metadata object - include any additional config properties (like mediaUrl, mediaType)
+      const metadata: any = { pageConfig };
+      if (config.mediaUrl) metadata.mediaUrl = config.mediaUrl;
+      if (config.mediaType) metadata.mediaType = config.mediaType;
+      if (config.videoThumbnail) metadata.videoThumbnail = config.videoThumbnail;
+      
       const { data, error } = await supabaseAny
         .from('content_items')
         .upsert({
@@ -641,8 +650,8 @@ export const cmsService = {
           content_type: 'experience_page',
           title: `${experienceType.charAt(0).toUpperCase() + experienceType.slice(1).replace(/-/g, ' ')} Page`,
           status: 'published',
-          content: JSON.stringify(config),
-          metadata: { pageConfig: config },
+          content: JSON.stringify(pageConfig),
+          metadata,
           author_id: user?.id,
           published_at: new Date().toISOString(),
           updated_at: new Date().toISOString()

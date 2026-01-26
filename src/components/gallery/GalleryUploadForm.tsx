@@ -1,19 +1,21 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ImageIcon, Upload } from 'lucide-react';
+import { GalleryCategory, GALLERY_CATEGORIES } from '@/services/galleryService';
 
 interface GalleryUploadFormProps {
-  onUpload: (file: File, alt: string) => void;
+  onUpload: (file: File, caption: string, category: GalleryCategory) => void;
   isUploading: boolean;
 }
 
 export const GalleryUploadForm: React.FC<GalleryUploadFormProps> = ({ onUpload, isUploading }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [imageAlt, setImageAlt] = useState<string>('');
+  const [imageCaption, setImageCaption] = useState<string>('');
+  const [category, setCategory] = useState<GalleryCategory>('all');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -23,18 +25,22 @@ export const GalleryUploadForm: React.FC<GalleryUploadFormProps> = ({ onUpload, 
 
   const handleUpload = () => {
     if (selectedFile) {
-      onUpload(selectedFile, imageAlt || selectedFile.name);
+      onUpload(selectedFile, imageCaption || selectedFile.name, category);
       setSelectedFile(null);
-      setImageAlt('');
+      setImageCaption('');
+      setCategory('all');
     }
   };
+
+  // Filter out 'all' for upload - it's only for filtering
+  const uploadCategories = GALLERY_CATEGORIES.filter(c => c.value !== 'all');
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Gallery Management</CardTitle>
         <CardDescription>
-          Upload and manage images for the gallery section
+          Upload images with categories for easy filtering on the public gallery
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -53,15 +59,36 @@ export const GalleryUploadForm: React.FC<GalleryUploadFormProps> = ({ onUpload, 
                   JPG, PNG, GIF, WebP supported. HEIC not supported - convert first.
                 </p>
               </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="image-caption">Caption</Label>
                 <Input
                   id="image-caption"
                   placeholder="Enter a caption for this image"
-                  value={imageAlt}
-                  onChange={(e) => setImageAlt(e.target.value)}
+                  value={imageCaption}
+                  onChange={(e) => setImageCaption(e.target.value)}
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="image-category">Category</Label>
+                <Select value={category} onValueChange={(v) => setCategory(v as GalleryCategory)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {uploadCategories.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Category helps visitors filter images on the public gallery
+                </p>
+              </div>
+
               <Button 
                 onClick={handleUpload} 
                 disabled={isUploading || !selectedFile}

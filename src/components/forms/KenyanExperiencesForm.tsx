@@ -14,6 +14,7 @@ import DatePickerField from './DatePickerField';
 import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
 import { kenyanExperiencesService } from '@/services/programRegistrationService';
+import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 
 const kenyanExperiencesSchema = z.object({
   parentLeader: z.string().min(1, 'Parent/Leader name is required').max(100),
@@ -48,6 +49,13 @@ const KenyanExperiencesForm = () => {
   });
 
   const onSubmit = async (data: KenyanExperiencesFormData) => {
+    // Security checks: prevent duplicates and rate limiting
+    const securityCheck = await performSecurityChecks(data, 'kenyan-experiences');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+    
     try {
       await kenyanExperiencesService.create({
         parentLeader: data.parentLeader,
@@ -64,6 +72,9 @@ const KenyanExperiencesForm = () => {
       });
 
       toast.success('Registration submitted successfully! We will contact you soon.');
+      
+      // Record successful submission for duplicate prevention
+      await recordSubmission(data, 'kenyan-experiences');
     } catch (error) {
       console.error('Registration error:', error);
       toast.error('Failed to submit registration. Please try again.');

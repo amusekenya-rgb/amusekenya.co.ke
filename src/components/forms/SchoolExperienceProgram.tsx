@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { GraduationCap, MapPin, Users, ArrowLeft, CheckCircle, Plus, X, TreePine, Bus, Factory, Tent, ChevronRight, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import schoolsImage from "@/assets/shule.jpg";
+import schoolsImage from "@/assets/schools.jpg";
 import DatePickerField from "./DatePickerField";
 import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
@@ -20,6 +20,7 @@ import { leadsService } from "@/services/leadsService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useSchoolAdventuresPageConfig } from "@/hooks/useSchoolAdventuresPageConfig";
 import DynamicMedia from "@/components/content/DynamicMedia";
+import { performSecurityChecks, recordSubmission } from "@/services/formSecurityService";
 
 const schoolExperienceSchema = z.object({
   schoolName: z.string().min(1, "School name is required").max(200),
@@ -206,6 +207,13 @@ const SchoolExperienceProgram = () => {
   const consent = watch("consent");
 
   const onSubmit = async (data: SchoolExperienceFormData) => {
+    // Security checks: prevent duplicates and rate limiting
+    const securityCheck = await performSecurityChecks(data, 'school-experience');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+    
     try {
       const {
         schoolExperienceService
@@ -237,6 +245,10 @@ const SchoolExperienceProgram = () => {
         }
       });
       toast.success(config?.formConfig?.messages?.successMessage || "Registration submitted successfully! Check your email for confirmation.");
+      
+      // Record successful submission for duplicate prevention
+      await recordSubmission(data, 'school-experience');
+      
       reset();
     } catch (error: any) {
       console.error("Registration error:", error);

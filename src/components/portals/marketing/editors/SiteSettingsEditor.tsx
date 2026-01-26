@@ -4,10 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { cmsService } from '@/services/cmsService';
-import { Upload } from 'lucide-react';
+import { Upload, Plus, Trash2, Instagram, Twitter, Facebook, Linkedin, Youtube } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+
+interface SocialLink {
+  id: string;
+  platform: string;
+  url: string;
+}
 
 interface SiteSettingsEditorProps {
   isOpen: boolean;
@@ -15,19 +22,27 @@ interface SiteSettingsEditorProps {
   onSave: () => void;
 }
 
+const SOCIAL_PLATFORMS = [
+  { value: 'instagram', label: 'Instagram', icon: Instagram },
+  { value: 'twitter', label: 'Twitter / X', icon: Twitter },
+  { value: 'facebook', label: 'Facebook', icon: Facebook },
+  { value: 'linkedin', label: 'LinkedIn', icon: Linkedin },
+  { value: 'youtube', label: 'YouTube', icon: Youtube },
+  { value: 'tiktok', label: 'TikTok', icon: null },
+  { value: 'whatsapp', label: 'WhatsApp', icon: null },
+];
+
 export const SiteSettingsEditor: React.FC<SiteSettingsEditorProps> = ({ isOpen, onClose, onSave }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
   const [formData, setFormData] = useState({
     footer_description: '',
     contact_phone: '',
     contact_email: '',
     contact_address: '',
     contact_hours: '',
-    social_instagram: '',
-    social_twitter: '',
-    social_facebook: '',
     copyright_text: '',
     schedule_url: ''
   });
@@ -41,8 +56,41 @@ export const SiteSettingsEditor: React.FC<SiteSettingsEditorProps> = ({ isOpen, 
   const loadSettings = async () => {
     const settings = await cmsService.getSiteSettings();
     if (settings?.metadata) {
-      setFormData(prev => ({ ...prev, ...settings.metadata }));
+      const { social_links, social_instagram, social_twitter, social_facebook, ...rest } = settings.metadata;
+      setFormData(prev => ({ ...prev, ...rest }));
+      
+      // Load social links - support both new format and legacy format
+      if (social_links && Array.isArray(social_links)) {
+        setSocialLinks(social_links);
+      } else {
+        // Convert legacy format to new format
+        const legacyLinks: SocialLink[] = [];
+        if (social_instagram) {
+          legacyLinks.push({ id: crypto.randomUUID(), platform: 'instagram', url: social_instagram });
+        }
+        if (social_twitter) {
+          legacyLinks.push({ id: crypto.randomUUID(), platform: 'twitter', url: social_twitter });
+        }
+        if (social_facebook) {
+          legacyLinks.push({ id: crypto.randomUUID(), platform: 'facebook', url: social_facebook });
+        }
+        setSocialLinks(legacyLinks.length > 0 ? legacyLinks : []);
+      }
     }
+  };
+
+  const handleAddSocialLink = () => {
+    setSocialLinks(prev => [...prev, { id: crypto.randomUUID(), platform: 'instagram', url: '' }]);
+  };
+
+  const handleRemoveSocialLink = (id: string) => {
+    setSocialLinks(prev => prev.filter(link => link.id !== id));
+  };
+
+  const handleUpdateSocialLink = (id: string, field: 'platform' | 'url', value: string) => {
+    setSocialLinks(prev => prev.map(link => 
+      link.id === id ? { ...link, [field]: value } : link
+    ));
   };
 
   const handleScheduleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,10 +163,14 @@ export const SiteSettingsEditor: React.FC<SiteSettingsEditorProps> = ({ isOpen, 
 
     try {
       const settings = await cmsService.getSiteSettings();
+      const metadata = {
+        ...formData,
+        social_links: socialLinks
+      };
       
       if (settings) {
         await cmsService.updateContent(settings.id, {
-          metadata: formData,
+          metadata,
           status: 'published'
         });
       } else {
@@ -127,7 +179,7 @@ export const SiteSettingsEditor: React.FC<SiteSettingsEditorProps> = ({ isOpen, 
           slug: 'site-settings',
           content_type: 'site_settings',
           status: 'published',
-          metadata: formData
+          metadata
         });
       }
 
@@ -139,6 +191,11 @@ export const SiteSettingsEditor: React.FC<SiteSettingsEditorProps> = ({ isOpen, 
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const getPlatformIcon = (platform: string) => {
+    const platformConfig = SOCIAL_PLATFORMS.find(p => p.value === platform);
+    return platformConfig?.icon;
   };
 
   return (
@@ -210,36 +267,62 @@ export const SiteSettingsEditor: React.FC<SiteSettingsEditorProps> = ({ isOpen, 
           </div>
 
           <div>
-            <h3 className="font-semibold mb-4">Social Media Links</h3>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="social_instagram">Instagram URL</Label>
-                <Input
-                  id="social_instagram"
-                  value={formData.social_instagram}
-                  onChange={(e) => setFormData({ ...formData, social_instagram: e.target.value })}
-                  placeholder="https://instagram.com/amusekenya"
-                />
-              </div>
-              <div>
-                <Label htmlFor="social_twitter">Twitter URL</Label>
-                <Input
-                  id="social_twitter"
-                  value={formData.social_twitter}
-                  onChange={(e) => setFormData({ ...formData, social_twitter: e.target.value })}
-                  placeholder="https://twitter.com/amusekenya"
-                />
-              </div>
-              <div>
-                <Label htmlFor="social_facebook">Facebook URL</Label>
-                <Input
-                  id="social_facebook"
-                  value={formData.social_facebook}
-                  onChange={(e) => setFormData({ ...formData, social_facebook: e.target.value })}
-                  placeholder="https://facebook.com/amusekenya"
-                />
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Social Media Links</h3>
+              <Button type="button" variant="outline" size="sm" onClick={handleAddSocialLink}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Platform
+              </Button>
             </div>
+            
+            {socialLinks.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-md">
+                No social media links added. Click "Add Platform" to get started.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {socialLinks.map((link) => {
+                  const IconComponent = getPlatformIcon(link.platform);
+                  return (
+                    <div key={link.id} className="flex gap-2 items-center">
+                      <Select
+                        value={link.platform}
+                        onValueChange={(value) => handleUpdateSocialLink(link.id, 'platform', value)}
+                      >
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SOCIAL_PLATFORMS.map((platform) => (
+                            <SelectItem key={platform.value} value={platform.value}>
+                              <div className="flex items-center gap-2">
+                                {platform.icon && <platform.icon className="h-4 w-4" />}
+                                {platform.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        className="flex-1"
+                        value={link.url}
+                        onChange={(e) => handleUpdateSocialLink(link.id, 'url', e.target.value)}
+                        placeholder={`https://${link.platform}.com/...`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveSocialLink(link.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div>
@@ -285,7 +368,7 @@ export const SiteSettingsEditor: React.FC<SiteSettingsEditorProps> = ({ isOpen, 
                     </Button>
                   </div>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   Upload a PDF schedule document (max 10MB) that users can download from the navbar
                 </p>
               </div>

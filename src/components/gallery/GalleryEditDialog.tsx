@@ -1,24 +1,26 @@
-
 import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-interface ImageItem {
-  id: string;
-  url: string;
-  alt: string;
-  section: string;
-  uploadedAt: string;
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { GalleryItem, GalleryCategory, GALLERY_CATEGORIES } from '@/services/galleryService';
 
 interface GalleryEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentImage: ImageItem | null;
-  newAlt: string;
-  onAltChange: (value: string) => void;
+  currentImage: GalleryItem | null;
+  newCaption: string;
+  onCaptionChange: (caption: string) => void;
+  newCategory: GalleryCategory;
+  onCategoryChange: (category: GalleryCategory) => void;
   onSave: () => void;
 }
 
@@ -26,40 +28,58 @@ export const GalleryEditDialog: React.FC<GalleryEditDialogProps> = ({
   open,
   onOpenChange,
   currentImage,
-  newAlt,
-  onAltChange,
-  onSave
+  newCaption,
+  onCaptionChange,
+  newCategory,
+  onCategoryChange,
+  onSave,
 }) => {
+  const editCategories = GALLERY_CATEGORIES.filter(c => c.value !== 'all');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Gallery Image</DialogTitle>
+          <DialogTitle>Edit Image</DialogTitle>
           <DialogDescription>
-            Update the caption for this gallery image
+            Update the caption and category for this image
           </DialogDescription>
         </DialogHeader>
         
         {currentImage && (
-          <div className="grid gap-4 py-4">
-            <div className="mx-auto w-full max-w-xs aspect-square overflow-hidden rounded-md border">
+          <div className="space-y-4 py-4">
+            <div className="mx-auto w-full max-w-xs aspect-video overflow-hidden rounded-md bg-muted border">
               <img 
-                src={currentImage.url} 
-                alt={currentImage.alt}
-                className="h-full w-full object-cover"
+                src={currentImage.public_url} 
+                alt={currentImage.caption}
+                className="h-full w-full object-contain"
               />
             </div>
             
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-caption" className="text-right">
-                Caption
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="edit-caption">Caption</Label>
               <Input
                 id="edit-caption"
-                value={newAlt}
-                onChange={(e) => onAltChange(e.target.value)}
-                className="col-span-3"
+                value={newCaption}
+                onChange={(e) => onCaptionChange(e.target.value)}
+                placeholder="Enter caption"
               />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-category">Category</Label>
+              <Select value={newCategory} onValueChange={(v) => onCategoryChange(v as GalleryCategory)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {editCategories.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
@@ -68,9 +88,7 @@ export const GalleryEditDialog: React.FC<GalleryEditDialogProps> = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onSave}>
-            Save changes
-          </Button>
+          <Button onClick={onSave}>Save Changes</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

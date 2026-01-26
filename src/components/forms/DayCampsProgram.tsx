@@ -20,6 +20,7 @@ import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
 import { leadsService } from '@/services/leadsService';
 import { DateSelector } from './DateSelector';
+import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
@@ -128,6 +129,13 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
     const buttonType = submitType;
     if (!config) return;
     
+    // Security checks: prevent duplicates and rate limiting
+    const securityCheck = await performSecurityChecks(data, 'day-camps');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+    
     try {
       const totalAmount = data.children.reduce((sum, child) => sum + child.totalPrice, 0);
       
@@ -212,6 +220,10 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
       }
       
       toast.success(config.messages.registrationSuccess);
+      
+      // Record successful submission for duplicate prevention
+      await recordSubmission(data, 'day-camps');
+      
       reset();
     } catch (error) {
       console.error('Registration error:', error);

@@ -12,12 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { PartyPopper, Gift, ArrowLeft, Plus, Trash2, TreePine, Home, Moon, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import birthdayImage from "@/assets/party.jpg";
+import birthdayImage from "@/assets/birthday.jpg";
 import campingImage from "@/assets/camping.jpg";
 import adventureImage from "@/assets/adventure.jpg";
 import DatePickerField from "./DatePickerField";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from '@/services/leadsService';
+import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 
 const childSchema = z.object({
   childName: z.string().min(1, "Child name is required").max(100),
@@ -138,6 +139,13 @@ const PartiesProgram = () => {
   const consent = watch("consent");
 
   const onSubmit = async (data: PartiesFormData) => {
+    // Security checks: prevent duplicates and rate limiting
+    const securityCheck = await performSecurityChecks(data, 'parties');
+    if (!securityCheck.allowed) {
+      toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
+      return;
+    }
+    
     try {
       const { partiesService } = await import('@/services/programRegistrationService');
       const registration = await partiesService.create(data);
@@ -172,6 +180,10 @@ const PartiesProgram = () => {
       });
 
       toast.success("Party booking submitted successfully! Check your email for confirmation.");
+      
+      // Record successful submission for duplicate prevention
+      await recordSubmission(data, 'parties');
+      
       reset();
     } catch (error: any) {
       console.error('Registration error:', error);
