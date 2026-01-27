@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Baby, Clock, Heart, ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import RegistrationPageSkeleton from "@/components/skeletons/RegistrationPageSkeleton";
 import { Link } from 'react-router-dom';
 import dailyActivitiesImage from '@/assets/daily-activities.jpg';
 import { ConsentDialog } from './ConsentDialog';
@@ -237,7 +238,7 @@ const LittleForestProgram = () => {
   }];
 
   if (configLoading) {
-    return <div className="container mx-auto px-4 py-8 text-center">Loading form configuration...</div>;
+    return <RegistrationPageSkeleton />;
   }
 
   return (

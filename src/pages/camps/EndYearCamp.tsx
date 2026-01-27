@@ -6,6 +6,7 @@ import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react';
 import HolidayCampForm from '@/components/forms/HolidayCampForm';
 import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 import DynamicMedia from '@/components/content/DynamicMedia';
+import RegistrationPageSkeleton from '@/components/skeletons/RegistrationPageSkeleton';
 
 const EndYearCamp = () => {
   const { config, isLoading, refresh } = useCampPageConfig('end-year');
@@ -20,19 +21,15 @@ const EndYearCamp = () => {
     return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
   }, [refresh]);
 
-  if (isLoading) {
+  if (isLoading || !config) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="container mx-auto px-4 py-24 text-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+        <RegistrationPageSkeleton />
         <Footer />
       </div>
     );
   }
-
-  if (!config) return null;
 
   return (
     <div className="min-h-screen bg-background">

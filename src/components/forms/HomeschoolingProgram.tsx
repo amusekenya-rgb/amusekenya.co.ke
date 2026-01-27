@@ -10,7 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Clock, Users, Target, CheckCircle, ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { Clock, Users, Target, CheckCircle, ArrowLeft, Plus, X } from "lucide-react";
+import RegistrationPageSkeleton from "@/components/skeletons/RegistrationPageSkeleton";
 import { Link } from "react-router-dom";
 import schoolsImage from "@/assets/schools.jpg";
 import DatePickerField from "./DatePickerField";
@@ -185,11 +186,7 @@ const HomeschoolingProgram = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <RegistrationPageSkeleton />;
   }
 
   return (
@@ -231,6 +228,7 @@ const HomeschoolingProgram = () => {
                 fallbackImage={schoolsImage}
                 altText="Homeschooling outdoor activities"
                 className="w-full h-full object-cover"
+                isLoading={isLoading}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>

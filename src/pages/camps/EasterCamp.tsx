@@ -6,6 +6,7 @@ import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react';
 import HolidayCampForm from '@/components/forms/HolidayCampForm';
 import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 import DynamicMedia from '@/components/content/DynamicMedia';
+import RegistrationPageSkeleton from '@/components/skeletons/RegistrationPageSkeleton';
 
 const EasterCamp = () => {
   const { config, isLoading, refresh } = useCampPageConfig('easter');
@@ -20,25 +21,11 @@ const EasterCamp = () => {
     return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
   }, [refresh]);
 
-  if (isLoading) {
+  if (isLoading || !config) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="container mx-auto px-4 py-8 pt-24 text-center">
-          <p className="text-muted-foreground">Loading camp information...</p>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
-
-  if (!config) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-8 pt-24 text-center">
-          <p className="text-destructive">Failed to load camp information.</p>
-        </div>
+        <RegistrationPageSkeleton />
         <Footer />
       </div>
     );

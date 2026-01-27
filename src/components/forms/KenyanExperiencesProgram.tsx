@@ -10,7 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Mountain, MapPin, Calendar, ArrowLeft, Plus, Trash2, Loader2 } from "lucide-react";
+import { Mountain, MapPin, Calendar, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import RegistrationPageSkeleton from "@/components/skeletons/RegistrationPageSkeleton";
 import { Link } from "react-router-dom";
 import adventureImage from "@/assets/adventure.jpg";
 import { ConsentDialog } from "./ConsentDialog";
@@ -238,11 +239,7 @@ const KenyanExperiencesProgram = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <RegistrationPageSkeleton />;
   }
 
   return (
@@ -285,6 +282,7 @@ const KenyanExperiencesProgram = () => {
                 thumbnailUrl={config?.videoThumbnail}
                 altText="Kenyan landscape adventures"
                 className="w-full h-full object-cover"
+                isLoading={isLoading}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>

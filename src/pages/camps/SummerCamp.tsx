@@ -7,6 +7,7 @@ import { Calendar, MapPin, Users, ArrowLeft, Clock } from 'lucide-react';
 import HolidayCampForm from '@/components/forms/HolidayCampForm';
 import { useCampPageConfig } from '@/hooks/useCampPageConfig';
 import DynamicMedia from '@/components/content/DynamicMedia';
+import RegistrationPageSkeleton from '@/components/skeletons/RegistrationPageSkeleton';
 
 const SummerCamp = () => {
   const { config, isLoading, refresh } = useCampPageConfig('summer');
@@ -21,7 +22,7 @@ const SummerCamp = () => {
     return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
   }, [refresh]);
 
-  if (isLoading) {
+  if (isLoading || !config) {
     return (
       <>
         <SEOHead
@@ -31,33 +32,13 @@ const SummerCamp = () => {
           canonical="https://amusekenya.co.ke/camps/summer"
         />
         <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-24 text-center">
-          <p className="text-muted-foreground">Loading...</p>
+          <Navbar />
+          <RegistrationPageSkeleton />
+          <Footer />
         </div>
-        <Footer />
-      </div>
       </>
     );
   }
-
-  if (!config) return (
-    <>
-      <SEOHead
-        title="Summer Holiday Camp | Amuse Kenya Outdoor Adventures"
-        description="Adventure-packed summer camp at Karura Forest. Full-day programs with nature activities, team games, skill development, and unforgettable outdoor experiences for children."
-        keywords="summer camp Kenya, holiday camp, summer activities, children's camp Nairobi, outdoor summer camp, adventure camp, school holiday programs"
-        canonical="https://amusekenya.co.ke/camps/summer"
-      />
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-24 text-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-        <Footer />
-      </div>
-    </>
-  );
 
   return (
     <>

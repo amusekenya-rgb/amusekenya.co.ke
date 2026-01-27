@@ -15,6 +15,7 @@ const Navbar = () => {
   const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>(null);
   const [scheduleUrl, setScheduleUrl] = useState<string | null>(null);
   const [navSettings, setNavSettings] = useState<Record<string, boolean>>({});
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 10) {
@@ -37,6 +38,7 @@ const Navbar = () => {
       return acc;
     }, {} as Record<string, boolean>);
     setNavSettings(visibilityMap);
+    setSettingsLoaded(true);
   };
   const loadScheduleUrl = async () => {
     try {
@@ -132,18 +134,18 @@ const Navbar = () => {
           </Link>
 
           <ul className="hidden lg:flex items-center flex-1 justify-evenly gap-4 ml-12">
-            {navSettings.home !== false && <li>
+            {settingsLoaded && navSettings.home !== false && <li>
                 <Link to="/" className={cn("font-medium hover-lift", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")}>
                   Home
                 </Link>
               </li>}
-            {navSettings.announcements !== false && <li>
+            {settingsLoaded && navSettings.announcements !== false && <li>
                 <Link to="/announcements" className={cn("font-medium hover-lift", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")}>
                   Announcements
                 </Link>
               </li>}
             {/* About Dropdown */}
-            {navSettings.about !== false && <li className="relative group">
+            {settingsLoaded && navSettings.about !== false && <li className="relative group">
                 <button className={cn("font-medium hover-lift flex items-center gap-1", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")} onMouseEnter={() => setActiveDropdown("about")}>
                   About Us
                   <ChevronDown size={16} />
@@ -156,7 +158,7 @@ const Navbar = () => {
               </li>}
 
             {/* Camps Mega Menu */}
-            {navSettings.camps !== false && <li className="relative group">
+            {settingsLoaded && navSettings.camps !== false && <li className="relative group">
                 <button className={cn("font-medium hover-lift flex items-center gap-1", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")} onMouseEnter={() => setActiveDropdown("camps")}>
                   Camps
                   <ChevronDown size={16} />
@@ -176,14 +178,14 @@ const Navbar = () => {
               </li>}
 
             {/* Experiences Link */}
-            {navSettings.experiences !== false && <li>
+            {settingsLoaded && navSettings.experiences !== false && <li>
                 <Link to="/experiences/kenyan-experiences" className={cn("font-medium hover-lift", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")}>
                   Experiences
                 </Link>
               </li>}
 
             {/* Schools Dropdown */}
-            {navSettings.schools !== false && <li className="relative group">
+            {settingsLoaded && navSettings.schools !== false && <li className="relative group">
                 <button className={cn("font-medium hover-lift flex items-center gap-1", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")} onMouseEnter={() => setActiveDropdown("schools")}>
                   Schools
                   <ChevronDown size={16} />
@@ -195,7 +197,7 @@ const Navbar = () => {
               </li>}
 
             {/* Group Activities Dropdown */}
-            {navSettings.groups !== false && <li className="relative group">
+            {settingsLoaded && navSettings.groups !== false && <li className="relative group">
                 <button className={cn("font-medium hover-lift flex items-center gap-1", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")} onMouseEnter={() => setActiveDropdown("groups")}>
                   Group Activities
                   <ChevronDown size={16} />
@@ -207,17 +209,17 @@ const Navbar = () => {
                 </div>
               </li>}
 
-            {navSettings.gallery !== false && <li>
+            {settingsLoaded && navSettings.gallery !== false && <li>
                 <Link to="/gallery" className={cn("font-medium hover-lift", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")}>
                   Gallery
                 </Link>
               </li>}
-            {navSettings.contact !== false && <li>
+            {settingsLoaded && navSettings.contact !== false && <li>
                 <Link to="/contact" className={cn("font-medium hover-lift", isScrolled || !isHomePage ? "text-gray-700 hover:text-forest-600" : "text-white hover:text-forest-100")}>
                   Contact
                 </Link>
               </li>}
-            {navSettings.schedules !== false && <li>
+            {settingsLoaded && navSettings.schedules !== false && <li>
                 <button onClick={handleScheduleDownload} className={cn("font-medium hover-lift flex items-center gap-2 px-4 py-2 rounded-lg transition-colors", isScrolled || !isHomePage ? "bg-forest-600 text-white hover:bg-forest-700" : "bg-white/20 text-white hover:bg-white/30 border border-white/40")}>
                   <Download size={16} />
                   Download Schedules
@@ -234,18 +236,18 @@ const Navbar = () => {
 
         <div className={cn("lg:hidden absolute left-0 right-0 top-full px-4 py-2 transition-all duration-300 ease-in-out transform origin-top", mobileMenuOpen ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0 pointer-events-none", "bg-white shadow-lg mt-2 rounded-lg")}>
           <ul className="py-2 space-y-1">
-            {navSettings.home !== false && <li>
+            {settingsLoaded && navSettings.home !== false && <li>
                 <Link to="/" className="block py-2 px-4 font-medium text-gray-800 hover:text-forest-600 hover:bg-gray-50 rounded-md" onClick={() => setMobileMenuOpen(false)}>
                   Home
                 </Link>
               </li>}
-            {navSettings.announcements !== false && <li>
+            {settingsLoaded && navSettings.announcements !== false && <li>
                 <Link to="/announcements" className="block py-2 px-4 font-medium text-gray-800 hover:text-forest-600 hover:bg-gray-50 rounded-md" onClick={() => setMobileMenuOpen(false)}>
                   Announcements
                 </Link>
               </li>}
             {/* About Submenu */}
-            {navSettings.about !== false && <li>
+            {settingsLoaded && navSettings.about !== false && <li>
                 <button onClick={() => toggleMobileSection("about")} className="w-full flex items-center justify-between py-2 px-4 font-medium text-gray-800 hover:bg-gray-50 rounded-md">
                   <span>About</span>
                   <ChevronDown size={16} className={cn("transition-transform duration-200", mobileExpandedSection === "about" && "rotate-180")} />
@@ -258,7 +260,7 @@ const Navbar = () => {
               </li>}
 
             {/* Camps Submenu */}
-            {navSettings.camps !== false && <li>
+            {settingsLoaded && navSettings.camps !== false && <li>
                 <button onClick={() => toggleMobileSection("camps")} className="w-full flex items-center justify-between py-2 px-4 font-medium text-gray-800 hover:bg-gray-50 rounded-md">
                   <span>Camps</span>
                   <ChevronDown size={16} className={cn("transition-transform duration-200", mobileExpandedSection === "camps" && "rotate-180")} />
@@ -274,14 +276,14 @@ const Navbar = () => {
               </li>}
 
             {/* Experiences */}
-            {navSettings.experiences !== false && <li>
+            {settingsLoaded && navSettings.experiences !== false && <li>
                 <Link to="/experiences/kenyan-experiences" className="block py-2 px-4 font-medium text-gray-800 hover:text-forest-600 hover:bg-gray-50 rounded-md" onClick={() => setMobileMenuOpen(false)}>
                   Experiences
                 </Link>
               </li>}
 
             {/* Schools Submenu */}
-            {navSettings.schools !== false && <li>
+            {settingsLoaded && navSettings.schools !== false && <li>
                 <button onClick={() => toggleMobileSection("schools")} className="w-full flex items-center justify-between py-2 px-4 font-medium text-gray-800 hover:bg-gray-50 rounded-md">
                   <span>Schools</span>
                   <ChevronDown size={16} className={cn("transition-transform duration-200", mobileExpandedSection === "schools" && "rotate-180")} />
@@ -294,7 +296,7 @@ const Navbar = () => {
               </li>}
 
             {/* Group Activities Submenu */}
-            {navSettings.groups !== false && <li>
+            {settingsLoaded && navSettings.groups !== false && <li>
                 <button onClick={() => toggleMobileSection("groups")} className="w-full flex items-center justify-between py-2 px-4 font-medium text-gray-800 hover:bg-gray-50 rounded-md">
                   <span>Group Activities</span>
                   <ChevronDown size={16} className={cn("transition-transform duration-200", mobileExpandedSection === "groups" && "rotate-180")} />
@@ -306,19 +308,19 @@ const Navbar = () => {
                 </div>
               </li>}
 
-            {navSettings.gallery !== false && <li>
+            {settingsLoaded && navSettings.gallery !== false && <li>
                 <Link to="/gallery" className="block py-2 px-4 font-medium text-gray-800 hover:text-forest-600 hover:bg-gray-50 rounded-md" onClick={() => setMobileMenuOpen(false)}>
                   Gallery
                 </Link>
               </li>}
 
-            {navSettings.contact !== false && <li>
+            {settingsLoaded && navSettings.contact !== false && <li>
                 <Link to="/contact" className="block py-2 px-4 font-medium text-gray-800 hover:text-forest-600 hover:bg-gray-50 rounded-md" onClick={() => setMobileMenuOpen(false)}>
                   Contact
                 </Link>
               </li>}
 
-            {navSettings.schedules !== false && <li>
+            {settingsLoaded && navSettings.schedules !== false && <li>
                 <button onClick={() => {
               handleScheduleDownload();
               setMobileMenuOpen(false);
