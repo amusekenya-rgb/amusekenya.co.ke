@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Clock, Users, Target, CheckCircle, ArrowLeft, Plus, X } from "lucide-react";
 import RegistrationPageSkeleton from "@/components/skeletons/RegistrationPageSkeleton";
 import { Link } from "react-router-dom";
-import schoolsImage from "@/assets/schools.jpeg";
+import schoolsImage from "@/assets/schools.jpg";
 import DatePickerField from "./DatePickerField";
 import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";

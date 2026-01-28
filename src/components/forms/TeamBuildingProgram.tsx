@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { PartyPopper, Users, Target, ArrowLeft, CheckCircle, Mountain, Compass, Flame, Focus, Building, School, Heart } from "lucide-react";
 import { Link } from "react-router-dom";
-import adventureImage from "@/assets/teambuilding.png";
+import adventureImage from "@/assets/adventure.jpg";
 import DatePickerField from "./DatePickerField";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from '@/services/leadsService';
