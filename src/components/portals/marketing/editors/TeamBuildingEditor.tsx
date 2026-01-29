@@ -121,29 +121,9 @@ export const TeamBuildingEditor: React.FC<TeamBuildingEditorProps> = ({ isOpen, 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const contentData = {
-        title: config.title,
-        slug: 'team-building-page',
-        content: config.description,
-        content_type: 'experience_page' as const,
-        status: 'published' as const,
-        metadata: {
-          pageConfig: config,
-          mediaUrl: config.featuredMediaUrl,
-          mediaType: config.mediaType
-        }
-      };
-
-      if (existingId) {
-        await cmsService.updateContent(existingId, contentData);
-      } else {
-        await cmsService.createContent(contentData);
-      }
-
-      // Dispatch event to notify public pages
+      await cmsService.updateExperiencePageConfig('team-building', { pageConfig: config });
       window.dispatchEvent(new CustomEvent('cms-content-updated'));
-      
-      toast.success('Team Building page updated successfully');
+      toast.success('Team Building page saved successfully');
       onSave();
       onClose();
     } catch (error) {

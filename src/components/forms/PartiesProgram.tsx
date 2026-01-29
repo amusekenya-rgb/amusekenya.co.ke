@@ -12,15 +12,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { PartyPopper, Gift, ArrowLeft, Plus, Trash2, TreePine, Home, Moon, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import birthdayImage from "@/assets/party.jpg";
+import birthdayImage from "@/assets/birthday.jpg";
 import campingImage from "@/assets/camping.jpg";
 import adventureImage from "@/assets/adventure.jpg";
 import DatePickerField from "./DatePickerField";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from '@/services/leadsService';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
-import { cmsService } from '@/services/cmsService';
-import { usePartiesPageConfig, PartiesPageConfig } from '@/hooks/usePartiesPageConfig';
+import { usePartiesPageConfig } from '@/hooks/usePartiesPageConfig';
+import DynamicMedia from "@/components/content/DynamicMedia";
+import RegistrationPageSkeleton from "@/components/skeletons/RegistrationPageSkeleton";
 
 const childSchema = z.object({
   childName: z.string().min(1, "Child name is required").max(100),
@@ -112,7 +113,14 @@ const partyOptions: PartyOption[] = [
 
 const PartiesProgram = () => {
   const [selectedPartyOption, setSelectedPartyOption] = useState<PartyOption | null>(null);
-  const { config: cmsConfig, isLoading: isCmsLoading } = usePartiesPageConfig();
+  const { config: cmsConfig, isLoading, refresh } = usePartiesPageConfig();
+
+  // Listen for CMS updates
+  useEffect(() => {
+    const handleCMSUpdate = () => refresh?.();
+    window.addEventListener('cms-content-updated', handleCMSUpdate);
+    return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
+  }, [refresh]);
 
   const {
     register,
@@ -182,7 +190,7 @@ const PartiesProgram = () => {
         }
       });
 
-      toast.success("Party booking submitted successfully! Check your email for confirmation.");
+      toast.success(cmsConfig?.formConfig?.messages?.successMessage || "Party booking submitted successfully! Check your email for confirmation.");
       
       // Record successful submission for duplicate prevention
       await recordSubmission(data, 'parties');
@@ -191,9 +199,13 @@ const PartiesProgram = () => {
     } catch (error: any) {
       console.error('Registration error:', error);
       console.error('Error details:', error?.message, error?.details, error?.hint);
-      toast.error(error?.message || "Failed to submit booking. Please try again.");
+      toast.error(cmsConfig?.formConfig?.messages?.errorMessage || error?.message || "Failed to submit booking. Please try again.");
     }
   };
+
+  if (isLoading) {
+    return <RegistrationPageSkeleton />;
+  }
 
   return (
     <div className="bg-background">
@@ -201,7 +213,7 @@ const PartiesProgram = () => {
         <div className="mb-8">
           <Link to="/programs" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
             <ArrowLeft size={20} />
-            Back to Programs
+            {cmsConfig?.formConfig?.buttons?.back || "Back to Programs"}
           </Link>
         </div>
 
@@ -212,12 +224,12 @@ const PartiesProgram = () => {
               <PartyPopper className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold text-primary">Parties</h1>
-              <p className="text-lg text-muted-foreground">Celebrate Outdoors, Make Memories Forever</p>
+              <h1 className="text-4xl md:text-5xl font-bold text-primary">{cmsConfig?.title || "Parties"}</h1>
+              <p className="text-lg text-muted-foreground">{cmsConfig?.subtitle || "Celebrate Outdoors, Make Memories Forever"}</p>
             </div>
           </div>
           <p className="text-xl text-muted-foreground leading-relaxed max-w-4xl">
-            We turn birthdays into memorable adventures! Whether your child loves exploring forests, challenging themselves with fun activities, or enjoying magical nights under the stars, we've got the perfect birthday experience.
+            {cmsConfig?.description || "We turn birthdays into memorable adventures! Whether your child loves exploring forests, challenging themselves with fun activities, or enjoying magical nights under the stars, we've got the perfect birthday experience."}
           </p>
         </div>
 
@@ -227,7 +239,14 @@ const PartiesProgram = () => {
           <div className="space-y-8">
             {/* Featured Image */}
             <div className="relative h-80 rounded-2xl overflow-hidden">
-              <img src={birthdayImage} alt="Party celebrations" className="w-full h-full object-cover" />
+              <DynamicMedia
+                mediaType="photo"
+                mediaUrl={cmsConfig?.featuredMediaUrl || birthdayImage}
+                fallbackImage={birthdayImage}
+                altText="Party celebrations"
+                className="w-full h-full object-cover"
+                isLoading={isLoading}
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
 
@@ -302,14 +321,14 @@ const PartiesProgram = () => {
 
           {/* Right Column - Booking Form */}
           <Card className="p-8 sticky top-8">
-            <h3 className="text-2xl font-bold text-primary mb-6">Book Your Party</h3>
+            <h3 className="text-2xl font-bold text-primary mb-6">{cmsConfig?.formConfig?.formTitle || "Book Your Party"}</h3>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
-                <Label className="text-base font-medium">Occasion *</Label>
+                <Label className="text-base font-medium">{cmsConfig?.formConfig?.fields?.occasion?.label || "Occasion"} *</Label>
                 <Select onValueChange={(value) => setValue("occasion", value as any)}>
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Select occasion" />
+                    <SelectValue placeholder={cmsConfig?.formConfig?.fields?.occasion?.placeholder || "Select occasion"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="birthday">Birthday Party</SelectItem>
@@ -323,13 +342,13 @@ const PartiesProgram = () => {
 
               <div>
                 <Label htmlFor="parentName" className="text-base font-medium">
-                  Organizer Name *
+                  {cmsConfig?.formConfig?.fields?.parentName?.label || "Organizer Name"} *
                 </Label>
                 <Input
                   id="parentName"
                   {...register("parentName")}
                   className="mt-2"
-                  placeholder="Enter your full name"
+                  placeholder={cmsConfig?.formConfig?.fields?.parentName?.placeholder || "Enter your full name"}
                 />
                 {errors.parentName && (
                   <p className="text-destructive text-sm mt-1">{errors.parentName.message}</p>
@@ -578,7 +597,7 @@ const PartiesProgram = () => {
               </div>
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Book Party"}
+                {isSubmitting ? (cmsConfig?.formConfig?.messages?.loadingMessage || "Submitting...") : (cmsConfig?.formConfig?.ctaText || "Book Party")}
               </Button>
             </form>
           </Card>

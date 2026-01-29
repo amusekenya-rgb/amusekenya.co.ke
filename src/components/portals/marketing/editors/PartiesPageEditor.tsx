@@ -168,29 +168,9 @@ export const PartiesPageEditor: React.FC<PartiesPageEditorProps> = ({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const contentData = {
-        title: config.title,
-        slug: 'parties-page',
-        content: config.description,
-        content_type: 'experience_page' as const,
-        status: 'published' as const,
-        metadata: {
-          pageConfig: config,
-          mediaUrl: config.featuredMediaUrl,
-          mediaType: config.mediaType
-        }
-      };
-
-      if (existingId) {
-        await cmsService.updateContent(existingId, contentData);
-      } else {
-        await cmsService.createContent(contentData);
-      }
-
-      // Dispatch event to notify public pages
+      await cmsService.updateExperiencePageConfig('parties', { pageConfig: config });
       window.dispatchEvent(new CustomEvent('cms-content-updated'));
-      
-      toast.success('Parties page updated successfully');
+      toast.success('Parties page saved successfully');
       await onSave();
       onClose();
     } catch (error) {

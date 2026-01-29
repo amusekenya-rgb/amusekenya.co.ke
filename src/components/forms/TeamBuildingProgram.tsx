@@ -12,12 +12,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { toast } from "sonner";
 import { PartyPopper, Users, Target, ArrowLeft, CheckCircle, Mountain, Compass, Flame, Focus, Building, School, Heart } from "lucide-react";
 import { Link } from "react-router-dom";
-import adventureImage from "@/assets/teambuilding.png";
+import adventureImage from "@/assets/adventure.jpg";
 import DatePickerField from "./DatePickerField";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
 import { leadsService } from '@/services/leadsService';
-import { cmsService } from '@/services/cmsService';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
+import { useTeamBuildingPageConfig } from '@/hooks/useTeamBuildingPageConfig';
+import DynamicMedia from "@/components/content/DynamicMedia";
+import RegistrationPageSkeleton from "@/components/skeletons/RegistrationPageSkeleton";
 
 const teamBuildingSchema = z.object({
   occasion: z.enum(["birthday", "family", "corporate"]),
@@ -134,32 +136,15 @@ const audienceTypes = [{
 }];
 
 const TeamBuildingProgram = () => {
-  const [cmsConfig, setCmsConfig] = useState<CMSConfig | null>(null);
+  const { config: cmsConfig, isLoading, refresh } = useTeamBuildingPageConfig();
   const [selectedActivity, setSelectedActivity] = useState<ActivityDetail | null>(null);
 
+  // Listen for CMS updates
   useEffect(() => {
-    const loadCMSContent = async () => {
-      try {
-        // Try experience_page first (new unified format)
-        let content = await cmsService.getContentBySlug('team-building-page', 'experience_page');
-        if (content?.metadata?.pageConfig) {
-          setCmsConfig(content.metadata.pageConfig as CMSConfig);
-        } else {
-          // Fallback to camp_page for backwards compatibility
-          content = await cmsService.getContentBySlug('team-building-page', 'camp_page');
-          if (content?.metadata) {
-            setCmsConfig(content.metadata as CMSConfig);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading CMS content:', error);
-      }
-    };
-    loadCMSContent();
-    const handleCMSUpdate = () => loadCMSContent();
+    const handleCMSUpdate = () => refresh?.();
     window.addEventListener('cms-content-updated', handleCMSUpdate);
     return () => window.removeEventListener('cms-content-updated', handleCMSUpdate);
-  }, []);
+  }, [refresh]);
 
   const {
     register,
@@ -220,7 +205,7 @@ const TeamBuildingProgram = () => {
       if (emailError) {
         throw emailError;
       }
-      toast.success("Registration submitted successfully! Check your email for confirmation.");
+      toast.success(cmsConfig?.formConfig?.messages?.successMessage || "Registration submitted successfully! Check your email for confirmation.");
       
       // Record successful submission for duplicate prevention
       await recordSubmission(data, 'team-building');
@@ -229,9 +214,13 @@ const TeamBuildingProgram = () => {
     } catch (error: any) {
       console.error('Registration error:', error);
       console.error('Error details:', error?.message, error?.details, error?.hint);
-      toast.error(error?.message || "Failed to submit registration. Please try again.");
+      toast.error(cmsConfig?.formConfig?.messages?.errorMessage || error?.message || "Failed to submit registration. Please try again.");
     }
   };
+
+  if (isLoading) {
+    return <RegistrationPageSkeleton />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -239,7 +228,7 @@ const TeamBuildingProgram = () => {
         <div className="mb-8">
           <Link to="/" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium">
             <ArrowLeft size={20} />
-            Back to Home
+            {cmsConfig?.formConfig?.buttons?.back || "Back to Home"}
           </Link>
         </div>
 
@@ -250,12 +239,12 @@ const TeamBuildingProgram = () => {
               <PartyPopper className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold text-primary">Team Building</h1>
-              <p className="text-lg text-muted-foreground">Strengthen Teams Through Adventure</p>
+              <h1 className="text-4xl md:text-5xl font-bold text-primary">{cmsConfig?.title || "Team Building"}</h1>
+              <p className="text-lg text-muted-foreground">{cmsConfig?.subtitle || "Strengthen Teams Through Adventure"}</p>
             </div>
           </div>
           <p className="text-xl text-muted-foreground leading-relaxed max-w-4xl">
-            We believe the best teams are built through shared experiences, challenges, and outdoor adventure. Our team-building programs are designed to help organizations, schools, and groups connect, collaborate, and perform better together—all while enjoying the great outdoors.
+            {cmsConfig?.description || "We believe the best teams are built through shared experiences, challenges, and outdoor adventure. Our team-building programs are designed to help organizations, schools, and groups connect, collaborate, and perform better together—all while enjoying the great outdoors."}
           </p>
         </div>
 
@@ -265,7 +254,14 @@ const TeamBuildingProgram = () => {
           <div className="space-y-8">
             {/* Featured Image */}
             <div className="relative h-80 rounded-2xl overflow-hidden">
-              <img src={adventureImage} alt="Team building activities" className="w-full h-full object-cover" />
+              <DynamicMedia
+                mediaType="photo"
+                mediaUrl={cmsConfig?.featuredMediaUrl || adventureImage}
+                fallbackImage={adventureImage}
+                altText="Team building activities"
+                className="w-full h-full object-cover"
+                isLoading={isLoading}
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
 
@@ -377,14 +373,14 @@ const TeamBuildingProgram = () => {
 
           {/* Right Column - Registration Form */}
           <Card className="p-8 sticky top-8">
-            <h3 className="text-2xl font-bold text-primary mb-6">Book Your Team-Building Experience</h3>
+            <h3 className="text-2xl font-bold text-primary mb-6">{cmsConfig?.formConfig?.formTitle || "Book Your Team-Building Experience"}</h3>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
-                <Label className="text-base font-medium">Occasion *</Label>
+                <Label className="text-base font-medium">{cmsConfig?.formConfig?.fields?.occasion?.label || "Occasion"} *</Label>
                 <Select onValueChange={value => setValue("occasion", value as any)}>
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Select occasion" />
+                    <SelectValue placeholder={cmsConfig?.formConfig?.fields?.occasion?.placeholder || "Select occasion"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="birthday">Birthday</SelectItem>
@@ -517,7 +513,7 @@ const TeamBuildingProgram = () => {
               </div>
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Book Experience"}
+                {isSubmitting ? (cmsConfig?.formConfig?.messages?.loadingMessage || "Submitting...") : (cmsConfig?.formConfig?.ctaText || "Book Experience")}
               </Button>
             </form>
           </Card>

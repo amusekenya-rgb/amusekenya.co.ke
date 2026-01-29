@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { Baby, Clock, Heart, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import RegistrationPageSkeleton from "@/components/skeletons/RegistrationPageSkeleton";
 import { Link } from 'react-router-dom';
-import dailyActivitiesImage from '@/assets/little-explo.jpg';
+import dailyActivitiesImage from '@/assets/daily-activities.jpg';
 import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
