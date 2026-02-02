@@ -24,6 +24,7 @@ import { leadsService } from '@/services/leadsService';
 import { invoiceService } from '@/services/invoiceService';
 import type { CampRegistration } from '@/types/campRegistration';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
+import DynamicMedia from '@/components/content/DynamicMedia';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 
 // Child schema for multiple children support with simple date selection
@@ -48,7 +49,7 @@ const littleForestSchema = z.object({
 type LittleForestFormData = z.infer<typeof littleForestSchema>;
 
 const LittleForestProgram = () => {
-  const { config, isLoading: configLoading } = useLittleForestConfig();
+  const { config, pageConfig, isLoading: configLoading } = useLittleForestConfig();
   
   const [submitType, setSubmitType] = useState<'register' | 'pay'>('register');
   const [showQRModal, setShowQRModal] = useState(false);
@@ -215,27 +216,8 @@ const LittleForestProgram = () => {
     });
   };
 
-  const schedule = [{
-    time: '10:00',
-    activity: 'Welcome Circle & Warm-Up Songs',
-    skills: 'Social Skills, Language'
-  }, {
-    time: '10:20',
-    activity: 'Sensory Nature Exploration',
-    skills: 'Sensory Development, Motor Skills'
-  }, {
-    time: '10:45',
-    activity: 'Swahili Story & Rhymes',
-    skills: 'Language, Listening'
-  }, {
-    time: '11:10',
-    activity: 'Creative Play & Movement',
-    skills: 'Motor Skills, Creativity'
-  }, {
-    time: '11:40',
-    activity: 'Snack Time & Goodbye Songs',
-    skills: 'Routine, Transition'
-  }];
+  // Use schedule from CMS page config
+  const schedule = pageConfig.schedule;
 
   if (configLoading) {
     return <RegistrationPageSkeleton />;
@@ -261,18 +243,24 @@ const LittleForestProgram = () => {
                 </div>
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-primary">
-                    Little Forest Explorers
+                    {pageConfig.title}
                   </h1>
-                  <p className="text-lg text-muted-foreground">(Ages 3 & Below)</p>
+                  <p className="text-lg text-muted-foreground">{pageConfig.subtitle}</p>
                 </div>
               </div>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Safe, playful discovery for our youngest adventurers. Nature play, sensory exploration, and simple challenges that build curiosity, movement skills, and social interaction.
+                {pageConfig.description}
               </p>
             </div>
 
             <div className="relative h-80 rounded-2xl overflow-hidden">
-              <img src={dailyActivitiesImage} alt="Little children exploring nature" className="w-full h-full object-cover" />
+              <DynamicMedia 
+                mediaUrl={pageConfig.featuredImage} 
+                mediaType={pageConfig.mediaType} 
+                altText={pageConfig.title}
+                fallbackImage={dailyActivitiesImage}
+                className="w-full h-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             </div>
 
@@ -304,10 +292,9 @@ const LittleForestProgram = () => {
                 Special Focus Areas
               </h4>
               <ul className="space-y-2 text-muted-foreground">
-                <li>• <strong>Nature Play:</strong> Sensory-rich outdoor experiences</li>
-                <li>• <strong>Movement:</strong> Activities for physical growth and coordination</li>
-                <li>• <strong>Swahili Immersion:</strong> Early language through songs and stories</li>
-                <li>• <strong>Nurturing Environment:</strong> Safe space for early childhood development</li>
+                {pageConfig.specialFeatures.map((feature, index) => (
+                  <li key={index}>• <strong>{feature.title}:</strong> {feature.description}</li>
+                ))}
               </ul>
             </Card>
           </div>
