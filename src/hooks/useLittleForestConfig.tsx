@@ -1,5 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { cmsService } from '@/services/cmsService';
+
+export interface ScheduleItem {
+  time: string;
+  activity: string;
+  skills: string;
+}
+
+export interface SpecialFeature {
+  title: string;
+  description: string;
+}
 
 export interface LittleForestFormConfig {
   pricing: {
@@ -34,7 +45,29 @@ export interface LittleForestFormConfig {
   }>;
 }
 
-export const defaultLittleForestConfig: LittleForestFormConfig = {
+export interface LittleForestPageConfig {
+  // Page Content
+  title: string;
+  subtitle: string;
+  description: string;
+  featuredImage: string;
+  mediaType: 'photo' | 'video';
+  
+  // Schedule
+  schedule: ScheduleItem[];
+  
+  // Special Features
+  specialFeatures: SpecialFeature[];
+  
+  // Form Configuration
+  formConfig: LittleForestFormConfig;
+  
+  // SEO
+  metaTitle: string;
+  metaDescription: string;
+}
+
+export const defaultFormConfig: LittleForestFormConfig = {
   pricing: {
     sessionRate: 1500,
     currency: 'KES'
@@ -75,47 +108,109 @@ export const defaultLittleForestConfig: LittleForestFormConfig = {
   ]
 };
 
+export const defaultPageConfig: LittleForestPageConfig = {
+  title: 'Little Forest Explorers',
+  subtitle: '(Ages 3 & Below)',
+  description: 'Safe, playful discovery for our youngest adventurers. Nature play, sensory exploration, and simple challenges that build curiosity, movement skills, and social interaction.',
+  featuredImage: '',
+  mediaType: 'photo',
+  schedule: [
+    { time: '10:00', activity: 'Welcome Circle & Warm-Up Songs', skills: 'Social Skills, Language' },
+    { time: '10:20', activity: 'Sensory Nature Exploration', skills: 'Sensory Development, Motor Skills' },
+    { time: '10:45', activity: 'Swahili Story & Rhymes', skills: 'Language, Listening' },
+    { time: '11:10', activity: 'Creative Play & Movement', skills: 'Motor Skills, Creativity' },
+    { time: '11:40', activity: 'Snack Time & Goodbye Songs', skills: 'Routine, Transition' }
+  ],
+  specialFeatures: [
+    { title: 'Nature Play', description: 'Sensory-rich outdoor experiences' },
+    { title: 'Movement', description: 'Activities for physical growth and coordination' },
+    { title: 'Swahili Immersion', description: 'Early language through songs and stories' },
+    { title: 'Nurturing Environment', description: 'Safe space for early childhood development' }
+  ],
+  formConfig: defaultFormConfig,
+  metaTitle: 'Little Forest Explorers | Amuse Kenya',
+  metaDescription: 'Safe, playful discovery for children aged 3 and below. Nature play, sensory exploration at Karura Forest.'
+};
+
+// Legacy export for backwards compatibility
+export const defaultLittleForestConfig = defaultFormConfig;
+
 export const useLittleForestConfig = () => {
-  const [config, setConfig] = useState<LittleForestFormConfig>(defaultLittleForestConfig);
+  const [config, setConfig] = useState<LittleForestFormConfig>(defaultFormConfig);
+  const [pageConfig, setPageConfig] = useState<LittleForestPageConfig>(defaultPageConfig);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  const loadConfig = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const data = await cmsService.getContentBySlug('little-forest-page', 'experience_page');
+      
+      if (data?.metadata?.pageConfig) {
+        const cmsPageConfig = data.metadata.pageConfig;
         
-        const data = await cmsService.getContentBySlug('little-forest-form');
+        // Merge page config with defaults
+        const mergedPageConfig: LittleForestPageConfig = {
+          ...defaultPageConfig,
+          ...cmsPageConfig,
+          schedule: cmsPageConfig.schedule || defaultPageConfig.schedule,
+          specialFeatures: cmsPageConfig.specialFeatures || defaultPageConfig.specialFeatures,
+          formConfig: {
+            ...defaultFormConfig,
+            ...cmsPageConfig.formConfig,
+            pricing: {
+              ...defaultFormConfig.pricing,
+              ...cmsPageConfig.formConfig?.pricing
+            },
+            availableDates: cmsPageConfig.formConfig?.availableDates || defaultFormConfig.availableDates,
+            ageOptions: cmsPageConfig.formConfig?.ageOptions || defaultFormConfig.ageOptions
+          }
+        };
         
-        if (data?.metadata?.formConfig) {
-          const cmsConfig = data.metadata.formConfig;
-          // Merge CMS config with default config
+        setPageConfig(mergedPageConfig);
+        setConfig(mergedPageConfig.formConfig);
+      } else {
+        // Try legacy format (little-forest-form)
+        const legacyData = await cmsService.getContentBySlug('little-forest-form');
+        if (legacyData?.metadata?.formConfig) {
+          const cmsConfig = legacyData.metadata.formConfig;
           const mergedConfig: LittleForestFormConfig = {
-            ...defaultLittleForestConfig,
+            ...defaultFormConfig,
             ...cmsConfig,
             pricing: {
-              ...defaultLittleForestConfig.pricing,
+              ...defaultFormConfig.pricing,
               ...cmsConfig.pricing
             },
-            availableDates: cmsConfig.availableDates || defaultLittleForestConfig.availableDates,
-            ageOptions: cmsConfig.ageOptions || defaultLittleForestConfig.ageOptions
+            availableDates: cmsConfig.availableDates || defaultFormConfig.availableDates,
+            ageOptions: cmsConfig.ageOptions || defaultFormConfig.ageOptions
           };
           setConfig(mergedConfig);
+          setPageConfig({ ...defaultPageConfig, formConfig: mergedConfig });
         } else {
-          setConfig(defaultLittleForestConfig);
+          setConfig(defaultFormConfig);
+          setPageConfig(defaultPageConfig);
         }
-      } catch (err) {
-        console.error('Error fetching Little Forest config:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch config');
-        setConfig(defaultLittleForestConfig);
-      } finally {
-        setIsLoading(false);
       }
-    };
-
-    fetchConfig();
+    } catch (err) {
+      console.error('Error fetching Little Forest config:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch config');
+      setConfig(defaultFormConfig);
+      setPageConfig(defaultPageConfig);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  return { config, isLoading, error };
+  useEffect(() => {
+    loadConfig();
+    
+    const handleCmsUpdate = () => loadConfig();
+    window.addEventListener('cms-content-updated', handleCmsUpdate);
+    
+    return () => window.removeEventListener('cms-content-updated', handleCmsUpdate);
+  }, [loadConfig]);
+
+  return { config, pageConfig, isLoading, error, refresh: loadConfig };
 };
