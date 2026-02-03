@@ -101,6 +101,12 @@ function App() {
               <Route path="/school-holiday-camps" element={<Navigate to="/camps/day-camps" replace />} />
               <Route path="/schools" element={<Navigate to="/programs/school-experience" replace />} />
               <Route path="/services" element={<Navigate to="/programs" replace />} />
+
+              {/* Legacy sitemap redirects (client-side fallback) */}
+              <Route path="/page-sitemap.xml" element={<Navigate to="/sitemap.xml" replace />} />
+              <Route path="/wp-sitemap.xml" element={<Navigate to="/sitemap.xml" replace />} />
+              <Route path="/sitemap_index.xml" element={<Navigate to="/sitemap.xml" replace />} />
+
               
               <Route path="*" element={<NotFound />} />
             </Routes>
