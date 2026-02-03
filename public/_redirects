@@ -10,5 +10,10 @@
 /services/          /programs               301
 /services           /programs               301
 
+# Redirect legacy/auto-generated sitemaps to the canonical sitemap
+/page-sitemap.xml   /sitemap.xml            301
+/wp-sitemap.xml     /sitemap.xml            301
+/sitemap_index.xml  /sitemap.xml            301
+
 # Handle SPA routing - must be last
 /*    /index.html   200
