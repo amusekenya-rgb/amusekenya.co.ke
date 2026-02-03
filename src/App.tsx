@@ -95,6 +95,13 @@ function App() {
               <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               
+              {/* Legacy URL Redirects for SEO */}
+              <Route path="/about-2" element={<Navigate to="/about/who-we-are" replace />} />
+              <Route path="/amuse-camp" element={<Navigate to="/camps/day-camps" replace />} />
+              <Route path="/school-holiday-camps" element={<Navigate to="/camps/day-camps" replace />} />
+              <Route path="/schools" element={<Navigate to="/programs/school-experience" replace />} />
+              <Route path="/services" element={<Navigate to="/programs" replace />} />
+              
               <Route path="*" element={<NotFound />} />
             </Routes>
             <PageTracker />

@@ -1,1 +1,14 @@
-/*   /index.html 200
+# Legacy URL redirects to new site structure
+/about-2/           /about/who-we-are       301
+/about-2            /about/who-we-are       301
+/amuse-camp/        /camps/day-camps        301
+/amuse-camp         /camps/day-camps        301
+/school-holiday-camps/  /camps/day-camps    301
+/school-holiday-camps   /camps/day-camps    301
+/schools/           /programs/school-experience  301
+/schools            /programs/school-experience  301
+/services/          /programs               301
+/services           /programs               301
+
+# Handle SPA routing - must be last
+/*    /index.html   200

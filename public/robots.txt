@@ -13,6 +13,13 @@ Disallow: /admin
 Disallow: /login
 Disallow: /api/
 
+# Block old/legacy URLs (redirected to new structure)
+Disallow: /about-2
+Disallow: /amuse-camp
+Disallow: /school-holiday-camps
+Disallow: /schools
+Disallow: /services
+
 # Sitemap location
 Sitemap: https://amusekenya.co.ke/sitemap.xml
 
