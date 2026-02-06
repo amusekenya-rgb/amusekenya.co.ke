@@ -106,7 +106,6 @@ function App() {
               <Route path="/page-sitemap.xml" element={<Navigate to="/sitemap.xml" replace />} />
               <Route path="/wp-sitemap.xml" element={<Navigate to="/sitemap.xml" replace />} />
               <Route path="/sitemap_index.xml" element={<Navigate to="/sitemap.xml" replace />} />
-
               
               <Route path="*" element={<NotFound />} />
             </Routes>

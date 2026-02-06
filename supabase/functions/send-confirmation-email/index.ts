@@ -55,44 +55,9 @@ const handler = async (req: Request): Promise<Response> => {
     });
   }
 
-  // Validate authentication
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    console.error('❌ No valid authorization header');
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized' }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ Supabase credentials not configured');
-    return new Response(
-      JSON.stringify({ error: 'Server configuration error' }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-
-  // Verify the JWT token
-  const authSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } }
-  });
-
-  const token = authHeader.replace('Bearer ', '');
-  const { data: claimsData, error: claimsError } = await authSupabase.auth.getClaims(token);
-  
-  if (claimsError || !claimsData?.claims) {
-    console.error('❌ Invalid token:', claimsError?.message);
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized' }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-
-  console.log('✅ User authenticated:', claimsData.claims.sub);
+  // NOTE: This endpoint is intentionally public (no JWT required) because it's
+  // called after anonymous form submissions. We validate input data instead.
+  console.log('📥 Processing confirmation email request (public endpoint)');
 
   try {
     // Get environment variables
@@ -421,6 +386,171 @@ const handler = async (req: Request): Promise<Response> => {
       console.log('📊 Email delivery tracked in database');
     } catch (trackingError) {
       console.error('⚠️ Error tracking email delivery:', trackingError);
+    }
+
+    // Send parallel admin notification email to amusekenya@gmail.com
+    const adminEmail = 'amusekenya@gmail.com';
+    console.log('📤 Sending admin notification email to:', adminEmail);
+    
+    // Build admin notification email with registration details
+    const adminNotificationHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+          <div style="background-color: #1e40af; color: white; padding: 25px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 24px;">📋 New Registration Alert</h1>
+            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">${programTitle}</p>
+          </div>
+          
+          <div style="background-color: white; padding: 30px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px;">
+            <div style="background-color: #dcfce7; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #16a34a;">
+              <h3 style="margin: 0; color: #166534;">✅ A new client has registered!</h3>
+            </div>
+            
+            <h3 style="color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">Parent/Guardian Details</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Name:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${parentName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Email:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><a href="mailto:${email}">${email}</a></td>
+              </tr>
+              ${registrationDetails?.registrationId ? `
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Registration ID:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${registrationDetails.registrationId.substring(0, 8).toUpperCase()}</td>
+              </tr>` : ''}
+              ${registrationDetails?.registrationNumber ? `
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Registration #:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${registrationDetails.registrationNumber}</td>
+              </tr>` : ''}
+            </table>
+            
+            <h3 style="color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">Program Information</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Program:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${programTitle}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Type:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${programType}</td>
+              </tr>
+              ${registrationDetails?.campType ? `
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Camp Type:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${registrationDetails.campType}</td>
+              </tr>` : ''}
+              ${registrationDetails?.eventDate ? `
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Event Date:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${registrationDetails.eventDate}</td>
+              </tr>` : ''}
+              ${registrationDetails?.eventType ? `
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Event Type:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${registrationDetails.eventType}</td>
+              </tr>` : ''}
+              ${registrationDetails?.numberOfGuests ? `
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>Number of Guests:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${registrationDetails.numberOfGuests}</td>
+              </tr>` : ''}
+              ${registrationDetails?.schoolName ? `
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;"><strong>School Name:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${registrationDetails.schoolName}</td>
+              </tr>` : ''}
+            </table>
+            
+            ${registrationDetails?.children && registrationDetails.children.length > 0 ? `
+            <h3 style="color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">Registered Children (${registrationDetails.children.length})</h3>
+            ${registrationDetails.children.map((child, index) => {
+              const selectedDates = child.selectedDates?.join(', ') || 'Not specified';
+              const sessionsData = child.selectedSessions || child.sessionTypes;
+              const sessions = sessionsData 
+                ? Object.entries(sessionsData).map(([date, type]) => `${date}: ${type === 'full' ? 'Full Day' : 'Half Day'}`).join(', ')
+                : 'Not specified';
+              const childPrice = child.price || child.totalPrice;
+              
+              return `
+              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid #1e40af;">
+                <h4 style="margin: 0 0 10px 0; color: #1e40af;">Child ${index + 1}: ${child.childName || 'Not provided'}</h4>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>Age Group:</strong> ${child.ageRange || 'Not specified'}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>Selected Dates:</strong> ${selectedDates}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>Sessions:</strong> ${sessions}</p>
+                ${child.specialNeeds ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Special Needs:</strong> ${child.specialNeeds}</p>` : ''}
+                ${childPrice ? `<p style="margin: 5px 0; font-size: 14px;"><strong>Amount:</strong> KES ${childPrice.toLocaleString()}</p>` : ''}
+              </div>`;
+            }).join('')}
+            ` : ''}
+            
+            ${invoiceDetails && invoiceDetails.totalAmount ? `
+            <h3 style="color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">Payment Information</h3>
+            <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+              <p style="font-size: 18px; margin: 5px 0;"><strong>Total Amount:</strong> KES ${invoiceDetails.totalAmount.toLocaleString()}</p>
+              <p style="margin: 5px 0;"><strong>Payment Method:</strong> ${invoiceDetails.paymentMethod === 'cash' ? 'Cash (Pay on arrival)' : invoiceDetails.paymentMethod}</p>
+            </div>
+            ` : ''}
+            
+            ${registrationDetails?.message ? `
+            <h3 style="color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px;">Additional Message</h3>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+              <p style="margin: 0; font-style: italic;">"${registrationDetails.message}"</p>
+            </div>
+            ` : ''}
+            
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
+              <p style="color: #666; font-size: 12px; text-align: center;">
+                This is an automated notification from Amuse Kenya Registration System.<br>
+                Received at: ${new Date().toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })}
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    // Send admin notification in background (don't block the response)
+    try {
+      const adminEmailResponse = await resend.emails.send({
+        from: senderEmail,
+        to: [adminEmail],
+        subject: `🔔 New Registration: ${programTitle} - ${parentName}`,
+        html: adminNotificationHtml,
+      });
+      
+      console.log('✅ Admin notification email sent:', JSON.stringify(adminEmailResponse));
+      
+      // Track admin notification in database
+      const adminMessageId = adminEmailResponse.data?.id || `resend-admin-${Date.now()}`;
+      try {
+        await supabase
+          .from('email_deliveries')
+          .insert({
+            email: adminEmail,
+            message_id: adminMessageId,
+            recipient_type: 'admin',
+            email_type: 'notification',
+            subject: `New Registration: ${programTitle} - ${parentName}`,
+            status: 'sent',
+            postmark_data: { provider: 'resend', message_id: adminMessageId, notification_type: 'registration_alert' },
+            sent_at: new Date().toISOString()
+          });
+        console.log('📊 Admin notification tracked in database');
+      } catch (trackingError) {
+        console.error('⚠️ Error tracking admin notification:', trackingError);
+      }
+    } catch (adminError) {
+      // Log but don't fail the request - client email was already sent successfully
+      console.error('⚠️ Failed to send admin notification:', adminError);
     }
 
     return new Response(

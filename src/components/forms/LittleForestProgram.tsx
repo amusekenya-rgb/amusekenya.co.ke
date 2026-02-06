@@ -185,6 +185,45 @@ const LittleForestProgram = () => {
         console.error('⚠️ Failed to create auto-invoice:', invoiceError);
       }
       
+      // Send confirmation email via Resend (also sends parallel admin notification)
+      try {
+        console.log('📧 Attempting to send confirmation email...');
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data: emailData, error: emailError } = await supabase.functions.invoke('send-confirmation-email', {
+          body: {
+            email: data.email,
+            programType: 'little-forest',
+            registrationDetails: {
+              parentName: data.parentName,
+              campTitle: 'Little Forest Explorers',
+              campType: 'little-forest',
+              registrationId: result.id,
+              children: data.children.map((child, index) => ({
+                childName: child.childName,
+                ageRange: child.childAge,
+                selectedDates: child.selectedDates,
+                selectedSessions: {},
+                specialNeeds: child.nannyRequired ? 'Accompanied by Nanny' : '',
+                price: getChildPrice(index),
+              })),
+            },
+            invoiceDetails: {
+              totalAmount,
+              paymentMethod: 'pending',
+            },
+          },
+        });
+        
+        if (emailError) {
+          console.error('⚠️ Email sending error:', emailError);
+        } else {
+          console.log('✅ Confirmation email sent successfully:', emailData);
+        }
+      } catch (emailError) {
+        console.error('⚠️ Failed to send confirmation email:', emailError);
+        // Don't block registration success - email failure is non-critical
+      }
+
       setRegistrationResult(result);
       setQrCodeDataUrl(qrCodeUrl);
       setShowQRModal(true);

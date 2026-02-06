@@ -191,7 +191,7 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
   const videoCount = mediaItems.filter(m => m.type === 'video').length;
 
   const content = (
-    <div className={`flex flex-col gap-4 ${embedded ? '' : 'flex-1 min-h-0'}`}>
+    <div className={`flex flex-col gap-4 ${embedded ? '' : 'flex-1 min-h-0 overflow-hidden'}`}>
       {/* Search and filters */}
       <div className="flex gap-4 items-center">
         <div className="relative flex-1">
@@ -226,7 +226,7 @@ const MediaLibrary: React.FC<MediaLibraryProps> = ({
       )}
 
       {/* Media grid */}
-      <ScrollArea className={embedded ? 'h-[500px]' : 'flex-1 min-h-0'}>
+      <ScrollArea className={embedded ? 'h-[500px]' : 'h-[400px]'}>
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
