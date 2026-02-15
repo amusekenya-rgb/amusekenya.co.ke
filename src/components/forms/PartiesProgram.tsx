@@ -46,7 +46,7 @@ const partiesSchema = z.object({
   activities: z.boolean().default(false),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(1, "Phone number is required").max(20),
-  consent: z.boolean().refine((val) => val === true, "Consent is required"),
+  consent: z.boolean().default(false),
 });
 
 type PartiesFormData = z.infer<typeof partiesSchema>;

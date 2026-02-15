@@ -39,7 +39,7 @@ const homeschoolingSchema = z.object({
   allergies: z.string().max(500),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(1, "Phone number is required").max(20),
-  consent: z.boolean().refine((val) => val === true, "Consent is required"),
+  consent: z.boolean().default(false),
 });
 
 type HomeschoolingFormData = z.infer<typeof homeschoolingSchema>;

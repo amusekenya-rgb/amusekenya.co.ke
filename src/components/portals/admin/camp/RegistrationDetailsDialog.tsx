@@ -16,7 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { CampRegistration } from '@/types/campRegistration';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { toast } from 'sonner';
-import { Save, User, Mail, Phone, Calendar, DollarSign, FileText } from 'lucide-react';
+import { Save, User, Mail, Phone, Calendar, DollarSign, FileText, ShieldCheck, ShieldX } from 'lucide-react';
 import { formatShortDate } from '@/utils/dateMapper';
 
 interface RegistrationDetailsDialogProps {
@@ -277,6 +277,23 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
               </Button>
             </div>
           </div>
+
+          {/* Consent Status */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              {registration.consent_given ? (
+                <ShieldCheck className="h-5 w-5 text-green-600" />
+              ) : (
+                <ShieldX className="h-5 w-5 text-amber-500" />
+              )}
+              Photography & Video Consent
+            </h3>
+            <Badge variant={registration.consent_given ? 'default' : 'secondary'}>
+              {registration.consent_given ? 'Consent Given' : 'Not Consented'}
+            </Badge>
+          </div>
+
+          <Separator />
 
           {/* Metadata */}
           <div className="text-sm text-muted-foreground space-y-1">

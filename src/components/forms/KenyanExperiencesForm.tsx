@@ -29,7 +29,7 @@ const kenyanExperiencesSchema = z.object({
   specialNeeds: z.string().max(500).optional(),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().refine(val => val === true, 'Consent is required')
+  consent: z.boolean().default(false)
 });
 
 type KenyanExperiencesFormData = z.infer<typeof kenyanExperiencesSchema>;

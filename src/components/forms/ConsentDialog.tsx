@@ -32,9 +32,9 @@ export const ConsentDialog = ({ checked, onCheckedChange, error }: ConsentDialog
           <div className="flex items-center gap-1 flex-wrap">
             <label
               htmlFor="consent"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              I consent to the Photography & Video Recording terms
+              I consent to the Photography & Video Recording terms (optional)
             </label>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>

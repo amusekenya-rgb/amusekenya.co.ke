@@ -43,7 +43,7 @@ const littleForestSchema = z.object({
   emergencyContact: z.string().min(10, 'Emergency contact must be at least 10 digits'),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
-  consent: z.boolean().refine(val => val === true, 'Consent is required'),
+  consent: z.boolean().default(false),
 });
 
 type LittleForestFormData = z.infer<typeof littleForestSchema>;

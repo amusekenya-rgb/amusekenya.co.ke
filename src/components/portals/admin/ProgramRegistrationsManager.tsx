@@ -286,6 +286,13 @@ export const ProgramRegistrationsManager = () => {
         )}
 
         <div>
+          <h4 className="font-semibold mb-2">Photography & Video Consent</h4>
+          <Badge variant={registration.consent_given ? 'default' : 'secondary'}>
+            {registration.consent_given ? 'Consent Given' : 'Not Consented'}
+          </Badge>
+        </div>
+
+        <div>
           <h4 className="font-semibold mb-2">Status</h4>
           <div className="flex gap-2">
             {getStatusBadge(registration.status)}

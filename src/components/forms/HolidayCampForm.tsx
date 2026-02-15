@@ -40,7 +40,7 @@ const holidayCampSchema = z.object({
   emergencyContact: z.string().min(1, 'Emergency contact is required').max(100),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().refine(val => val === true, 'Consent is required')
+  consent: z.boolean().default(false)
 });
 
 type HolidayCampFormData = z.infer<typeof holidayCampSchema>;

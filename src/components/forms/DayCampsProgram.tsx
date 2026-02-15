@@ -38,7 +38,7 @@ const dayCampsSchema = z.object({
   emergencyContact: z.string().min(1, 'Emergency contact is required').max(100),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().refine(val => val === true, 'Consent is required')
+  consent: z.boolean().default(false)
 });
 
 type DayCampsFormData = z.infer<typeof dayCampsSchema>;
@@ -435,7 +435,7 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
           <Button 
             type="submit" 
             className="flex-1" 
-            disabled={isSubmitting || !consent}
+            disabled={isSubmitting}
             onClick={() => setSubmitType('register')}
           >
             {isSubmitting && submitType === 'register' ? 'Registering...' : config.buttons.registerOnly}
@@ -443,7 +443,7 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
           <Button 
             type="button"
             className="flex-1" 
-            disabled={isSubmitting || !consent}
+            disabled={isSubmitting}
             onClick={handleSubmit((data) => {
               setSubmitType('pay');
               onSubmit(data);
