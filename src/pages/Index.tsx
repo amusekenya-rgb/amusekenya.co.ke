@@ -13,6 +13,7 @@ import { loadFromLocalStorage } from '@/services/dataService';
 import { loadEvents } from '@/services/calendarService';
 import { Button } from '@/components/ui/button';
 import { LockKeyhole } from 'lucide-react';
+import MaintenanceBanner from '@/components/MaintenanceBanner';
 const Index = () => {
   const [secretClicks, setSecretClicks] = useState(0);
   const [secretVisible, setSecretVisible] = useState(false);
@@ -109,6 +110,8 @@ const Index = () => {
           <Navbar />
         </header>
       
+      <MaintenanceBanner />
+
       <main role="main">
         <section aria-label="Hero section">
           <InteractiveHero />

@@ -33,7 +33,8 @@ import { SchoolAdventuresPageEditor } from './editors/SchoolAdventuresPageEditor
 import { HomeschoolingPageEditor } from './editors/HomeschoolingPageEditor';
 import { KenyanExperiencesPageEditor } from './editors/KenyanExperiencesPageEditor';
 import MediaLibrary from './MediaLibrary';
-type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | 'camp-page' | 'camp-form' | 'little-forest' | 'program-form' | 'activity-detail' | 'legal-terms' | 'legal-privacy' | 'parties-page' | 'team-building-page' | 'experience-page' | 'school-adventures-page' | 'homeschooling-page' | 'kenyan-experiences-page' | null;
+import { BlogPostEditor } from './editors/BlogPostEditor';
+type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | 'camp-page' | 'camp-form' | 'little-forest' | 'program-form' | 'activity-detail' | 'legal-terms' | 'legal-privacy' | 'parties-page' | 'team-building-page' | 'experience-page' | 'school-adventures-page' | 'homeschooling-page' | 'kenyan-experiences-page' | 'blog-post' | null;
 const ContentManagement = () => {
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('hero');
@@ -49,6 +50,7 @@ const ContentManagement = () => {
   const [programForms, setProgramForms] = useState<ContentItem[]>([]);
   const [activityDetails, setActivityDetails] = useState<ContentItem[]>([]);
   const [experiencePages, setExperiencePages] = useState<ContentItem[]>([]);
+  const [blogPosts, setBlogPosts] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeEditor, setActiveEditor] = useState<EditorType>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -57,7 +59,7 @@ const ContentManagement = () => {
   }, []);
   const loadAllContent = async () => {
     setIsLoading(true);
-    const [heroData, programData, announcementData, testimonialData, teamData, aboutData, serviceData, campPageData, campFormData, programFormData, activityDetailData, experiencePageData] = await Promise.all([cmsService.getAllContent('hero_slide'), cmsService.getAllContent('program'), cmsService.getAllContent('announcement'), cmsService.getAllContent('testimonial'), cmsService.getAllContent('team_member'), cmsService.getAllContent('about_section'), cmsService.getAllContent('service_item'), cmsService.getAllContent('camp_page'), cmsService.getAllContent('camp_form'), cmsService.getAllProgramForms(), cmsService.getAllActivityDetails(), cmsService.getAllExperiencePages()]);
+    const [heroData, programData, announcementData, testimonialData, teamData, aboutData, serviceData, campPageData, campFormData, programFormData, activityDetailData, experiencePageData, blogData] = await Promise.all([cmsService.getAllContent('hero_slide'), cmsService.getAllContent('program'), cmsService.getAllContent('announcement'), cmsService.getAllContent('testimonial'), cmsService.getAllContent('team_member'), cmsService.getAllContent('about_section'), cmsService.getAllContent('service_item'), cmsService.getAllContent('camp_page'), cmsService.getAllContent('camp_form'), cmsService.getAllProgramForms(), cmsService.getAllActivityDetails(), cmsService.getAllExperiencePages(), cmsService.getAllContent('post')]);
     setHeroSlides(heroData);
     setPrograms(programData);
     setAnnouncements(announcementData);
@@ -70,6 +72,7 @@ const ContentManagement = () => {
     setProgramForms(programFormData);
     setActivityDetails(activityDetailData);
     setExperiencePages(experiencePageData);
+    setBlogPosts(blogData);
     setIsLoading(false);
   };
   const handleDelete = async (id: string) => {
@@ -164,6 +167,7 @@ const ContentManagement = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="hero">Hero Section</SelectItem>
+              <SelectItem value="blog">Blog Posts</SelectItem>
               <SelectItem value="activity-details">Activity Details</SelectItem>
               <SelectItem value="services">Services</SelectItem>
               <SelectItem value="about">About Us</SelectItem>
@@ -183,6 +187,7 @@ const ContentManagement = () => {
             </SelectContent>
           </Select> : <TabsList className="grid grid-cols-7 lg:grid-cols-14 gap-1 overflow-x-auto">
             <TabsTrigger value="hero">Hero</TabsTrigger>
+            <TabsTrigger value="blog">Blog</TabsTrigger>
             <TabsTrigger value="activity-details">Activities</TabsTrigger>
             <TabsTrigger value="services">Services</TabsTrigger>
             <TabsTrigger value="about">About</TabsTrigger>
@@ -211,6 +216,19 @@ const ContentManagement = () => {
               </Button>
             </CardHeader>
             <CardContent>{renderContentList(heroSlides, 'hero')}</CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="blog" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Blog Posts</CardTitle>
+              <Button onClick={() => openEditor('blog-post')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Blog Post
+              </Button>
+            </CardHeader>
+            <CardContent>{renderContentList(blogPosts, 'blog-post')}</CardContent>
           </Card>
         </TabsContent>
 
@@ -608,6 +626,8 @@ const ContentManagement = () => {
       {activeEditor === 'homeschooling-page' && <HomeschoolingPageEditor isOpen={true} onClose={closeEditor} onSave={handleSave} />}
 
       {activeEditor === 'kenyan-experiences-page' && <KenyanExperiencesPageEditor isOpen={true} onClose={closeEditor} onSave={handleSave} />}
+
+      {activeEditor === 'blog-post' && <BlogPostEditor isOpen={true} onClose={closeEditor} post={editingItem} onSave={handleSave} />}
     </div>;
 };
 export default ContentManagement;

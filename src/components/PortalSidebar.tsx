@@ -115,7 +115,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'invoices', label: 'Invoices', icon: FileText },
           { id: 'bills', label: 'Bills (AP)', icon: FileText },
           { id: 'vendors', label: 'Vendors', icon: Building },
-          { id: 'payments', label: 'Payments', icon: CreditCard },
+          // { id: 'payments', label: 'Payments', icon: CreditCard }, // Commented out - needs client flow review
           { id: 'budget', label: 'Budget', icon: DollarSign },
           { id: 'expenses', label: 'Expenses', icon: Receipt },
           { id: 'reports', label: 'Reports', icon: BarChart3 },
@@ -159,8 +159,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
           { id: 'company', label: 'Company Config', icon: Building },
           { id: 'security', label: 'Security', icon: Shield },
-          { id: 'communication', label: 'Messages', icon: MessageSquare },
-          { id: 'analytics', label: 'Analytics', icon: BarChart3 }
+          { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       
       default:

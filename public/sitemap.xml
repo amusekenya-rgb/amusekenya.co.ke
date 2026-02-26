@@ -136,6 +136,14 @@
     <priority>0.7</priority>
   </url>
   
+  <!-- Blog -->
+  <url>
+    <loc>https://amusekenya.co.ke/blog</loc>
+    <lastmod>2025-02-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
   <!-- Legal Pages -->
   <url>
     <loc>https://amusekenya.co.ke/terms-and-conditions</loc>

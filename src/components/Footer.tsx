@@ -124,6 +124,7 @@ const Footer = () => {
                 { label: 'About Us', path: '/about/who-we-are' },
                 { label: 'Programs', path: '/programs' },
                 { label: 'Gallery', path: '/gallery' },
+                { label: 'Blog', path: '/blog' },
                 { label: 'Announcements', path: '/announcements' },
                 { label: 'Contact', path: '/contact' }
               ].map(item => (

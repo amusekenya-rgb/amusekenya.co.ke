@@ -32,6 +32,8 @@ import FunctionStatus from "./pages/FunctionStatus";
 import ActivityDetail from "./pages/ActivityDetail";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost";
 
 import { AuthProvider } from "./hooks/useAuth";
 import ProgramRegistration from "./components/ProgramRegistration";
@@ -94,6 +96,10 @@ function App() {
               {/* Legal Pages */}
               <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              
+              {/* Blog */}
+              <Route path="/blog" element={<Blog />} />
+              <Route path="/blog/:slug" element={<BlogPost />} />
               
               {/* Legacy URL Redirects for SEO */}
               <Route path="/about-2" element={<Navigate to="/about/who-we-are" replace />} />
