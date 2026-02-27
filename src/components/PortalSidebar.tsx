@@ -30,6 +30,7 @@ import {
   Activity
 } from "lucide-react";
 import { ROLES } from '@/services/roleService';
+import { coachAccessService } from '@/services/coachAccessService';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -56,9 +57,16 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
   children 
 }) => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [hasRecordPortalAccess, setHasRecordPortalAccess] = useState(false);
+
+  React.useEffect(() => {
+    if (userRole === ROLES.COACH && user?.id) {
+      coachAccessService.checkAccess(user.id).then(setHasRecordPortalAccess);
+    }
+  }, [userRole, user?.id]);
 
   const getTabsForRole = (role: string) => {
     const baseTabs = [
@@ -130,6 +138,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'students', label: 'Students', icon: Users },
           { id: 'schedule', label: 'Schedule', icon: Clock },
           { id: 'resources', label: 'Resources', icon: BookOpen },
+          ...(hasRecordPortalAccess ? [{ id: 'record-portal', label: 'Record Portal', icon: Tent }] : []),
           { id: 'reports', label: 'Reports', icon: FileText },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];

@@ -267,7 +267,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       return [
         item.registration.registration_number || '',
         item.registration.parent_name,
-        item.registration.phone,
+        item.registration.phone ? item.registration.phone.slice(0, 4) + '****' + item.registration.phone.slice(-2) : '-',
         item.child.childName,
         item.child.ageRange,
         item.session === 'full' ? 'Full Day' : 'Half Day',
@@ -312,7 +312,7 @@ export const AttendanceMarkingTab: React.FC = () => {
         return [
           item.registration.registration_number || '',
           item.registration.parent_name,
-          item.registration.phone,
+          item.registration.phone ? item.registration.phone.slice(0, 4) + '****' + item.registration.phone.slice(-2) : '-',
           item.child.childName,
           item.child.ageRange,
           item.session === 'full' ? 'Full Day' : 'Half Day',
@@ -399,7 +399,7 @@ export const AttendanceMarkingTab: React.FC = () => {
                       <TableCell>
                         <div>
                           <div className="font-medium">{item.registration.parent_name}</div>
-                          <div className="text-xs text-muted-foreground">{item.registration.phone}</div>
+                          <div className="text-xs text-muted-foreground">{item.registration.phone ? item.registration.phone.slice(0, 4) + '****' + item.registration.phone.slice(-2) : '-'}</div>
                         </div>
                       </TableCell>
                       <TableCell className="font-medium">{item.child.childName}</TableCell>

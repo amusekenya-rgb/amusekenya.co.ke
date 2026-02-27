@@ -1,15 +1,29 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge } from "@/components/ui/badge";
 import MessageCenter from '../communication/MessageCenter';
 import CoachDashboard from './coach/CoachDashboard';
 import { ProgramsTab, ScheduleTab, StudentsTab, ResourcesTab, ReportsTab } from './coach/CoachTabs';
+import { CampRegistrationsManager } from './admin/CampRegistrationsManager';
+import { useAuth } from '@/hooks/useAuth';
+import { coachAccessService, CampTabId } from '@/services/coachAccessService';
 
 interface CoachPortalProps {
   activeTab: string;
 }
 
 const CoachPortal: React.FC<CoachPortalProps> = ({ activeTab }) => {
+  const { user } = useAuth();
+  const [visibleTabs, setVisibleTabs] = useState<CampTabId[]>([]);
+
+  useEffect(() => {
+    if (user?.id) {
+      coachAccessService.getAccessInfo(user.id).then(info => {
+        setVisibleTabs(info.visibleTabs);
+      });
+    }
+  }, [user?.id]);
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'programs':
@@ -24,6 +38,8 @@ const CoachPortal: React.FC<CoachPortalProps> = ({ activeTab }) => {
         return <ReportsTab />;
       case 'communication':
         return <MessageCenter />;
+      case 'record-portal':
+        return <CampRegistrationsManager visibleTabs={visibleTabs} />;
       default:
         return <CoachDashboard />;
     }

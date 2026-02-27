@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClipboardList, Users, UserPlus, BarChart3, CalendarCheck, History } from 'lucide-react';
 import { AllRegistrationsTab } from './camp/AllRegistrationsTab';
@@ -7,9 +7,28 @@ import { GroundRegistrationTab } from './camp/GroundRegistrationTab';
 import { CampReportsTab } from './camp/CampReportsTab';
 import { DailyOperationsView } from './camp/DailyOperationsView';
 import { AttendanceHistoryTab } from './camp/AttendanceHistoryTab';
+import { CampTabId } from '@/services/coachAccessService';
 
-export const CampRegistrationsManager: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('daily');
+interface CampRegistrationsManagerProps {
+  visibleTabs?: CampTabId[];
+}
+
+const ALL_TABS = [
+  { id: 'daily' as CampTabId, label: 'Daily Ops', shortLabel: 'Today', icon: CalendarCheck },
+  { id: 'all' as CampTabId, label: 'All', shortLabel: 'All', icon: ClipboardList },
+  { id: 'ground' as CampTabId, label: 'Ground', shortLabel: 'Ground', icon: UserPlus },
+  { id: 'attendance' as CampTabId, label: 'Attendance', shortLabel: 'Mark', icon: Users },
+  { id: 'history' as CampTabId, label: 'History', shortLabel: 'Hist', icon: History },
+  { id: 'reports' as CampTabId, label: 'Reports', shortLabel: 'Reports', icon: BarChart3 },
+];
+
+export const CampRegistrationsManager: React.FC<CampRegistrationsManagerProps> = ({ visibleTabs }) => {
+  const tabs = useMemo(() => {
+    if (!visibleTabs || visibleTabs.length === 0) return ALL_TABS;
+    return ALL_TABS.filter(t => visibleTabs.includes(t.id));
+  }, [visibleTabs]);
+
+  const [activeTab, setActiveTab] = useState<string>(tabs[0]?.id || 'daily');
 
   return (
     <div className="space-y-6">
@@ -21,57 +40,31 @@ export const CampRegistrationsManager: React.FC = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 h-auto gap-1">
-          <TabsTrigger value="daily" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 py-2">
-            <CalendarCheck className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Daily Ops</span>
-            <span className="sm:hidden">Today</span>
-          </TabsTrigger>
-          <TabsTrigger value="all" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 py-2">
-            <ClipboardList className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span>All</span>
-          </TabsTrigger>
-          <TabsTrigger value="ground" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 py-2">
-            <UserPlus className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Ground</span>
-            <span className="sm:hidden">Ground</span>
-          </TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 py-2">
-            <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Attendance</span>
-            <span className="sm:hidden">Mark</span>
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 py-2">
-            <History className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">History</span>
-            <span className="sm:hidden">Hist</span>
-          </TabsTrigger>
-          <TabsTrigger value="reports" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 py-2">
-            <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-            <span>Reports</span>
-          </TabsTrigger>
+        <TabsList className={`grid w-full h-auto gap-1`} style={{ gridTemplateColumns: `repeat(${Math.min(tabs.length, 6)}, 1fr)` }}>
+          {tabs.map(tab => (
+            <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 py-2">
+              <tab.icon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.shortLabel}</span>
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="daily">
           <DailyOperationsView />
         </TabsContent>
-
         <TabsContent value="all">
           <AllRegistrationsTab />
         </TabsContent>
-
         <TabsContent value="ground">
           <GroundRegistrationTab />
         </TabsContent>
-
         <TabsContent value="attendance">
           <AttendanceMarkingTab />
         </TabsContent>
-
         <TabsContent value="history">
           <AttendanceHistoryTab />
         </TabsContent>
-
         <TabsContent value="reports">
           <CampReportsTab />
         </TabsContent>

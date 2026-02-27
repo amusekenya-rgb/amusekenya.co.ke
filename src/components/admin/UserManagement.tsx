@@ -8,9 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { CheckCircle, XCircle, Clock, Users, UserCheck, UserX, Edit } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CheckCircle, XCircle, Clock, Users, UserCheck, UserX, Edit, Settings2 } from "lucide-react";
 import { ROLES } from '@/services/roleService';
 import { auditLogService } from '@/services/auditLogService';
+import { coachAccessService, CAMP_TABS, CampTabId, ALL_TAB_IDS } from '@/services/coachAccessService';
 
 interface PendingUser {
   id: string;
@@ -41,6 +45,8 @@ const UserManagement: React.FC = () => {
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [showChangeRoleDialog, setShowChangeRoleDialog] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [coachAccessMap, setCoachAccessMap] = useState<Record<string, { granted: boolean; visibleTabs: CampTabId[] }>>({});
+  const [togglingAccess, setTogglingAccess] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -77,6 +83,10 @@ const UserManagement: React.FC = () => {
 
       setPendingUsers(pending);
       setApprovedUsers(approved);
+
+      // Fetch coach access map
+      const accessMap = await coachAccessService.listCoachAccess();
+      setCoachAccessMap(accessMap);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -205,6 +215,44 @@ const UserManagement: React.FC = () => {
         description: "Failed to reject user",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleToggleCoachAccess = async (user: ApprovedUser, granted: boolean) => {
+    setTogglingAccess(user.id);
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('Not authenticated');
+
+      let success: boolean;
+      if (granted) {
+        success = await coachAccessService.grantAccess(user.id, currentUser.id);
+      } else {
+        success = await coachAccessService.revokeAccess(user.id);
+      }
+
+      if (!success) throw new Error('Operation failed');
+
+      setCoachAccessMap(prev => ({ ...prev, [user.id]: { granted, visibleTabs: prev[user.id]?.visibleTabs || ALL_TAB_IDS } }));
+
+      await auditLogService.logEvent({
+        action: granted ? 'coach_access_granted' : 'coach_access_revoked',
+        entityType: 'user',
+        entityId: user.id,
+        details: `${granted ? 'Granted' : 'Revoked'} Record Portal access for ${user.email}`,
+        metadata: { user_email: user.email, full_name: user.full_name },
+        severity: 'info'
+      });
+
+      toast({
+        title: granted ? "Access Granted" : "Access Revoked",
+        description: `Record Portal access ${granted ? 'granted to' : 'revoked from'} ${user.email}`
+      });
+    } catch (error) {
+      console.error('Error toggling coach access:', error);
+      toast({ title: "Error", description: "Failed to update coach access", variant: "destructive" });
+    } finally {
+      setTogglingAccess(null);
     }
   };
 
@@ -386,6 +434,7 @@ const UserManagement: React.FC = () => {
                 <TableHead>Full Name</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Record Portal</TableHead>
                 <TableHead>Approved</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -398,6 +447,56 @@ const UserManagement: React.FC = () => {
                   <TableCell>{user.department || '-'}</TableCell>
                   <TableCell>
                     <Badge>{user.role.toUpperCase()}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {user.role === 'coach' ? (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={!!coachAccessMap[user.id]?.granted}
+                          onCheckedChange={(checked) => handleToggleCoachAccess(user, checked)}
+                          disabled={togglingAccess === user.id}
+                        />
+                        {coachAccessMap[user.id]?.granted && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <Settings2 className="h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-56" align="start">
+                              <div className="space-y-3">
+                                <p className="text-sm font-medium">Visible Tabs</p>
+                                {CAMP_TABS.map(tab => {
+                                  const currentTabs = coachAccessMap[user.id]?.visibleTabs || ALL_TAB_IDS;
+                                  const isChecked = currentTabs.includes(tab.id);
+                                  return (
+                                    <label key={tab.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onCheckedChange={(checked) => {
+                                          const newTabs = checked
+                                            ? [...currentTabs, tab.id]
+                                            : currentTabs.filter(t => t !== tab.id);
+                                          if (newTabs.length === 0) return; // prevent empty
+                                          setCoachAccessMap(prev => ({
+                                            ...prev,
+                                            [user.id]: { ...prev[user.id], visibleTabs: newTabs as CampTabId[] }
+                                          }));
+                                          coachAccessService.updateVisibleTabs(user.id, newTabs as CampTabId[]);
+                                        }}
+                                      />
+                                      {tab.label}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">N/A</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {user.approved_at ? new Date(user.approved_at).toLocaleDateString() : '-'}

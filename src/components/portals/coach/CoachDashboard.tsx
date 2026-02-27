@@ -1,13 +1,43 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Calendar, Users, FileText, BarChart3 } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { BookOpen, Calendar, Users, FileText, BarChart3, Tent, X } from "lucide-react";
+import { useAuth } from '@/hooks/useAuth';
+import { coachAccessService } from '@/services/coachAccessService';
 
 const CoachDashboard: React.FC = () => {
+  const { user } = useAuth();
+  const [hasRecordAccess, setHasRecordAccess] = useState(false);
+  const [showBanner, setShowBanner] = useState(true);
+
+  useEffect(() => {
+    if (user?.id) {
+      coachAccessService.checkAccess(user.id).then(setHasRecordAccess);
+    }
+  }, [user?.id]);
+
   return (
     <div className="space-y-6">
+      {hasRecordAccess && showBanner && (
+        <Alert className="border-primary/30 bg-primary/5 relative">
+          <Tent className="h-4 w-4 text-primary" />
+          <AlertTitle className="text-primary font-semibold">Record Portal Access Granted</AlertTitle>
+          <AlertDescription className="text-muted-foreground">
+            You have been granted access to the Record Portal. Use the "Record Portal" tab in the sidebar to manage camp registrations, attendance, and check-ins.
+          </AlertDescription>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 h-6 w-6"
+            onClick={() => setShowBanner(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </Alert>
+      )}
+
       {/* Coach Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
