@@ -27,7 +27,9 @@ import {
   Ban,
   MousePointerClick,
   LineChart,
-  Activity
+  Activity,
+  UserCircle,
+  CalendarOff
 } from "lucide-react";
 import { ROLES } from '@/services/roleService';
 import { coachAccessService } from '@/services/coachAccessService';
@@ -83,6 +85,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'planning', label: 'Planning', icon: Calendar },
           { id: 'communication', label: 'Communication', icon: MessageSquare },
           { id: 'cross-analytics', label: 'Cross Analytics', icon: TrendingUp },
+          { id: 'my-profile', label: 'My Profile', icon: UserCircle },
           { id: 'settings', label: 'Settings', icon: Settings }
         ];
       
@@ -102,6 +105,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'realtime', label: 'Real-Time', icon: Activity },
           { id: 'faq', label: 'FAQ Manager', icon: MessageSquare },
           { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+          { id: 'my-profile', label: 'My Profile', icon: UserCircle },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       
@@ -113,6 +117,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'performance', label: 'Performance', icon: TrendingUp },
           { id: 'training', label: 'Training', icon: BookOpen },
           { id: 'reports', label: 'Reports', icon: FileText },
+          { id: 'my-profile', label: 'My Profile', icon: UserCircle },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       
@@ -123,11 +128,11 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'invoices', label: 'Invoices', icon: FileText },
           { id: 'bills', label: 'Bills (AP)', icon: FileText },
           { id: 'vendors', label: 'Vendors', icon: Building },
-          // { id: 'payments', label: 'Payments', icon: CreditCard }, // Commented out - needs client flow review
           { id: 'budget', label: 'Budget', icon: DollarSign },
           { id: 'expenses', label: 'Expenses', icon: Receipt },
           { id: 'reports', label: 'Reports', icon: BarChart3 },
           { id: 'camp-analytics', label: 'Camp Analytics', icon: Tent },
+          { id: 'my-profile', label: 'My Profile', icon: UserCircle },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       
@@ -137,9 +142,11 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'programs', label: 'Programs', icon: Calendar },
           { id: 'students', label: 'Students', icon: Users },
           { id: 'schedule', label: 'Schedule', icon: Clock },
+          { id: 'availability', label: 'My Availability', icon: CalendarOff },
           { id: 'resources', label: 'Resources', icon: BookOpen },
           ...(hasRecordPortalAccess ? [{ id: 'record-portal', label: 'Record Portal', icon: Tent }] : []),
           { id: 'reports', label: 'Reports', icon: FileText },
+          { id: 'my-profile', label: 'My Profile', icon: UserCircle },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       
@@ -152,6 +159,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'policies', label: 'Policy Management', icon: BookOpen },
           { id: 'audit', label: 'Audit Logs', icon: Database },
           { id: 'data-governance', label: 'Data Governance', icon: Settings },
+          { id: 'my-profile', label: 'My Profile', icon: UserCircle },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       
@@ -168,6 +176,8 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
           { id: 'company', label: 'Company Config', icon: Building },
           { id: 'security', label: 'Security', icon: Shield },
+          { id: 'coach-availability', label: 'Coach Availability', icon: CalendarOff },
+          { id: 'my-profile', label: 'My Profile', icon: UserCircle },
           { id: 'communication', label: 'Messages', icon: MessageSquare }
         ];
       

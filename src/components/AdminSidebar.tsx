@@ -112,6 +112,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({
       icon: Users,
       id: "customers",
     },
+    {
+      title: "Coach Availability",
+      icon: Calendar,
+      id: "coach-availability",
+    },
   ];
 
   return (

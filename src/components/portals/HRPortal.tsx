@@ -4,6 +4,7 @@ import EmployeeManagement from './hr/EmployeeManagement';
 import MessageCenter from '../communication/MessageCenter';
 import HRDashboard from './hr/HRDashboard';
 import { RecruitmentTab, PerformanceTab, TrainingTab, HRReportsTab } from './hr/HRPlaceholderTabs';
+import ProfileEditor from '../profile/ProfileEditor';
 
 interface HRPortalProps {
   activeTab: string;
@@ -26,6 +27,8 @@ const HRPortal: React.FC<HRPortalProps> = ({ activeTab }) => {
         return <TrainingTab />;
       case 'reports':
         return <HRReportsTab />;
+      case 'my-profile':
+        return <ProfileEditor />;
       default:
         return (
           <div>

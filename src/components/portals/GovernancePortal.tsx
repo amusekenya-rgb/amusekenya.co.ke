@@ -9,6 +9,7 @@ import RiskManagement from './governance/RiskManagement';
 import PolicyManagement from './governance/PolicyManagement';
 import AuditManagement from './governance/AuditManagement';
 import DataGovernance from './governance/DataGovernance';
+import ProfileEditor from '../profile/ProfileEditor';
 
 interface GovernancePortalProps {
   activeTab: string;
@@ -31,6 +32,8 @@ const GovernancePortal: React.FC<GovernancePortalProps> = ({ activeTab }) => {
         return <DataGovernance />;
       case 'communication':
         return <MessageCenter />;
+      case 'my-profile':
+        return <ProfileEditor />;
       default:
         return <GovernanceDashboard />;
     }

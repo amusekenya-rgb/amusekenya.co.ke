@@ -5,6 +5,8 @@ import MessageCenter from '../communication/MessageCenter';
 import CoachDashboard from './coach/CoachDashboard';
 import { ProgramsTab, ScheduleTab, StudentsTab, ResourcesTab, ReportsTab } from './coach/CoachTabs';
 import { CampRegistrationsManager } from './admin/CampRegistrationsManager';
+import CoachAvailability from '../coach/CoachAvailability';
+import ProfileEditor from '../profile/ProfileEditor';
 import { useAuth } from '@/hooks/useAuth';
 import { coachAccessService, CampTabId } from '@/services/coachAccessService';
 
@@ -32,6 +34,8 @@ const CoachPortal: React.FC<CoachPortalProps> = ({ activeTab }) => {
         return <ScheduleTab />;
       case 'students':
         return <StudentsTab />;
+      case 'availability':
+        return <CoachAvailability />;
       case 'resources':
         return <ResourcesTab />;
       case 'reports':
@@ -40,6 +44,8 @@ const CoachPortal: React.FC<CoachPortalProps> = ({ activeTab }) => {
         return <MessageCenter />;
       case 'record-portal':
         return <CampRegistrationsManager visibleTabs={visibleTabs} />;
+      case 'my-profile':
+        return <ProfileEditor />;
       default:
         return <CoachDashboard />;
     }

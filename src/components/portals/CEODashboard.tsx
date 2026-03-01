@@ -10,6 +10,7 @@ import CEOApprovals from './ceo/CEOApprovals';
 import CEOSettings from './ceo/CEOSettings';
 import MessageCenter from '../communication/MessageCenter';
 import AnalyticsDashboard from '../analytics/AnalyticsDashboard';
+import ProfileEditor from '../profile/ProfileEditor';
 
 interface CEODashboardProps {
   activeTab: string;
@@ -32,6 +33,8 @@ const CEODashboard = ({ activeTab }: CEODashboardProps) => {
         return <MessageCenter />;
       case 'cross-analytics':
         return <AnalyticsDashboard />;
+      case 'my-profile':
+        return <ProfileEditor />;
       default:
         return <CEODashboardMain />;
     }

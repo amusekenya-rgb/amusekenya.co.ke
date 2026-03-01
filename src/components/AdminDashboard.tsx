@@ -14,6 +14,8 @@ import SystemAdminPanel from './admin/SystemAdminPanel';
 import SystemSettingsPanel from './admin/SystemSettingsPanel';
 import SecurityPanel from './admin/SecurityPanel';
 import CompanyConfigPanel from './admin/CompanyConfigPanel';
+import ProfileEditor from './profile/ProfileEditor';
+import CoachAvailabilityView from './admin/CoachAvailabilityView';
 
 interface AdminDashboardProps {
   activeTab: string;
@@ -46,6 +48,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab }) => {
         return <CampReportsTab />;
       case 'audit-logs':
         return <AuditLogsViewer />;
+      case 'coach-availability':
+        return <CoachAvailabilityView />;
+      case 'my-profile':
+        return <ProfileEditor />;
       default:
         return renderDashboard();
     }

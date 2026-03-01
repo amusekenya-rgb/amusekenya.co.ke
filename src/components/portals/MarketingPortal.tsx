@@ -15,6 +15,7 @@ import EmailSuppressionsTab from './marketing/EmailSuppressionsTab';
 import UserEngagementTab from './marketing/UserEngagementTab';
 import SiteAnalyticsTab from './marketing/SiteAnalyticsTab';
 import RealTimeAnalytics from './marketing/RealTimeAnalytics';
+import ProfileEditor from '../profile/ProfileEditor';
 
 interface MarketingPortalProps {
   activeTab: string;
@@ -53,6 +54,8 @@ const MarketingPortal: React.FC<MarketingPortalProps> = ({ activeTab }) => {
         return <SiteAnalyticsTab />;
       case 'realtime':
         return <RealTimeAnalytics />;
+      case 'my-profile':
+        return <ProfileEditor />;
       default:
         return <MarketingDashboard />;
     }

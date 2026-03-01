@@ -10,6 +10,7 @@ import { CampReportsTab } from './admin/camp/CampReportsTab';
 import { PendingCollections } from './accounts/PendingCollections';
 import VendorManagement from './accounts/VendorManagement';
 import BillsManagement from './accounts/BillsManagement';
+import ProfileEditor from '../profile/ProfileEditor';
 
 interface AccountsPortalProps {
   activeTab: string;
@@ -40,6 +41,8 @@ const AccountsPortal: React.FC<AccountsPortalProps> = ({ activeTab }) => {
         return <FinancialReports />;
       case 'camp-analytics':
         return <CampReportsTab />;
+      case 'my-profile':
+        return <ProfileEditor />;
       default:
         return (
           <div>
