@@ -21,6 +21,8 @@ import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlace
 import { leadsService } from '@/services/leadsService';
 import { DateSelector } from './DateSelector';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
+import { LocationSelector } from './LocationSelector';
+import { ActivityTypeSelector } from './ActivityTypeSelector';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
@@ -29,7 +31,8 @@ const childSchema = z.object({
   specialNeeds: z.string().max(500).optional(),
   selectedDates: z.array(z.string()).min(1, 'At least one date is required'),
   sessionTypes: z.record(z.enum(['half', 'full'])),
-  totalPrice: z.number()
+  totalPrice: z.number(),
+  activityType: z.enum(['camp', 'archery']).default('camp')
 });
 
 const dayCampsSchema = z.object({
@@ -47,7 +50,6 @@ interface DayCampsProgramProps {
   campTitle: string;
 }
 
-// Helper function to calculate age range
 const calculateAgeRange = (dateOfBirth: Date): '3-below' | '4-6' | '7-10' | '11-15' => {
   const age = differenceInYears(new Date(), dateOfBirth);
   if (age <= 3) return '3-below';
@@ -58,14 +60,24 @@ const calculateAgeRange = (dateOfBirth: Date): '3-below' | '4-6' | '7-10' | '11-
 
 const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
   const { config, isLoading } = useCampFormConfig('day-camps');
+  const [selectedLocation, setSelectedLocation] = useState('');
 
-  const calculatePrice = (selectedDates: string[], sessionTypes: Record<string, 'half' | 'full'>): number => {
+  const calculatePrice = (selectedDates: string[], sessionTypes: Record<string, 'half' | 'full'>, activityType: 'camp' | 'archery' = 'camp'): number => {
     if (!config) return 0;
+    if (activityType === 'archery') {
+      return selectedDates.length * (config.archeryRate || 1000);
+    }
     return selectedDates.reduce((sum, date) => {
       const sessionType = sessionTypes[date] || 'full';
       return sum + (sessionType === 'half' ? config.pricing.halfDayRate : config.pricing.fullDayRate);
     }, 0);
   };
+
+  useEffect(() => {
+    if (config?.locations?.length && !selectedLocation) {
+      setSelectedLocation(config.locations[0]);
+    }
+  }, [config]);
 
   const {
     register,
@@ -85,7 +97,8 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         specialNeeds: '',
         selectedDates: [],
         sessionTypes: {},
-        totalPrice: 0
+        totalPrice: 0,
+        activityType: 'camp' as const
       }],
       consent: false
     }
@@ -98,8 +111,8 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
 
   const consent = watch('consent');
   const watchedChildren = watch('children');
+  const isNgongSanctuary = selectedLocation === 'Ngong Sanctuary';
 
-  // Auto-calculate age range and price
   useEffect(() => {
     watchedChildren.forEach((child, index) => {
       if (child.dateOfBirth) {
@@ -109,15 +122,24 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         }
       }
       
-      // Calculate price based on selected dates and session types
       if (child.selectedDates && child.sessionTypes) {
-        const calculatedPrice = calculatePrice(child.selectedDates, child.sessionTypes);
+        const calculatedPrice = calculatePrice(child.selectedDates, child.sessionTypes, child.activityType);
         if (child.totalPrice !== calculatedPrice) {
           setValue(`children.${index}.totalPrice`, calculatedPrice, { shouldValidate: false });
         }
       }
     });
-  }, [watchedChildren.map(c => `${c.dateOfBirth?.getTime()}-${c.selectedDates?.join(',')}-${JSON.stringify(c.sessionTypes)}`).join('|'), setValue, config]);
+  }, [watchedChildren.map(c => `${c.dateOfBirth?.getTime()}-${c.selectedDates?.join(',')}-${JSON.stringify(c.sessionTypes)}-${c.activityType}`).join('|'), setValue, config]);
+
+  useEffect(() => {
+    if (!isNgongSanctuary) {
+      watchedChildren.forEach((child, index) => {
+        if (child.activityType === 'archery') {
+          setValue(`children.${index}.activityType`, 'camp', { shouldValidate: false });
+        }
+      });
+    }
+  }, [isNgongSanctuary]);
 
   const [showQRModal, setShowQRModal] = useState(false);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
@@ -129,7 +151,6 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
     const buttonType = submitType;
     if (!config) return;
     
-    // Security checks: prevent duplicates and rate limiting
     const securityCheck = await performSecurityChecks(data, 'day-camps');
     if (!securityCheck.allowed) {
       toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
@@ -139,26 +160,26 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
     try {
       const totalAmount = data.children.reduce((sum, child) => sum + child.totalPrice, 0);
       
-      // Generate unique QR code data
       const tempId = crypto.randomUUID();
       const qrCodeData = qrCodeService.generateQRCodeData(tempId);
       
-      // Prepare registration data
       const registrationData = {
         camp_type: 'day-camps' as any,
         parent_name: data.parentName,
         email: data.email,
         phone: data.phone,
         emergency_contact: data.emergencyContact,
+        location: selectedLocation,
         children: data.children.map(child => ({
           childName: child.childName,
           dateOfBirth: child.dateOfBirth.toISOString(),
           ageRange: child.ageRange,
           specialNeeds: child.specialNeeds || '',
-          selectedDays: child.selectedDates.map((date, i) => `Day ${i + 1}`), // For backward compatibility
+          selectedDays: child.selectedDates.map((date, i) => `Day ${i + 1}`),
           selectedDates: child.selectedDates,
           selectedSessions: child.sessionTypes,
           price: child.totalPrice,
+          activityType: child.activityType,
         })),
         total_amount: totalAmount,
         payment_status: 'unpaid' as const,
@@ -169,13 +190,10 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         status: 'active' as const,
       };
 
-      // Create registration in database
       const registration = await campRegistrationService.createRegistration(registrationData);
       
-      // Generate QR code for display
       const qrUrl = await qrCodeService.generateQRCode(qrCodeData);
       
-      // Capture lead
       await leadsService.createLead({
         full_name: data.parentName,
         email: data.email,
@@ -186,7 +204,6 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         source: 'website_registration'
       });
       
-      // Send confirmation email via Resend
       const { supabase } = await import('@/integrations/supabase/client');
       await supabase.functions.invoke('send-confirmation-email', {
         body: {
@@ -197,7 +214,8 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
             campTitle: campTitle,
             children: data.children,
             campType: 'day-camps',
-            registrationId: registration.id
+            registrationId: registration.id,
+            location: selectedLocation
           },
           invoiceDetails: {
             totalAmount: totalAmount,
@@ -206,13 +224,11 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         }
       });
       
-      // Set state for modal
       setRegistrationResult(registration);
       setQrCodeDataUrl(qrUrl);
       setRegistrationType('online_only');
       setShowQRModal(true);
       
-      // Show payment integration message if user clicked "Pay Now"
       if (buttonType === 'pay') {
         setTimeout(() => {
           toast.info('Payment integration coming soon! You will receive an invoice with payment instructions via email.');
@@ -220,10 +236,7 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
       }
       
       toast.success(config.messages.registrationSuccess);
-      
-      // Record successful submission for duplicate prevention
       await recordSubmission(data, 'day-camps');
-      
       reset();
     } catch (error) {
       console.error('Registration error:', error);
@@ -239,7 +252,6 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
     );
   }
 
-  // Validate config has all required fields
   if (!config.fields || !config.pricing || !config.buttons || !config.messages) {
     return (
       <Card className="p-8 sticky top-8">
@@ -259,6 +271,15 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
           {errors.parentName && <p className="text-destructive text-sm mt-1">{errors.parentName.message}</p>}
         </div>
 
+        {/* Location Selector */}
+        {config.locations && config.locations.length > 0 && (
+          <LocationSelector
+            locations={config.locations}
+            value={selectedLocation}
+            onChange={setSelectedLocation}
+          />
+        )}
+
         <div>
           <div className="flex items-center justify-between mb-2">
             <Label className="text-base font-medium">{config.fields.childName.label} *</Label>
@@ -273,7 +294,8 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
                 specialNeeds: '',
                 selectedDates: [],
                 sessionTypes: {},
-                totalPrice: 0
+                totalPrice: 0,
+                activityType: 'camp' as const
               })}
             >
               <Plus className="w-4 h-4 mr-1" />
@@ -350,17 +372,29 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
                   )}
                 </div>
 
+                {/* Activity Type Selector for Ngong Sanctuary */}
+                {isNgongSanctuary && (
+                  <ActivityTypeSelector
+                    value={watchedChildren[index]?.activityType || 'camp'}
+                    onChange={(v) => setValue(`children.${index}.activityType`, v, { shouldValidate: false })}
+                    archeryRate={config.archeryRate || 1000}
+                    currency={config.pricing.currency}
+                  />
+                )}
+
                 <DateSelector
                   availableDates={config.availableDates || []}
                   selectedDates={watchedChildren[index]?.selectedDates || []}
-                  sessionTypes={watchedChildren[index]?.sessionTypes || {}}
+                  sessionTypes={watchedChildren[index]?.activityType === 'archery' ? {} : (watchedChildren[index]?.sessionTypes || {})}
                   onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
                   onSessionTypeChange={(date, type) => {
-                    const currentTypes = watchedChildren[index]?.sessionTypes || {};
-                    setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
+                    if (watchedChildren[index]?.activityType !== 'archery') {
+                      const currentTypes = watchedChildren[index]?.sessionTypes || {};
+                      setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
+                    }
                   }}
-                  halfDayRate={config.pricing.halfDayRate}
-                  fullDayRate={config.pricing.fullDayRate}
+                  halfDayRate={watchedChildren[index]?.activityType === 'archery' ? (config.archeryRate || 1000) : config.pricing.halfDayRate}
+                  fullDayRate={watchedChildren[index]?.activityType === 'archery' ? (config.archeryRate || 1000) : config.pricing.fullDayRate}
                   currency={config.pricing.currency}
                 />
                 {errors.children?.[index]?.selectedDates && (

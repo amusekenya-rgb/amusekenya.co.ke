@@ -51,9 +51,12 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
       title: 'Special Needs & Medical Information',
       description: 'Please provide any information about allergies, medical conditions, or special accommodations needed.'
     },
-    availableDates: [] as string[]
+    availableDates: [] as string[],
+    locations: ['Kurura Gate F', 'Ngong Sanctuary'] as string[],
+    archeryRate: 1000
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [newLocation, setNewLocation] = useState('');
 
   useEffect(() => {
     if (formSlug && isOpen) {
@@ -73,7 +76,9 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
           ...formData.specialNeedsSection,
           ...(data.metadata.formConfig.specialNeedsSection || {})
         },
-        availableDates: data.metadata.formConfig.availableDates || []
+        availableDates: data.metadata.formConfig.availableDates || [],
+        locations: data.metadata.formConfig.locations || ['Kurura Gate F', 'Ngong Sanctuary'],
+        archeryRate: data.metadata.formConfig.archeryRate || 1000
       });
     }
   };
@@ -112,10 +117,11 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Tabs defaultValue="pricing" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="pricing">Pricing</TabsTrigger>
-              <TabsTrigger value="dates">Session Dates</TabsTrigger>
-              <TabsTrigger value="fields">Field Labels</TabsTrigger>
+              <TabsTrigger value="dates">Dates</TabsTrigger>
+              <TabsTrigger value="locations">Locations</TabsTrigger>
+              <TabsTrigger value="fields">Fields</TabsTrigger>
               <TabsTrigger value="buttons">Buttons</TabsTrigger>
               <TabsTrigger value="messages">Messages</TabsTrigger>
             </TabsList>
@@ -172,6 +178,80 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
                 <MultiDatePicker
                   selectedDates={formData.availableDates}
                   onChange={(dates) => setFormData({ ...formData, availableDates: dates })}
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="locations" className="space-y-4 pt-4">
+              <div>
+                <h4 className="font-medium mb-2">Available Locations</h4>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Manage the locations available for registration. These appear as a dropdown on the registration forms.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {formData.locations.map((loc, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={loc}
+                      onChange={(e) => {
+                        const updated = [...formData.locations];
+                        updated[index] = e.target.value;
+                        setFormData({ ...formData, locations: updated });
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const updated = formData.locations.filter((_, i) => i !== index);
+                        setFormData({ ...formData, locations: updated });
+                      }}
+                      disabled={formData.locations.length <= 1}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="New location name"
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newLocation.trim()) {
+                        e.preventDefault();
+                        setFormData({ ...formData, locations: [...formData.locations, newLocation.trim()] });
+                        setNewLocation('');
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (newLocation.trim()) {
+                        setFormData({ ...formData, locations: [...formData.locations, newLocation.trim()] });
+                        setNewLocation('');
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-medium mb-2">Archery Rate (Ngong Sanctuary)</h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Price per archery session (45 mins) when Ngong Sanctuary is selected.
+                </p>
+                <Input
+                  type="number"
+                  value={formData.archeryRate}
+                  onChange={(e) => setFormData({ ...formData, archeryRate: Number(e.target.value) })}
                 />
               </div>
             </TabsContent>

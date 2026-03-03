@@ -22,6 +22,8 @@ import { leadsService } from '@/services/leadsService';
 import { DateSelector } from './DateSelector';
 import { invoiceService } from '@/services/invoiceService';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
+import { LocationSelector } from './LocationSelector';
+import { ActivityTypeSelector } from './ActivityTypeSelector';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
@@ -29,8 +31,9 @@ const childSchema = z.object({
   ageRange: z.enum(['3-below', '4-6', '7-10', '11-15'], { required_error: 'Age range is required' }),
   specialNeeds: z.string().max(500).optional(),
   selectedDates: z.array(z.string()).min(1, 'At least one date is required'),
-  sessionTypes: z.record(z.enum(['half', 'full'])), // { '2025-11-13': 'full' }
-  totalPrice: z.number()
+  sessionTypes: z.record(z.enum(['half', 'full'])),
+  totalPrice: z.number(),
+  activityType: z.enum(['camp', 'archery']).default('camp')
 });
 
 const holidayCampSchema = z.object({
@@ -59,17 +62,28 @@ const calculateAgeRange = (dateOfBirth: Date): '3-below' | '4-6' | '7-10' | '11-
 };
 
 const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
-  // Map campType to form config key
   const formKey = campType.includes('mid-term') ? 'mid-term' : campType;
   const { config, isLoading } = useCampFormConfig(formKey);
+  const [selectedLocation, setSelectedLocation] = useState('');
 
-  const calculatePrice = (selectedDates: string[], sessionTypes: Record<string, 'half' | 'full'>): number => {
+  const calculatePrice = (selectedDates: string[], sessionTypes: Record<string, 'half' | 'full'>, activityType: 'camp' | 'archery' = 'camp'): number => {
     if (!config) return 0;
+    if (activityType === 'archery') {
+      return selectedDates.length * (config.archeryRate || 1000);
+    }
     return selectedDates.reduce((sum, date) => {
       const sessionType = sessionTypes[date] || 'full';
       return sum + (sessionType === 'half' ? config.pricing.halfDayRate : config.pricing.fullDayRate);
     }, 0);
   };
+
+  // Set default location when config loads
+  useEffect(() => {
+    if (config?.locations?.length && !selectedLocation) {
+      setSelectedLocation(config.locations[0]);
+    }
+  }, [config]);
+
   const {
     register,
     handleSubmit,
@@ -88,7 +102,8 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         specialNeeds: '',
         selectedDates: [],
         sessionTypes: {},
-        totalPrice: 0
+        totalPrice: 0,
+        activityType: 'camp' as const
       }],
       campType: campType,
       consent: false
@@ -103,6 +118,8 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
   const consent = watch('consent');
   const watchedChildren = watch('children');
 
+  const isNgongSanctuary = selectedLocation === 'Ngong Sanctuary';
+
   // Auto-calculate age range and price
   useEffect(() => {
     watchedChildren.forEach((child, index) => {
@@ -113,15 +130,25 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         }
       }
       
-      // Calculate price based on selected dates and session types
       if (child.selectedDates && child.sessionTypes) {
-        const calculatedPrice = calculatePrice(child.selectedDates, child.sessionTypes);
+        const calculatedPrice = calculatePrice(child.selectedDates, child.sessionTypes, child.activityType);
         if (child.totalPrice !== calculatedPrice) {
           setValue(`children.${index}.totalPrice`, calculatedPrice, { shouldValidate: false });
         }
       }
     });
-  }, [watchedChildren.map(c => `${c.dateOfBirth?.getTime()}-${c.selectedDates?.join(',')}-${JSON.stringify(c.sessionTypes)}`).join('|'), setValue, config]);
+  }, [watchedChildren.map(c => `${c.dateOfBirth?.getTime()}-${c.selectedDates?.join(',')}-${JSON.stringify(c.sessionTypes)}-${c.activityType}`).join('|'), setValue, config]);
+
+  // Reset activity types when location changes away from Ngong Sanctuary
+  useEffect(() => {
+    if (!isNgongSanctuary) {
+      watchedChildren.forEach((child, index) => {
+        if (child.activityType === 'archery') {
+          setValue(`children.${index}.activityType`, 'camp', { shouldValidate: false });
+        }
+      });
+    }
+  }, [isNgongSanctuary]);
 
   const [showQRModal, setShowQRModal] = useState(false);
   const [registrationResult, setRegistrationResult] = useState<any>(null);
@@ -133,7 +160,6 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
     const buttonType = submitType;
     if (!config) return;
     
-    // Security checks: prevent duplicates and rate limiting
     const securityCheck = await performSecurityChecks(data, 'holiday-camp');
     if (!securityCheck.allowed) {
       toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
@@ -143,26 +169,26 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
     try {
       const totalAmount = data.children.reduce((sum, child) => sum + child.totalPrice, 0);
       
-      // Generate unique QR code data
       const tempId = crypto.randomUUID();
       const qrCodeData = qrCodeService.generateQRCodeData(tempId);
       
-      // Prepare registration data
       const registrationData = {
         camp_type: campType as any,
         parent_name: data.parentName,
         email: data.email,
         phone: data.phone,
         emergency_contact: data.emergencyContact,
+        location: selectedLocation,
         children: data.children.map(child => ({
           childName: child.childName,
           dateOfBirth: child.dateOfBirth.toISOString(),
           ageRange: child.ageRange,
           specialNeeds: child.specialNeeds || '',
-          selectedDays: child.selectedDates.map((date, i) => `Day ${i + 1}`), // For backward compatibility
+          selectedDays: child.selectedDates.map((date, i) => `Day ${i + 1}`),
           selectedDates: child.selectedDates,
           selectedSessions: child.sessionTypes,
           price: child.totalPrice,
+          activityType: child.activityType,
         })),
         total_amount: totalAmount,
         payment_status: 'unpaid' as const,
@@ -173,13 +199,10 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         status: 'active' as const,
       };
 
-      // Create registration in database
       const registration = await campRegistrationService.createRegistration(registrationData);
       
-      // Generate QR code for display
       const qrUrl = await qrCodeService.generateQRCode(qrCodeData);
       
-      // Capture lead
       await leadsService.createLead({
         full_name: data.parentName,
         email: data.email,
@@ -190,7 +213,6 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         source: 'website_registration'
       });
 
-      // Auto-create invoice for registration
       try {
         await invoiceService.createFromRegistration({
           id: registration.id,
@@ -205,13 +227,10 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
             selectedDates: child.selectedDates
           }))
         });
-        console.log('✅ Auto-invoice created for registration');
       } catch (invoiceError) {
         console.error('⚠️ Failed to create auto-invoice:', invoiceError);
-        // Don't fail the registration if invoice creation fails
       }
       
-      // Send confirmation email via Resend (BLOCK submission if email fails)
       console.log('📧 Attempting to send confirmation email...');
       const { supabase } = await import('@/integrations/supabase/client');
       const { data: emailData, error: emailError } = await supabase.functions.invoke('send-confirmation-email', {
@@ -223,7 +242,8 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
             campTitle: campTitle,
             children: data.children,
             campType: campType,
-            registrationId: registration.id
+            registrationId: registration.id,
+            location: selectedLocation
           },
           invoiceDetails: {
             totalAmount: totalAmount,
@@ -232,41 +252,24 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         }
       });
 
-      console.log('📧 Email response:', { emailData, emailError });
-
       if (emailError) {
         console.error('❌ Email sending failed:', emailError);
         throw emailError;
       }
 
-      console.log('✅ Email sent successfully');
-      // Set state for modal
       setRegistrationResult(registration);
       setQrCodeDataUrl(qrUrl);
       setRegistrationType('online_only');
       setShowQRModal(true);
       
-      // Show payment integration message if user clicked "Pay Now"
       if (buttonType === 'pay') {
         setTimeout(() => {
           toast.info('Payment integration coming soon! You will receive an invoice with payment instructions via email.');
         }, 500);
       }
       
-      // TODO: Call edge function to send email
-      // await supabase.functions.invoke('send-camp-confirmation', {
-      //   body: {
-      //     registrationId: registration.id,
-      //     type: buttonType === 'pay' ? 'register_paid' : 'register_only'
-      //   }
-      // });
-      
       toast.success(config.messages.registrationSuccess);
-      
-      // Record successful submission for duplicate prevention
       await recordSubmission(data, 'holiday-camp');
-      
-      // Reset form after successful submission
       reset();
     } catch (error) {
       console.error('Registration error:', error);
@@ -282,7 +285,6 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
     );
   }
 
-  // Validate config has all required fields
   if (!config.fields || !config.pricing || !config.buttons || !config.messages) {
     return (
       <Card className="p-8 sticky top-8">
@@ -302,6 +304,15 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
           {errors.parentName && <p className="text-destructive text-sm mt-1">{errors.parentName.message}</p>}
         </div>
 
+        {/* Location Selector */}
+        {config.locations && config.locations.length > 0 && (
+          <LocationSelector
+            locations={config.locations}
+            value={selectedLocation}
+            onChange={setSelectedLocation}
+          />
+        )}
+
         <div>
           <div className="flex items-center justify-between mb-2">
             <Label className="text-base font-medium">{config.fields.childName.label} *</Label>
@@ -316,7 +327,8 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
                 specialNeeds: '',
                 selectedDates: [],
                 sessionTypes: {},
-                totalPrice: 0
+                totalPrice: 0,
+                activityType: 'camp' as const
               })}
             >
               <Plus className="w-4 h-4 mr-1" />
@@ -393,19 +405,43 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
                   )}
                 </div>
 
-                <DateSelector
-                  availableDates={config.availableDates || []}
-                  selectedDates={watchedChildren[index]?.selectedDates || []}
-                  sessionTypes={watchedChildren[index]?.sessionTypes || {}}
-                  onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
-                  onSessionTypeChange={(date, type) => {
-                    const currentTypes = watchedChildren[index]?.sessionTypes || {};
-                    setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
-                  }}
-                  halfDayRate={config.pricing.halfDayRate}
-                  fullDayRate={config.pricing.fullDayRate}
-                  currency={config.pricing.currency}
-                />
+                {/* Activity Type Selector for Ngong Sanctuary */}
+                {isNgongSanctuary && (
+                  <ActivityTypeSelector
+                    value={watchedChildren[index]?.activityType || 'camp'}
+                    onChange={(v) => setValue(`children.${index}.activityType`, v, { shouldValidate: false })}
+                    archeryRate={config.archeryRate || 1000}
+                    currency={config.pricing.currency}
+                  />
+                )}
+
+                {/* Date & Session selection — hide session picker for archery */}
+                {watchedChildren[index]?.activityType !== 'archery' ? (
+                  <DateSelector
+                    availableDates={config.availableDates || []}
+                    selectedDates={watchedChildren[index]?.selectedDates || []}
+                    sessionTypes={watchedChildren[index]?.sessionTypes || {}}
+                    onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
+                    onSessionTypeChange={(date, type) => {
+                      const currentTypes = watchedChildren[index]?.sessionTypes || {};
+                      setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
+                    }}
+                    halfDayRate={config.pricing.halfDayRate}
+                    fullDayRate={config.pricing.fullDayRate}
+                    currency={config.pricing.currency}
+                  />
+                ) : (
+                  <DateSelector
+                    availableDates={config.availableDates || []}
+                    selectedDates={watchedChildren[index]?.selectedDates || []}
+                    sessionTypes={{}}
+                    onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
+                    onSessionTypeChange={() => {}}
+                    halfDayRate={config.archeryRate || 1000}
+                    fullDayRate={config.archeryRate || 1000}
+                    currency={config.pricing.currency}
+                  />
+                )}
                 {errors.children?.[index]?.selectedDates && (
                   <p className="text-destructive text-sm mt-1">{errors.children[index]?.selectedDates?.message}</p>
                 )}
@@ -419,7 +455,10 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {Object.values(watchedChildren[index]?.sessionTypes || {}).filter(s => s === 'half').length} half days + {Object.values(watchedChildren[index]?.sessionTypes || {}).filter(s => s === 'full').length} full days
+                      {watchedChildren[index]?.activityType === 'archery'
+                        ? `${watchedChildren[index]?.selectedDates?.length || 0} archery session(s)`
+                        : `${Object.values(watchedChildren[index]?.sessionTypes || {}).filter(s => s === 'half').length} half days + ${Object.values(watchedChildren[index]?.sessionTypes || {}).filter(s => s === 'full').length} full days`
+                      }
                     </p>
                   </div>
                 )}

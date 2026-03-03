@@ -60,6 +60,14 @@ const CAMP_TYPES = [
   { value: 'day-camps', label: 'Day Camps' },
 ];
 
+const LOCATIONS = ['Kurura Gate F', 'Ngong Sanctuary'];
+
+const SESSIONS_WITH_ARCHERY = [
+  { value: 'full', label: 'Full Day (9 AM-3 PM)', price: 2500 },
+  { value: 'half', label: 'Half Day (9 AM-1 PM)', price: 1500 },
+  { value: 'archery', label: 'Archery Only (45 mins)', price: 1000 }
+];
+
 const AGE_RANGES = [
   { value: '3 & below', label: '3 & below (Neem)' },
   { value: '4-6', label: '4-6 years (Grevillea)' },
@@ -81,6 +89,7 @@ export const GroundRegistrationTab: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [completedRegistration, setCompletedRegistration] = useState<any>(null);
+  const [selectedLocation, setSelectedLocation] = useState('Kurura Gate F');
 
   const { register, control, handleSubmit, watch, setValue, formState: { errors } } = useForm<GroundRegistrationForm>({
     resolver: zodResolver(groundRegistrationSchema),
@@ -110,6 +119,12 @@ export const GroundRegistrationTab: React.FC = () => {
     if (!child) return 0;
     
     const daysCount = child.selectedDays?.length || 0;
+    const isArchery = selectedLocation === 'Ngong Sanctuary' && child.selectedSessions?.includes('archery');
+    
+    if (isArchery) {
+      return daysCount * 1000; // KES 1000 per archery session
+    }
+    
     const sessionPrices = child.selectedSessions?.map(s => 
       SESSIONS.find(session => session.value === s)?.price || 0
     ) || [];
@@ -172,6 +187,7 @@ export const GroundRegistrationTab: React.FC = () => {
         parent_name: data.parentName,
         email: data.email,
         phone: data.phone,
+        location: selectedLocation,
         emergency_contact: `${data.emergencyContact} (${data.emergencyPhone})`,
         children: data.children.map(child => {
           // Determine actual dates for attendance tracking
@@ -489,6 +505,20 @@ export const GroundRegistrationTab: React.FC = () => {
                     <p className="text-sm text-destructive mt-1">{errors.campType.message}</p>
                   )}
                 </div>
+
+                <div>
+                  <Label>Location *</Label>
+                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LOCATIONS.map(loc => (
+                        <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
@@ -611,7 +641,7 @@ export const GroundRegistrationTab: React.FC = () => {
                     <div className="md:col-span-2">
                       <Label>Select Sessions *</Label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {SESSIONS.map(session => (
+                        {(selectedLocation === 'Ngong Sanctuary' ? SESSIONS_WITH_ARCHERY : SESSIONS).map(session => (
                           <Button
                             key={session.value}
                             type="button"

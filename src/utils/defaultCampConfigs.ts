@@ -125,12 +125,17 @@ export const defaultCampPageConfigs: Record<string, CampPageConfig> = {
 };
 
 // Default camp form configurations
+const DEFAULT_LOCATIONS = ['Kurura Gate F', 'Ngong Sanctuary'];
+const DEFAULT_ARCHERY_RATE = 1000; // KES per 45-min session
+
 const baseFormConfig: Omit<CampFormConfig, 'ageGroups'> = {
   pricing: {
     halfDayRate: 1500,
     fullDayRate: 2500,
     currency: 'KES'
   },
+  locations: DEFAULT_LOCATIONS,
+  archeryRate: DEFAULT_ARCHERY_RATE,
   fields: {
     parentName: { label: 'Parent/Guardian Name', placeholder: 'Enter your full name', required: true },
     childName: { label: "Child's Full Name", placeholder: "Enter child's full name", required: true },
@@ -191,78 +196,14 @@ export const defaultCampFormConfigs: Record<string, CampFormConfig> = {
     }
   },
   'holiday-camp': {
-    pricing: {
-      halfDayRate: 1500,
-      fullDayRate: 2500,
-      currency: 'KES'
-    },
-    fields: {
-      parentName: { label: 'Parent/Guardian Name', placeholder: 'Enter your full name', required: true },
-      childName: { label: "Child's Full Name", placeholder: "Enter child's full name", required: true },
-      dateOfBirth: { label: 'Date of Birth', placeholder: 'Select date', required: true },
-      ageRange: { label: 'Age Range', placeholder: 'Select age range', required: true },
-      numberOfDays: { label: 'Number of Days', placeholder: 'Enter number of days (1-60)', helpText: 'Enter how many days you want to register for' },
-      sessionType: { label: 'Session Type', halfDayLabel: 'Half Day (8AM-12PM)', fullDayLabel: 'Full Day (8AM-5PM)' },
-      specialNeeds: { label: 'Special Needs/Medical Information', placeholder: 'Please describe any special needs, allergies, or medical conditions' },
-      emergencyContact: { label: 'Emergency Contact Name', placeholder: 'Enter emergency contact name', required: true },
-      email: { label: 'Email Address', placeholder: 'your.email@example.com', required: true },
-      phone: { label: 'Phone Number', placeholder: '+254 XXX XXX XXX', required: true }
-    },
-    buttons: {
-      registerOnly: 'Register Only',
-      registerAndPay: 'Register & Pay Now',
-      addChild: 'Add Another Child',
-      removeChild: 'Remove'
-    },
-    messages: {
-      registrationSuccess: "Registration submitted successfully! We'll contact you shortly.",
-      registrationError: 'Failed to submit registration. Please try again.',
-      chooseOption: 'Choose your registration option:',
-      paymentComingSoon: 'Payment integration coming soon. Both options will complete your registration.'
-    },
-    specialNeedsSection: {
-      title: 'Special Needs & Medical Information',
-      description: 'Please provide any information about allergies, medical conditions, or special accommodations needed.'
-    },
+    ...baseFormConfig,
     sessionDates: {
       startDate: '2025-04-14',
       endDate: '2025-04-18'
     }
   },
   'day-camps': {
-    pricing: {
-      halfDayRate: 1500,
-      fullDayRate: 2500,
-      currency: 'KES'
-    },
-    fields: {
-      parentName: { label: 'Parent/Guardian Name', placeholder: 'Enter your full name', required: true },
-      childName: { label: "Child's Full Name", placeholder: "Enter child's full name", required: true },
-      dateOfBirth: { label: 'Date of Birth', placeholder: 'Select date', required: true },
-      ageRange: { label: 'Age Range', placeholder: 'Select age range', required: true },
-      numberOfDays: { label: 'Number of Days', placeholder: 'Enter number of days (1-60)', helpText: 'Choose how many days you want to attend' },
-      sessionType: { label: 'Session Type', halfDayLabel: 'Half Day (8AM-12PM)', fullDayLabel: 'Full Day (8AM-5PM)' },
-      specialNeeds: { label: 'Special Needs/Medical Information', placeholder: 'Please describe any special needs, allergies, or medical conditions' },
-      emergencyContact: { label: 'Emergency Contact Name', placeholder: 'Enter emergency contact name', required: true },
-      email: { label: 'Email Address', placeholder: 'your.email@example.com', required: true },
-      phone: { label: 'Phone Number', placeholder: '+254 XXX XXX XXX', required: true }
-    },
-    buttons: {
-      registerOnly: 'Register Only',
-      registerAndPay: 'Register & Pay Now',
-      addChild: 'Add Another Child',
-      removeChild: 'Remove'
-    },
-    messages: {
-      registrationSuccess: "Registration submitted successfully! We'll contact you shortly.",
-      registrationError: 'Failed to submit registration. Please try again.',
-      chooseOption: 'Choose your registration option:',
-      paymentComingSoon: 'Payment integration coming soon. Both options will complete your registration.'
-    },
-    specialNeedsSection: {
-      title: 'Special Needs & Medical Information',
-      description: 'Please provide any information about allergies, medical conditions, or special accommodations needed.'
-    },
+    ...baseFormConfig,
     sessionDates: {
       startDate: '2025-06-02',
       endDate: '2025-07-25'

@@ -42,6 +42,8 @@ export interface CampFormConfig {
     endDate?: string; // YYYY-MM-DD format (deprecated, for backward compatibility)
   };
   availableDates?: string[]; // Array of YYYY-MM-DD dates (preferred method)
+  locations?: string[]; // Available location options (CMS-configurable)
+  archeryRate?: number; // Archery session rate (KES) for Ngong Sanctuary
   ageGroups?: Array<{
     age: string;
     locations: string;
@@ -88,6 +90,8 @@ export const useCampFormConfig = (formType: string) => {
             ...defaultConfig,
             ...data.metadata.formConfig,
             availableDates,
+            locations: data.metadata.formConfig.locations || defaultConfig?.locations,
+            archeryRate: data.metadata.formConfig.archeryRate || defaultConfig?.archeryRate,
             sessionDates: data.metadata.formConfig.sessionDates || defaultConfig?.sessionDates,
             ageGroups: data.metadata.formConfig.ageGroups || defaultConfig?.ageGroups
           };

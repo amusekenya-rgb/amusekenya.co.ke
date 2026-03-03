@@ -7,6 +7,7 @@ export interface CampChild {
   selectedDates: string[]; // Array of YYYY-MM-DD dates
   selectedSessions: string[] | Record<string, 'half' | 'full'>; // Array (old) or keyed by date (new)
   price: number;
+  activityType?: 'camp' | 'archery'; // 'archery' for Ngong Sanctuary archery-only sessions
 }
 
 export interface CampRegistration {
@@ -26,6 +27,7 @@ export interface CampRegistration {
   qr_code_data: string;
   consent_given: boolean;
   status: 'active' | 'cancelled' | 'completed';
+  location?: string;
   created_at?: string;
   created_by?: string;
   updated_at?: string;

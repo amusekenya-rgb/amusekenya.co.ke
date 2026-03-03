@@ -28,6 +28,7 @@ export const AllRegistrationsTab: React.FC = () => {
   const [campTypeFilter, setCampTypeFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [registrationTypeFilter, setRegistrationTypeFilter] = useState<string>('all');
+  const [locationFilter, setLocationFilter] = useState<string>('all');
   const [selectedRegistration, setSelectedRegistration] = useState<CampRegistration | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   
@@ -58,6 +59,10 @@ export const AllRegistrationsTab: React.FC = () => {
         data = data.filter(reg => reg.registration_type === registrationTypeFilter);
       }
       
+      if (locationFilter !== 'all') {
+        data = data.filter(reg => (reg.location || 'Kurura Gate F') === locationFilter);
+      }
+      
       if (minAmount) {
         data = data.filter(reg => reg.total_amount >= parseFloat(minAmount));
       }
@@ -77,7 +82,7 @@ export const AllRegistrationsTab: React.FC = () => {
 
   useEffect(() => {
     loadRegistrations();
-  }, [campTypeFilter, paymentFilter, registrationTypeFilter, dateFrom, dateTo]);
+  }, [campTypeFilter, paymentFilter, registrationTypeFilter, locationFilter, dateFrom, dateTo]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
@@ -248,6 +253,7 @@ export const AllRegistrationsTab: React.FC = () => {
     setCampTypeFilter('all');
     setPaymentFilter('all');
     setRegistrationTypeFilter('all');
+    setLocationFilter('all');
     setDateFrom(undefined);
     setDateTo(undefined);
     setMinAmount('');
@@ -256,7 +262,7 @@ export const AllRegistrationsTab: React.FC = () => {
   };
 
   const hasActiveFilters = campTypeFilter !== 'all' || paymentFilter !== 'all' || 
-    registrationTypeFilter !== 'all' || dateFrom || dateTo || minAmount || maxAmount || searchTerm;
+    registrationTypeFilter !== 'all' || locationFilter !== 'all' || dateFrom || dateTo || minAmount || maxAmount || searchTerm;
 
   return (
     <>
@@ -324,6 +330,16 @@ export const AllRegistrationsTab: React.FC = () => {
                   <SelectItem value="paid">Paid</SelectItem>
                   <SelectItem value="unpaid">Unpaid</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  <SelectItem value="Kurura Gate F">Kurura Gate F</SelectItem>
+                  <SelectItem value="Ngong Sanctuary">Ngong Sanctuary</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -482,6 +498,7 @@ export const AllRegistrationsTab: React.FC = () => {
                     <TableHead className="text-xs sm:text-sm">Reg #</TableHead>
                     <TableHead className="text-xs sm:text-sm">Parent</TableHead>
                     <TableHead className="text-xs sm:text-sm hidden md:table-cell">Camp</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Location</TableHead>
                     <TableHead className="text-xs sm:text-sm">Kids</TableHead>
                     <TableHead className="text-xs sm:text-sm">Amount</TableHead>
                     <TableHead className="text-xs sm:text-sm">Status</TableHead>
@@ -502,6 +519,7 @@ export const AllRegistrationsTab: React.FC = () => {
                       <TableCell className="font-mono text-xs sm:text-sm">{reg.registration_number?.slice(-8)}</TableCell>
                       <TableCell className="text-xs sm:text-sm max-w-[100px] truncate">{reg.parent_name}</TableCell>
                       <TableCell className="capitalize text-xs sm:text-sm hidden md:table-cell">{reg.camp_type.replace('-', ' ')}</TableCell>
+                      <TableCell className="text-xs sm:text-sm hidden lg:table-cell">{reg.location || 'Kurura Gate F'}</TableCell>
                       <TableCell className="text-xs sm:text-sm">{reg.children.length}</TableCell>
                       <TableCell className="text-xs sm:text-sm">KES {reg.total_amount.toFixed(0)}</TableCell>
                       <TableCell>{getPaymentBadge(reg.payment_status)}</TableCell>

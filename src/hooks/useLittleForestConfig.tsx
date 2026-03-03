@@ -39,6 +39,7 @@ export interface LittleForestFormConfig {
     paymentComingSoon: string;
   };
   availableDates: string[];
+  locations?: string[];
   ageOptions: Array<{
     value: string;
     label: string;
@@ -101,6 +102,7 @@ export const defaultFormConfig: LittleForestFormConfig = {
     '2025-06-16',
     '2025-06-20'
   ],
+  locations: ['Kurura Gate F', 'Ngong Sanctuary'],
   ageOptions: [
     { value: '1-2', label: '1-2 years' },
     { value: '2-3', label: '2-3 years' },

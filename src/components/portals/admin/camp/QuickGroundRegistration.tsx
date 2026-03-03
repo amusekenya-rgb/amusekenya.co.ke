@@ -47,6 +47,8 @@ const CAMP_TYPES = [
   { value: 'day-camps', label: 'Day Camps' },
 ];
 
+const LOCATIONS = ['Kurura Gate F', 'Ngong Sanctuary'];
+
 const AGE_RANGES = [
   { value: '3-below', label: '3 & Below (Neem)' },
   { value: '4-6', label: '4-6 (Grevillea)' },
@@ -56,7 +58,8 @@ const AGE_RANGES = [
 
 const SESSIONS = [
   { value: 'full', label: 'Full Day', price: 2500 },
-  { value: 'half', label: 'Half Day', price: 1500 }
+  { value: 'half', label: 'Half Day', price: 1500 },
+  { value: 'archery', label: 'Archery (45 min)', price: 1000 }
 ];
 
 interface QuickGroundRegistrationProps {
@@ -67,6 +70,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
   const { user } = useSupabaseAuth();
   const [submitting, setSubmitting] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
+  const [selectedLocation, setSelectedLocation] = useState('Kurura Gate F');
 
   const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<QuickRegForm>({
     resolver: zodResolver(quickRegSchema),
@@ -85,6 +89,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
   const sessionType = watch('sessionType');
   const children = watch('children');
 
+  const availableSessions = selectedLocation === 'Ngong Sanctuary' ? SESSIONS : SESSIONS.filter(s => s.value !== 'archery');
   const sessionPrice = SESSIONS.find(s => s.value === sessionType)?.price || 0;
   const totalAmount = children.length * sessionPrice;
 
@@ -106,6 +111,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         parent_name: data.parentName,
         email: data.email,
         phone: data.phone,
+        location: selectedLocation,
         emergency_contact: data.phone,
         children: data.children.map(child => ({
           childName: child.childName,
@@ -232,8 +238,8 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         </div>
       </div>
 
-      {/* Camp & Session */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Camp, Location & Session */}
+      <div className="grid grid-cols-3 gap-3">
         <div>
           <Label>Camp Type *</Label>
           <Select onValueChange={(v) => setValue('campType', v)}>
@@ -249,13 +255,26 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
           {errors.campType && <p className="text-xs text-destructive mt-1">{errors.campType.message}</p>}
         </div>
         <div>
+          <Label>Location *</Label>
+          <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LOCATIONS.map(loc => (
+                <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
           <Label>Session *</Label>
           <Select value={sessionType} onValueChange={(v) => setValue('sessionType', v)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {SESSIONS.map(s => (
+              {availableSessions.map(s => (
                 <SelectItem key={s.value} value={s.value}>{s.label} - KES {s.price}</SelectItem>
               ))}
             </SelectContent>

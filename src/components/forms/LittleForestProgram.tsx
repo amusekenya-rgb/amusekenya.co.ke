@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,6 +26,7 @@ import type { CampRegistration } from '@/types/campRegistration';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
 import DynamicMedia from '@/components/content/DynamicMedia';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
+import { LocationSelector } from './LocationSelector';
 
 // Child schema for multiple children support with simple date selection
 const childSchema = z.object({
@@ -55,6 +56,14 @@ const LittleForestProgram = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [registrationResult, setRegistrationResult] = useState<CampRegistration | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [selectedLocation, setSelectedLocation] = useState('');
+
+  // Set default location
+  useEffect(() => {
+    if (config?.locations?.length && !selectedLocation) {
+      setSelectedLocation(config.locations[0]);
+    }
+  }, [config]);
 
   const {
     register,
@@ -128,6 +137,7 @@ const LittleForestProgram = () => {
         email: data.email,
         phone: data.phone,
         emergency_contact: data.emergencyContact,
+        location: selectedLocation,
         children: data.children.map((child, index) => ({
           childName: child.childName,
           dateOfBirth: '',
@@ -348,6 +358,15 @@ const LittleForestProgram = () => {
                 <Input id="parentName" {...register('parentName')} className="mt-2" placeholder={config.fields.parentName.placeholder} />
                 {errors.parentName && <p className="text-destructive text-sm mt-1">{errors.parentName.message}</p>}
               </div>
+
+              {/* Location Selector */}
+              {config.locations && config.locations.length > 0 && (
+                <LocationSelector
+                  locations={config.locations}
+                  value={selectedLocation}
+                  onChange={setSelectedLocation}
+                />
+              )}
 
               {/* Children Section */}
               <div className="space-y-4">
