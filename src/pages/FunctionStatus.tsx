@@ -125,7 +125,7 @@ export default function FunctionStatus() {
                 <div className="text-sm text-yellow-700 dark:text-yellow-300 space-y-2">
                   <p className="font-medium">What to do:</p>
                   <ol className="list-decimal list-inside space-y-1 ml-2">
-                    <li>Edge functions auto-deploy in Lovable when you make changes</li>
+                    <li>Edge functions auto-deploy when you make changes</li>
                     <li>Wait 1-2 minutes for the deployment to complete</li>
                     <li>Click "Refresh" button above to check status again</li>
                     <li>If still not working after 5 minutes, check Supabase logs</li>
