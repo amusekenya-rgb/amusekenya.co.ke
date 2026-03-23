@@ -4,8 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, X, Loader2, Mail } from 'lucide-react';
+import { Plus, X, Loader2, Mail, Search, UserCheck } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -57,9 +58,13 @@ const AGE_RANGES = [
   { value: '11-15', label: '11-15 (Mighty Oaks)' }
 ];
 
-const SESSIONS = [
+const SESSIONS_KARURA = [
   { value: 'full', label: 'Full Day', price: 2500 },
-  { value: 'half', label: 'Half Day', price: 1500 },
+  { value: 'half', label: 'Half Day', price: 1500 }
+];
+
+const SESSIONS_NGONG = [
+  { value: 'full', label: 'Full Day', price: 2000 },
   { value: 'archery', label: 'Archery (45 min)', price: 1000 }
 ];
 
@@ -72,6 +77,11 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
   const [submitting, setSubmitting] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState('Kurura Gate F');
+
+  // Client lookup state
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookupResults, setLookupResults] = useState<CampRegistration[]>([]);
+  const [lookupLoading, setLookupLoading] = useState(false);
 
   const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<QuickRegForm>({
     resolver: zodResolver(quickRegSchema),
@@ -89,13 +99,52 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
 
   const sessionType = watch('sessionType');
   const children = watch('children');
+  const amountPaid = watch('amountPaid') || 0;
 
-  const availableSessions = selectedLocation === 'Ngong Sanctuary' ? SESSIONS : SESSIONS.filter(s => s.value !== 'archery');
-  const sessionPrice = SESSIONS.find(s => s.value === sessionType)?.price || 0;
+  const availableSessions = selectedLocation === 'Ngong Sanctuary' ? SESSIONS_NGONG : SESSIONS_KARURA;
+  const sessionPrice = availableSessions.find(s => s.value === sessionType)?.price || 0;
   const totalAmount = children.length * sessionPrice;
+  const balanceDue = totalAmount - amountPaid;
+
+  // Client lookup
+  const handleClientLookup = async () => {
+    if (lookupQuery.trim().length < 3) {
+      toast.error('Enter at least 3 characters to search');
+      return;
+    }
+    try {
+      setLookupLoading(true);
+      const results = await campRegistrationService.searchRegistrations(lookupQuery.trim());
+      setLookupResults(results.slice(0, 5));
+      if (results.length === 0) {
+        toast.info('No previous registrations found');
+      }
+    } catch (err) {
+      console.error('Client lookup error:', err);
+      toast.error('Lookup failed');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const applyClientData = (reg: CampRegistration) => {
+    setValue('parentName', reg.parent_name);
+    setValue('email', reg.email);
+    setValue('phone', reg.phone);
+    if (reg.children && reg.children.length > 0) {
+      const mappedChildren = reg.children.map(c => ({
+        childName: c.childName || '',
+        ageRange: c.ageRange || '',
+        price: 0
+      }));
+      setValue('children', mappedChildren);
+    }
+    setLookupResults([]);
+    setLookupQuery('');
+    toast.success('Client details auto-filled!');
+  };
 
   const onSubmit = async (data: QuickRegForm) => {
-    // Security checks: prevent duplicates and rate limiting (higher limit for admin)
     const securityCheck = await performSecurityChecks(data, 'ground-registration');
     if (!securityCheck.allowed) {
       toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
@@ -105,7 +154,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
     try {
       setSubmitting(true);
 
-      const paymentStatus = data.amountPaid >= totalAmount ? 'paid' : data.amountPaid > 0 ? 'partial' : 'unpaid';
+      const paymentStatus = amountPaid >= totalAmount ? 'paid' : amountPaid > 0 ? 'partial' : 'unpaid';
 
       const registrationData: Omit<CampRegistration, 'id' | 'registration_number' | 'created_at' | 'updated_at'> = {
         camp_type: data.campType as CampRegistration['camp_type'],
@@ -136,24 +185,23 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         }),
         consent_given: true,
         status: 'active',
-        admin_notes: data.notes || `Walk-in registration. Paid: KES ${data.amountPaid}/${totalAmount}`
+        admin_notes: data.notes || `Walk-in registration. Paid: KES ${amountPaid}/${totalAmount}`
       };
 
       const registration = await campRegistrationService.createRegistration(registrationData);
 
       if (registration) {
-        // Create unified payment record if amount was paid
-        if (data.amountPaid > 0) {
+        if (amountPaid > 0) {
           await financialService.createPaymentFromRegistration({
             registrationId: registration.id,
             registrationType: 'camp',
             source: 'ground_registration',
             customerName: data.parentName,
             programName: `${data.campType} (Walk-in)`,
-            amount: data.amountPaid,
+            amount: amountPaid,
             paymentMethod: 'cash_ground',
             paymentReference: `WALK-${Date.now()}`,
-            notes: `Walk-in registration. Paid: KES ${data.amountPaid}/${totalAmount}`,
+            notes: `Walk-in registration. Paid: KES ${amountPaid}/${totalAmount}`,
             createdBy: user?.id
           });
         }
@@ -170,39 +218,38 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
 
         toast.success(`Registered! #${registration.registration_number}`);
 
-        // Send confirmation + admin notification emails (if enabled)
         if (sendEmail) {
-        try {
-          const campLabel = CAMP_TYPES.find(c => c.value === data.campType)?.label || data.campType;
-          await supabase.functions.invoke('send-confirmation-email', {
-            body: {
-              email: data.email,
-              programType: data.campType,
-              registrationDetails: {
-                parentName: data.parentName,
-                campTitle: `${campLabel} (Walk-in)`,
-                registrationId: registration.id,
-                registrationNumber: registration.registration_number,
-                children: data.children.map(child => ({
-                  childName: child.childName,
-                  ageRange: child.ageRange,
-                  selectedDates: [new Date().toISOString().split('T')[0]],
-                  selectedSessions: { [new Date().toISOString().split('T')[0]]: data.sessionType },
-                  price: sessionPrice,
-                })),
+          try {
+            const campLabel = CAMP_TYPES.find(c => c.value === data.campType)?.label || data.campType;
+            await supabase.functions.invoke('send-confirmation-email', {
+              body: {
+                email: data.email,
+                programType: data.campType,
+                registrationDetails: {
+                  parentName: data.parentName,
+                  campTitle: `${campLabel} (Walk-in)`,
+                  registrationId: registration.id,
+                  registrationNumber: registration.registration_number,
+                  location: selectedLocation,
+                  children: data.children.map(child => ({
+                    childName: child.childName,
+                    ageRange: child.ageRange,
+                    selectedDates: [new Date().toISOString().split('T')[0]],
+                    selectedSessions: { [new Date().toISOString().split('T')[0]]: data.sessionType },
+                    price: sessionPrice,
+                  })),
+                },
+                invoiceDetails: {
+                  totalAmount,
+                  paymentMethod: 'cash_ground',
+                },
               },
-              invoiceDetails: {
-                totalAmount,
-                paymentMethod: 'cash_ground',
-              },
-            },
-          });
-        } catch (emailError) {
-          console.error('Email notification failed:', emailError);
-        }
+            });
+          } catch (emailError) {
+            console.error('Email notification failed:', emailError);
+          }
         }
 
-        // Create pending collection items for unpaid walk-ins
         if (paymentStatus !== 'paid') {
           for (const child of data.children) {
             try {
@@ -213,19 +260,17 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
                 data.email,
                 data.phone,
                 totalAmount,
-                data.amountPaid,
+                amountPaid,
                 data.campType
               );
             } catch (actionError) {
               console.error('Failed to create pending collection item:', actionError);
-              toast.warning(`Pending collection item for ${child.childName} could not be created. Please notify accounts manually.`);
+              toast.warning(`Pending collection item for ${child.childName} could not be created.`);
             }
           }
         }
 
-        // Record successful submission for duplicate prevention
         await recordSubmission(data, 'ground-registration');
-        
         reset();
         onComplete();
       }
@@ -239,6 +284,41 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
+      {/* Client Lookup */}
+      <div className="space-y-2 border rounded-lg p-3 bg-muted/30">
+        <Label className="text-xs font-semibold flex items-center gap-1.5">
+          <Search className="h-3 w-3" />
+          Returning client? Search previous records
+        </Label>
+        <div className="flex gap-2">
+          <Input
+            value={lookupQuery}
+            onChange={(e) => setLookupQuery(e.target.value)}
+            placeholder="Phone, email, or name..."
+            className="text-sm"
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleClientLookup())}
+          />
+          <Button type="button" variant="outline" size="sm" onClick={handleClientLookup} disabled={lookupLoading}>
+            {lookupLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+          </Button>
+        </div>
+        {lookupResults.length > 0 && (
+          <div className="space-y-1.5 mt-1">
+            {lookupResults.map((reg) => (
+              <div key={reg.id} className="flex items-center justify-between border rounded p-2 bg-background text-xs">
+                <div>
+                  <p className="font-medium">{reg.parent_name}</p>
+                  <p className="text-muted-foreground">{reg.phone} · {reg.children?.map(c => c.childName).join(', ')}</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => applyClientData(reg)} className="text-xs h-7 px-2">
+                  <UserCheck className="h-3 w-3 mr-1" /> Use
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Parent Info */}
       <div className="grid grid-cols-1 gap-3">
         <div>
@@ -265,9 +345,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         <div>
           <Label>Camp Type *</Label>
           <Select onValueChange={(v) => setValue('campType', v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select camp" />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue placeholder="Select camp" /></SelectTrigger>
             <SelectContent>
               {CAMP_TYPES.map(camp => (
                 <SelectItem key={camp.value} value={camp.value}>{camp.label}</SelectItem>
@@ -279,9 +357,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         <div>
           <Label>Location *</Label>
           <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {LOCATIONS.map(loc => (
                 <SelectItem key={loc} value={loc}>{loc}</SelectItem>
@@ -292,9 +368,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         <div>
           <Label>Session *</Label>
           <Select value={sessionType} onValueChange={(v) => setValue('sessionType', v)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {availableSessions.map(s => (
                 <SelectItem key={s.value} value={s.value}>{s.label} - KES {s.price}</SelectItem>
@@ -308,12 +382,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label>Children ({children.length})</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => append({ childName: '', ageRange: '', price: 0 })}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={() => append({ childName: '', ageRange: '', price: 0 })}>
             <Plus className="h-3 w-3 mr-1" /> Add
           </Button>
         </div>
@@ -321,15 +390,10 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         {fields.map((field, index) => (
           <div key={field.id} className="flex gap-2 items-start">
             <div className="flex-1">
-              <Input
-                {...register(`children.${index}.childName`)}
-                placeholder="Child's name"
-              />
+              <Input {...register(`children.${index}.childName`)} placeholder="Child's name" />
             </div>
-            <Select onValueChange={(v) => setValue(`children.${index}.ageRange`, v)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Age" />
-              </SelectTrigger>
+            <Select onValueChange={(v) => setValue(`children.${index}.ageRange`, v)} value={children[index]?.ageRange || ''}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Age" /></SelectTrigger>
               <SelectContent>
                 {AGE_RANGES.map(a => (
                   <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
@@ -353,21 +417,30 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         </div>
         <div>
           <Label>Amount Paid (KES)</Label>
-          <Input
-            type="number"
-            {...register('amountPaid', { valueAsNumber: true })}
-            placeholder="0"
-          />
+          <Input type="number" {...register('amountPaid', { valueAsNumber: true })} placeholder="0" />
         </div>
+        {/* Balance indicator */}
+        {totalAmount > 0 && (
+          <div className={cn(
+            "p-2 rounded text-xs font-medium",
+            balanceDue <= 0
+              ? "bg-green-500/10 text-green-700 dark:text-green-400"
+              : amountPaid > 0
+                ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
+                : "bg-destructive/10 text-destructive"
+          )}>
+            {balanceDue <= 0
+              ? '✓ Fully Paid'
+              : amountPaid > 0
+                ? `⚠ Partial — Balance: KES ${balanceDue.toLocaleString()}`
+                : `✗ Unpaid — KES ${balanceDue.toLocaleString()} due`}
+          </div>
+        )}
       </div>
 
       {/* Email Toggle */}
       <div className="flex items-center space-x-2">
-        <Checkbox
-          id="sendEmail"
-          checked={sendEmail}
-          onCheckedChange={(checked) => setSendEmail(checked === true)}
-        />
+        <Checkbox id="sendEmail" checked={sendEmail} onCheckedChange={(checked) => setSendEmail(checked === true)} />
         <Label htmlFor="sendEmail" className="flex items-center gap-1.5 text-sm cursor-pointer">
           <Mail className="h-3.5 w-3.5" />
           Send confirmation email to client

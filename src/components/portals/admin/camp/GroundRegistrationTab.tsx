@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { UserPlus, Plus, X, Loader2, Mail, CalendarCheck, CalendarPlus, CalendarIcon } from 'lucide-react';
+import { UserPlus, Plus, X, Loader2, Mail, CalendarCheck, CalendarPlus, CalendarIcon, Search, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -28,11 +28,8 @@ import { performSecurityChecks, recordSubmission } from '@/services/formSecurity
 
 const childSchema = z.object({
   childName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name too long'),
-  dateOfBirth: z.string().min(1, 'Date of birth is required'),
   ageRange: z.string().min(1, 'Age range is required'),
   specialNeeds: z.string().max(500, 'Description too long').optional(),
-  selectedDays: z.array(z.string()).min(1, 'Select at least one day'),
-  selectedDates: z.array(z.string()).optional(),
   selectedSessions: z.array(z.string()).min(1, 'Select at least one session'),
   price: z.number().min(0)
 });
@@ -62,9 +59,13 @@ const CAMP_TYPES = [
 
 const LOCATIONS = ['Kurura Gate F', 'Ngong Sanctuary'];
 
-const SESSIONS_WITH_ARCHERY = [
+const SESSIONS_KARURA = [
   { value: 'full', label: 'Full Day (9 AM-3 PM)', price: 2500 },
-  { value: 'half', label: 'Half Day (9 AM-1 PM)', price: 1500 },
+  { value: 'half', label: 'Half Day (9 AM-1 PM)', price: 1500 }
+];
+
+const SESSIONS_NGONG = [
+  { value: 'full', label: 'Full Day (9 AM-1 PM)', price: 2000 },
   { value: 'archery', label: 'Archery Only (45 mins)', price: 1000 }
 ];
 
@@ -74,32 +75,30 @@ const AGE_RANGES = [
   { value: '7-10', label: '7-10 years (Croton)' },
   { value: '11-15', label: '11-15 years (Mighty Oaks)' },
 ];
-const DAYS = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'];
-const SESSIONS = [
-  { value: 'full', label: 'Full Day (9 AM-3 PM)', price: 2500 },
-  { value: 'half', label: 'Half Day (9 AM-1 PM)', price: 1500 }
-];
 
 export const GroundRegistrationTab: React.FC = () => {
   const { user } = useSupabaseAuth();
   const [submitting, setSubmitting] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [registrationMode, setRegistrationMode] = useState<'walkin_today' | 'book_future'>('walkin_today');
-  const [bookingDate, setBookingDate] = useState<Date | undefined>(undefined);
+  const [bookingDates, setBookingDates] = useState<Date[]>([]);
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [completedRegistration, setCompletedRegistration] = useState<any>(null);
   const [selectedLocation, setSelectedLocation] = useState('Kurura Gate F');
 
-  const { register, control, handleSubmit, watch, setValue, formState: { errors } } = useForm<GroundRegistrationForm>({
+  // Client lookup state
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookupResults, setLookupResults] = useState<CampRegistration[]>([]);
+  const [lookupLoading, setLookupLoading] = useState(false);
+
+  const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<GroundRegistrationForm>({
     resolver: zodResolver(groundRegistrationSchema),
     defaultValues: {
       children: [{
         childName: '',
-        dateOfBirth: '',
         ageRange: '',
         specialNeeds: '',
-        selectedDays: [],
         selectedSessions: [],
         price: 0
       }],
@@ -113,40 +112,35 @@ export const GroundRegistrationTab: React.FC = () => {
   });
 
   const children = watch('children');
+  const amountPaid = watch('amountPaid') || 0;
+
+  const getSessionsForLocation = () => {
+    return selectedLocation === 'Ngong Sanctuary' ? SESSIONS_NGONG : SESSIONS_KARURA;
+  };
 
   const calculateChildPrice = (childIndex: number) => {
     const child = children[childIndex];
     if (!child) return 0;
-    
-    const daysCount = child.selectedDays?.length || 0;
-    const isArchery = selectedLocation === 'Ngong Sanctuary' && child.selectedSessions?.includes('archery');
-    
-    if (isArchery) {
-      return daysCount * 1000; // KES 1000 per archery session
-    }
-    
-    const sessionPrices = child.selectedSessions?.map(s => 
-      SESSIONS.find(session => session.value === s)?.price || 0
+
+    const sessions = getSessionsForLocation();
+    const datesCount = registrationMode === 'book_future' ? (bookingDates.length || 1) : 1;
+
+    const sessionPrices = child.selectedSessions?.map(s =>
+      sessions.find(session => session.value === s)?.price || 0
     ) || [];
-    const avgSessionPrice = sessionPrices.length > 0 
-      ? sessionPrices.reduce((a, b) => a + b, 0) / sessionPrices.length 
+    const avgSessionPrice = sessionPrices.length > 0
+      ? sessionPrices.reduce((a, b) => a + b, 0) / sessionPrices.length
       : 0;
-    
-    return daysCount * avgSessionPrice;
+
+    return datesCount * avgSessionPrice;
   };
 
   const calculateTotalAmount = () => {
     return children.reduce((total, _, index) => total + calculateChildPrice(index), 0);
   };
 
-  const toggleDay = (childIndex: number, day: string) => {
-    const currentDays = children[childIndex].selectedDays || [];
-    const newDays = currentDays.includes(day)
-      ? currentDays.filter(d => d !== day)
-      : [...currentDays, day];
-    setValue(`children.${childIndex}.selectedDays`, newDays);
-    updateChildPrice(childIndex);
-  };
+  const totalAmount = calculateTotalAmount();
+  const balanceDue = totalAmount - amountPaid;
 
   const toggleSession = (childIndex: number, session: string) => {
     const currentSessions = children[childIndex].selectedSessions || [];
@@ -162,14 +156,62 @@ export const GroundRegistrationTab: React.FC = () => {
     setValue(`children.${childIndex}.price`, price);
   };
 
+  // Client lookup
+  const handleClientLookup = async () => {
+    if (lookupQuery.trim().length < 3) {
+      toast.error('Enter at least 3 characters to search');
+      return;
+    }
+    try {
+      setLookupLoading(true);
+      const results = await campRegistrationService.searchRegistrations(lookupQuery.trim());
+      setLookupResults(results.slice(0, 5));
+      if (results.length === 0) {
+        toast.info('No previous registrations found');
+      }
+    } catch (err) {
+      console.error('Client lookup error:', err);
+      toast.error('Lookup failed');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const applyClientData = (reg: CampRegistration) => {
+    setValue('parentName', reg.parent_name);
+    setValue('email', reg.email);
+    setValue('phone', reg.phone);
+    if (reg.emergency_contact) {
+      const match = reg.emergency_contact.match(/^(.+?)\s*\((.+?)\)$/);
+      if (match) {
+        setValue('emergencyContact', match[1]);
+        setValue('emergencyPhone', match[2]);
+      } else {
+        setValue('emergencyContact', reg.emergency_contact);
+      }
+    }
+    // Auto-fill children
+    if (reg.children && reg.children.length > 0) {
+      const mappedChildren = reg.children.map(c => ({
+        childName: c.childName || '',
+        ageRange: c.ageRange || '',
+        specialNeeds: c.specialNeeds || '',
+        selectedSessions: [],
+        price: 0
+      }));
+      setValue('children', mappedChildren);
+    }
+    setLookupResults([]);
+    setLookupQuery('');
+    toast.success('Client details auto-filled! You can edit any field.');
+  };
+
   const onSubmit = async (data: GroundRegistrationForm) => {
-    // Validate booking date for future bookings
-    if (registrationMode === 'book_future' && !bookingDate) {
-      toast.error('Please select a booking date for the future reservation.');
+    if (registrationMode === 'book_future' && bookingDates.length === 0) {
+      toast.error('Please select at least one booking date.');
       return;
     }
 
-    // Security checks: prevent duplicates and rate limiting
     const securityCheck = await performSecurityChecks(data, 'ground-registration');
     if (!securityCheck.allowed) {
       toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
@@ -179,8 +221,7 @@ export const GroundRegistrationTab: React.FC = () => {
     try {
       setSubmitting(true);
 
-      const totalAmount = calculateTotalAmount();
-      const paymentStatus = data.amountPaid >= totalAmount ? 'paid' : 'partial';
+      const paymentStatus = amountPaid >= totalAmount ? 'paid' : amountPaid > 0 ? 'partial' : 'unpaid';
 
       const registrationData: Omit<CampRegistration, 'id' | 'registration_number' | 'created_at' | 'updated_at'> = {
         camp_type: data.campType as CampRegistration['camp_type'],
@@ -190,29 +231,21 @@ export const GroundRegistrationTab: React.FC = () => {
         location: selectedLocation,
         emergency_contact: `${data.emergencyContact} (${data.emergencyPhone})`,
         children: data.children.map(child => {
-          // Determine actual dates for attendance tracking
           const today = new Date().toISOString().split('T')[0];
-          let actualDates: string[] = child.selectedDates || [];
-          
+          let actualDates: string[] = [];
+
           if (registrationMode === 'walkin_today') {
-            // Ensure today's date is in selectedDates for attendance tracking
-            if (!actualDates.includes(today)) {
-              actualDates = [...actualDates, today];
-            }
-          } else if (registrationMode === 'book_future' && bookingDate) {
-            // Add the future booking date to selectedDates
-            const futureDate = bookingDate.toISOString().split('T')[0];
-            if (!actualDates.includes(futureDate)) {
-              actualDates = [...actualDates, futureDate];
-            }
+            actualDates = [today];
+          } else {
+            actualDates = bookingDates.map(d => d.toISOString().split('T')[0]);
           }
 
           return {
             childName: child.childName || '',
-            dateOfBirth: child.dateOfBirth || '',
+            dateOfBirth: '',
             ageRange: child.ageRange || '',
             specialNeeds: child.specialNeeds || '',
-            selectedDays: child.selectedDays || [],
+            selectedDays: actualDates.map((_, i) => `Day ${i + 1}`),
             selectedDates: actualDates,
             selectedSessions: child.selectedSessions || [],
             price: child.price || 0
@@ -230,32 +263,29 @@ export const GroundRegistrationTab: React.FC = () => {
         }),
         consent_given: true,
         status: 'active',
-        admin_notes: data.paymentNotes || `Ground registration. Amount paid: KES ${data.amountPaid}`
+        admin_notes: data.paymentNotes || `Ground registration. Paid: KES ${amountPaid}/${totalAmount}`
       };
 
       const registration = await campRegistrationService.createRegistration(registrationData);
 
       if (registration) {
-        // Create unified payment record if amount was paid
-        if (data.amountPaid > 0) {
+        if (amountPaid > 0) {
           await financialService.createPaymentFromRegistration({
             registrationId: registration.id,
             registrationType: 'camp',
             source: 'ground_registration',
             customerName: data.parentName,
             programName: `${data.campType} (Ground)`,
-            amount: data.amountPaid,
+            amount: amountPaid,
             paymentMethod: 'cash_ground',
             paymentReference: `GROUND-${Date.now()}`,
-            notes: `Ground registration. Amount paid: KES ${data.amountPaid}`,
+            notes: `Ground registration. Paid: KES ${amountPaid}/${totalAmount}`,
             createdBy: user?.id
           });
         }
 
-        // Generate QR code from string data
         const qrData = await qrCodeService.generateQRCode(registration.qr_code_data);
 
-        // Capture lead
         await leadsService.createLead({
           full_name: data.parentName,
           email: data.email,
@@ -270,7 +300,6 @@ export const GroundRegistrationTab: React.FC = () => {
         setCompletedRegistration(registration);
         setShowQRModal(true);
 
-        // Auto-mark attendance if walk-in today
         if (registrationMode === 'walkin_today') {
           try {
             for (const child of data.children) {
@@ -288,11 +317,10 @@ export const GroundRegistrationTab: React.FC = () => {
             toast.success('Registration completed! (Attendance marking failed - please mark manually)');
           }
         } else {
-          const formattedDate = bookingDate ? format(bookingDate, 'PPP') : '';
-          toast.success(`Booking registered for ${formattedDate}!`);
+          const dateStr = bookingDates.map(d => format(d, 'PPP')).join(', ');
+          toast.success(`Booking registered for ${dateStr}!`);
         }
 
-        // Send confirmation + admin notification emails (if enabled)
         if (sendEmail) {
           try {
             const campLabel = CAMP_TYPES.find(c => c.value === data.campType)?.label || data.campType;
@@ -305,10 +333,13 @@ export const GroundRegistrationTab: React.FC = () => {
                   campTitle: `${campLabel} (Walk-in)`,
                   registrationId: registration.id,
                   registrationNumber: registration.registration_number,
+                  location: selectedLocation,
                   children: data.children.map(child => ({
                     childName: child.childName,
                     ageRange: child.ageRange,
-                    selectedDates: child.selectedDates || child.selectedDays,
+                    selectedDates: registrationMode === 'walkin_today'
+                      ? [new Date().toISOString().split('T')[0]]
+                      : bookingDates.map(d => d.toISOString().split('T')[0]),
                     selectedSessions: child.selectedSessions,
                     price: child.price,
                   })),
@@ -324,7 +355,6 @@ export const GroundRegistrationTab: React.FC = () => {
           }
         }
 
-        // Record successful submission for duplicate prevention
         await recordSubmission(data, 'ground-registration');
       }
     } catch (error) {
@@ -380,43 +410,93 @@ export const GroundRegistrationTab: React.FC = () => {
                   <CalendarPlus className={`h-5 w-5 flex-shrink-0 ${registrationMode === 'book_future' ? 'text-primary' : 'text-muted-foreground'}`} />
                   <div>
                     <p className="font-medium text-sm">Book for Another Day</p>
-                    <p className="text-xs text-muted-foreground">Register for a future date only</p>
+                    <p className="text-xs text-muted-foreground">Register for one or more future dates</p>
                   </div>
                 </button>
               </div>
 
-              {/* Future date picker */}
+              {/* Multi-date picker for future bookings */}
               {registrationMode === 'book_future' && (
                 <div className="mt-3">
-                  <Label className="text-sm font-medium">Booking Date *</Label>
+                  <Label className="text-sm font-medium">Booking Dates * ({bookingDates.length} selected)</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         type="button"
                         variant="outline"
                         className={cn(
-                          "w-full sm:w-[280px] justify-start text-left font-normal mt-1",
-                          !bookingDate && "text-muted-foreground"
+                          "w-full sm:w-[320px] justify-start text-left font-normal mt-1",
+                          bookingDates.length === 0 && "text-muted-foreground"
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {bookingDate ? format(bookingDate, "PPP") : <span>Select booking date</span>}
+                        {bookingDates.length > 0
+                          ? `${bookingDates.length} date${bookingDates.length > 1 ? 's' : ''} selected`
+                          : <span>Select booking dates</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
-                        mode="single"
-                        selected={bookingDate}
-                        onSelect={setBookingDate}
+                        mode="multiple"
+                        selected={bookingDates}
+                        onSelect={(dates) => setBookingDates(dates || [])}
                         disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                         initialFocus
                         className={cn("p-3 pointer-events-auto")}
                       />
                     </PopoverContent>
                   </Popover>
-                  {registrationMode === 'book_future' && !bookingDate && (
-                    <p className="text-xs text-muted-foreground mt-1">Please select the date the child will attend</p>
+                  {bookingDates.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {bookingDates
+                        .sort((a, b) => a.getTime() - b.getTime())
+                        .map((d, i) => (
+                          <span key={i} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-md">
+                            {format(d, 'EEE, MMM d')}
+                          </span>
+                        ))}
+                    </div>
                   )}
+                  {bookingDates.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">Click multiple dates on the calendar to select them</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Client Lookup */}
+            <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+              <Label className="text-base font-semibold flex items-center gap-2">
+                <Search className="h-4 w-4" />
+                Returning Client? Look up previous registration
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  value={lookupQuery}
+                  onChange={(e) => setLookupQuery(e.target.value)}
+                  placeholder="Search by phone, email, or name..."
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleClientLookup())}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleClientLookup} disabled={lookupLoading}>
+                  {lookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
+              {lookupResults.length > 0 && (
+                <div className="space-y-2 mt-2">
+                  {lookupResults.map((reg) => (
+                    <div key={reg.id} className="flex items-center justify-between border rounded-md p-3 bg-background">
+                      <div className="text-sm">
+                        <p className="font-medium">{reg.parent_name}</p>
+                        <p className="text-muted-foreground">{reg.email} · {reg.phone}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {reg.children?.length || 0} child(ren): {reg.children?.map(c => c.childName).join(', ')}
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={() => applyClientData(reg)}>
+                        <UserCheck className="h-3 w-3 mr-1" /> Use
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -428,90 +508,45 @@ export const GroundRegistrationTab: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="parentName">Full Name *</Label>
-                  <Input
-                    id="parentName"
-                    {...register('parentName')}
-                    placeholder="Enter parent/guardian name"
-                  />
-                  {errors.parentName && (
-                    <p className="text-sm text-destructive mt-1">{errors.parentName.message}</p>
-                  )}
+                  <Input id="parentName" {...register('parentName')} placeholder="Enter parent/guardian name" />
+                  {errors.parentName && <p className="text-sm text-destructive mt-1">{errors.parentName.message}</p>}
                 </div>
-
                 <div>
                   <Label htmlFor="email">Email Address *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    {...register('email')}
-                    placeholder="email@example.com"
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive mt-1">{errors.email.message}</p>
-                  )}
+                  <Input id="email" type="email" {...register('email')} placeholder="email@example.com" />
+                  {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
                 </div>
-
                 <div>
                   <Label htmlFor="phone">Phone Number *</Label>
-                  <Input
-                    id="phone"
-                    {...register('phone')}
-                    placeholder="+254 XXX XXX XXX"
-                  />
-                  {errors.phone && (
-                    <p className="text-sm text-destructive mt-1">{errors.phone.message}</p>
-                  )}
+                  <Input id="phone" {...register('phone')} placeholder="+254 XXX XXX XXX" />
+                  {errors.phone && <p className="text-sm text-destructive mt-1">{errors.phone.message}</p>}
                 </div>
-
                 <div>
                   <Label htmlFor="emergencyContact">Emergency Contact Name *</Label>
-                  <Input
-                    id="emergencyContact"
-                    {...register('emergencyContact')}
-                    placeholder="Enter emergency contact name"
-                  />
-                  {errors.emergencyContact && (
-                    <p className="text-sm text-destructive mt-1">{errors.emergencyContact.message}</p>
-                  )}
+                  <Input id="emergencyContact" {...register('emergencyContact')} placeholder="Enter emergency contact name" />
+                  {errors.emergencyContact && <p className="text-sm text-destructive mt-1">{errors.emergencyContact.message}</p>}
                 </div>
-
                 <div>
                   <Label htmlFor="emergencyPhone">Emergency Contact Phone *</Label>
-                  <Input
-                    id="emergencyPhone"
-                    {...register('emergencyPhone')}
-                    placeholder="+254 XXX XXX XXX"
-                  />
-                  {errors.emergencyPhone && (
-                    <p className="text-sm text-destructive mt-1">{errors.emergencyPhone.message}</p>
-                  )}
+                  <Input id="emergencyPhone" {...register('emergencyPhone')} placeholder="+254 XXX XXX XXX" />
+                  {errors.emergencyPhone && <p className="text-sm text-destructive mt-1">{errors.emergencyPhone.message}</p>}
                 </div>
-
                 <div>
                   <Label htmlFor="campType">Camp Type *</Label>
                   <Select onValueChange={(value) => setValue('campType', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select camp type" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select camp type" /></SelectTrigger>
                     <SelectContent>
                       {CAMP_TYPES.map(camp => (
-                        <SelectItem key={camp.value} value={camp.value}>
-                          {camp.label}
-                        </SelectItem>
+                        <SelectItem key={camp.value} value={camp.value}>{camp.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.campType && (
-                    <p className="text-sm text-destructive mt-1">{errors.campType.message}</p>
-                  )}
+                  {errors.campType && <p className="text-sm text-destructive mt-1">{errors.campType.message}</p>}
                 </div>
-
                 <div>
                   <Label>Location *</Label>
                   <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
                     <SelectContent>
                       {LOCATIONS.map(loc => (
                         <SelectItem key={loc} value={loc}>{loc}</SelectItem>
@@ -532,10 +567,8 @@ export const GroundRegistrationTab: React.FC = () => {
                   size="sm"
                   onClick={() => append({
                     childName: '',
-                    dateOfBirth: '',
                     ageRange: '',
                     specialNeeds: '',
-                    selectedDays: [],
                     selectedSessions: [],
                     price: 0
                   })}
@@ -550,12 +583,7 @@ export const GroundRegistrationTab: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium">Child {index + 1}</h4>
                     {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => remove(index)}
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => remove(index)}>
                         <X className="h-4 w-4" />
                       </Button>
                     )}
@@ -564,36 +592,15 @@ export const GroundRegistrationTab: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label>Child's Full Name *</Label>
-                      <Input
-                        {...register(`children.${index}.childName`)}
-                        placeholder="Enter child's name"
-                      />
+                      <Input {...register(`children.${index}.childName`)} placeholder="Enter child's name" />
                       {errors.children?.[index]?.childName && (
-                        <p className="text-sm text-destructive mt-1">
-                          {errors.children[index]?.childName?.message}
-                        </p>
+                        <p className="text-sm text-destructive mt-1">{errors.children[index]?.childName?.message}</p>
                       )}
                     </div>
-
-                    <div>
-                      <Label>Date of Birth *</Label>
-                      <Input
-                        type="date"
-                        {...register(`children.${index}.dateOfBirth`)}
-                      />
-                      {errors.children?.[index]?.dateOfBirth && (
-                        <p className="text-sm text-destructive mt-1">
-                          {errors.children[index]?.dateOfBirth?.message}
-                        </p>
-                      )}
-                    </div>
-
                     <div>
                       <Label>Age Range *</Label>
-                      <Select onValueChange={(value) => setValue(`children.${index}.ageRange`, value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select age range" />
-                        </SelectTrigger>
+                      <Select onValueChange={(value) => setValue(`children.${index}.ageRange`, value)} value={children[index]?.ageRange || ''}>
+                        <SelectTrigger><SelectValue placeholder="Select age range" /></SelectTrigger>
                         <SelectContent>
                           {AGE_RANGES.map(range => (
                             <SelectItem key={range.value} value={range.value}>{range.label}</SelectItem>
@@ -601,12 +608,9 @@ export const GroundRegistrationTab: React.FC = () => {
                         </SelectContent>
                       </Select>
                       {errors.children?.[index]?.ageRange && (
-                        <p className="text-sm text-destructive mt-1">
-                          {errors.children[index]?.ageRange?.message}
-                        </p>
+                        <p className="text-sm text-destructive mt-1">{errors.children[index]?.ageRange?.message}</p>
                       )}
                     </div>
-
                     <div className="md:col-span-2">
                       <Label>Special Needs / Medical Information</Label>
                       <Textarea
@@ -615,33 +619,10 @@ export const GroundRegistrationTab: React.FC = () => {
                         rows={2}
                       />
                     </div>
-
-                    <div className="md:col-span-2">
-                      <Label>Select Days *</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {DAYS.map(day => (
-                          <Button
-                            key={day}
-                            type="button"
-                            variant={children[index]?.selectedDays?.includes(day) ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => toggleDay(index, day)}
-                          >
-                            {day}
-                          </Button>
-                        ))}
-                      </div>
-                      {errors.children?.[index]?.selectedDays && (
-                        <p className="text-sm text-destructive mt-1">
-                          {errors.children[index]?.selectedDays?.message}
-                        </p>
-                      )}
-                    </div>
-
                     <div className="md:col-span-2">
                       <Label>Select Sessions *</Label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {(selectedLocation === 'Ngong Sanctuary' ? SESSIONS_WITH_ARCHERY : SESSIONS).map(session => (
+                        {getSessionsForLocation().map(session => (
                           <Button
                             key={session.value}
                             type="button"
@@ -654,16 +635,18 @@ export const GroundRegistrationTab: React.FC = () => {
                         ))}
                       </div>
                       {errors.children?.[index]?.selectedSessions && (
-                        <p className="text-sm text-destructive mt-1">
-                          {errors.children[index]?.selectedSessions?.message}
-                        </p>
+                        <p className="text-sm text-destructive mt-1">{errors.children[index]?.selectedSessions?.message}</p>
                       )}
                     </div>
-
                     <div className="md:col-span-2 bg-muted p-3 rounded">
                       <p className="text-sm font-medium">
-                        Subtotal for {children[index]?.childName || 'this child'}: 
+                        Subtotal for {children[index]?.childName || 'this child'}:
                         <span className="ml-2 text-primary">KES {calculateChildPrice(index).toLocaleString()}</span>
+                        {registrationMode === 'book_future' && bookingDates.length > 1 && (
+                          <span className="ml-1 text-xs text-muted-foreground">
+                            (× {bookingDates.length} dates)
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -674,10 +657,10 @@ export const GroundRegistrationTab: React.FC = () => {
             {/* Payment Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Payment Information</h3>
-              
+
               <div className="bg-primary/10 p-4 rounded-lg">
                 <p className="text-lg font-bold">
-                  Total Amount: <span className="text-primary">KES {calculateTotalAmount().toLocaleString()}</span>
+                  Total Amount: <span className="text-primary">KES {totalAmount.toLocaleString()}</span>
                 </p>
               </div>
 
@@ -690,21 +673,31 @@ export const GroundRegistrationTab: React.FC = () => {
                     {...register('amountPaid', { valueAsNumber: true })}
                     placeholder="Enter amount received"
                   />
-                  {errors.amountPaid && (
-                    <p className="text-sm text-destructive mt-1">{errors.amountPaid.message}</p>
-                  )}
+                  {errors.amountPaid && <p className="text-sm text-destructive mt-1">{errors.amountPaid.message}</p>}
                 </div>
-
                 <div>
                   <Label htmlFor="paymentNotes">Payment Notes</Label>
-                  <Textarea
-                    id="paymentNotes"
-                    {...register('paymentNotes')}
-                    placeholder="Any additional payment notes"
-                    rows={2}
-                  />
+                  <Textarea id="paymentNotes" {...register('paymentNotes')} placeholder="Any additional payment notes" rows={2} />
                 </div>
               </div>
+
+              {/* Balance indicator */}
+              {totalAmount > 0 && (
+                <div className={cn(
+                  "p-3 rounded-lg border text-sm font-medium",
+                  balanceDue <= 0
+                    ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-400"
+                    : amountPaid > 0
+                      ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-700 dark:text-yellow-400"
+                      : "bg-destructive/10 border-destructive/30 text-destructive"
+                )}>
+                  {balanceDue <= 0
+                    ? '✓ Fully Paid'
+                    : amountPaid > 0
+                      ? `⚠ Partial Payment — Balance Due: KES ${balanceDue.toLocaleString()}`
+                      : `✗ Unpaid — Balance Due: KES ${balanceDue.toLocaleString()}`}
+                </div>
+              )}
             </div>
 
             {/* Email Toggle */}
@@ -722,22 +715,11 @@ export const GroundRegistrationTab: React.FC = () => {
 
             {/* Submit Button */}
             <div className="flex justify-end gap-4">
-              <Button
-                type="submit"
-                size="lg"
-                disabled={submitting}
-                className="min-w-[200px]"
-              >
+              <Button type="submit" size="lg" disabled={submitting} className="min-w-[200px]">
                 {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
                 ) : (
-                  <>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Complete Registration
-                  </>
+                  <><UserPlus className="mr-2 h-4 w-4" /> Complete Registration</>
                 )}
               </Button>
             </div>
