@@ -55,6 +55,7 @@ const CAMP_TYPES = [
   { value: 'summer', label: 'Summer Camp' },
   { value: 'end-year', label: 'End Year Camp' },
   { value: 'day-camps', label: 'Day Camps' },
+  { value: 'little-forest', label: 'Little Explorers' },
 ];
 
 const LOCATIONS = ['Kurura Gate F', 'Ngong Sanctuary'];
@@ -67,6 +68,10 @@ const SESSIONS_KARURA = [
 const SESSIONS_NGONG = [
   { value: 'full', label: 'Full Day (9 AM-1 PM)', price: 2000 },
   { value: 'archery', label: 'Archery Only (45 mins)', price: 1000 }
+];
+
+const SESSIONS_LITTLE_EXPLORERS = [
+  { value: 'session', label: 'Little Explorers Session', price: 1500 }
 ];
 
 const AGE_RANGES = [
@@ -112,9 +117,11 @@ export const GroundRegistrationTab: React.FC = () => {
   });
 
   const children = watch('children');
+  const campType = watch('campType');
   const amountPaid = watch('amountPaid') || 0;
 
   const getSessionsForLocation = () => {
+    if (campType === 'little-forest') return SESSIONS_LITTLE_EXPLORERS;
     return selectedLocation === 'Ngong Sanctuary' ? SESSIONS_NGONG : SESSIONS_KARURA;
   };
 

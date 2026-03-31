@@ -47,6 +47,7 @@ const CAMP_TYPES = [
   { value: 'summer', label: 'Summer Camp' },
   { value: 'end-year', label: 'End Year Camp' },
   { value: 'day-camps', label: 'Day Camps' },
+  { value: 'little-forest', label: 'Little Explorers' },
 ];
 
 const LOCATIONS = ['Kurura Gate F', 'Ngong Sanctuary'];
@@ -66,6 +67,10 @@ const SESSIONS_KARURA = [
 const SESSIONS_NGONG = [
   { value: 'full', label: 'Full Day', price: 2000 },
   { value: 'archery', label: 'Archery (45 min)', price: 1000 }
+];
+
+const SESSIONS_LITTLE_EXPLORERS = [
+  { value: 'session', label: 'Little Explorers Session', price: 1500 }
 ];
 
 interface QuickGroundRegistrationProps {
@@ -99,9 +104,12 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
 
   const sessionType = watch('sessionType');
   const children = watch('children');
+  const campType = watch('campType');
   const amountPaid = watch('amountPaid') || 0;
 
-  const availableSessions = selectedLocation === 'Ngong Sanctuary' ? SESSIONS_NGONG : SESSIONS_KARURA;
+  const availableSessions = campType === 'little-forest'
+    ? SESSIONS_LITTLE_EXPLORERS
+    : selectedLocation === 'Ngong Sanctuary' ? SESSIONS_NGONG : SESSIONS_KARURA;
   const sessionPrice = availableSessions.find(s => s.value === sessionType)?.price || 0;
   const totalAmount = children.length * sessionPrice;
   const balanceDue = totalAmount - amountPaid;

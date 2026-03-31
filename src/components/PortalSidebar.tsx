@@ -126,6 +126,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
         return [
           { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, description: 'Overview of revenue, expenses, outstanding balances and recent activity' },
           { id: 'collections', label: 'Pending Collections', icon: Receipt, description: 'Children who attended but haven\'t paid — follow up and record payments here' },
+          { id: 'client-statements', label: 'Client Statements', icon: FileText, description: 'QuickBooks-style client statements showing visit history, charges, payments, and running balances' },
           { id: 'invoices', label: 'Invoices', icon: FileText, description: 'Create, send and track invoices for clients and registrations' },
           { id: 'bills', label: 'Bills (AP)', icon: FileText, description: 'Track bills owed to suppliers and vendors (Accounts Payable)' },
           { id: 'vendors', label: 'Vendors', icon: Building, description: 'Manage supplier and vendor contact details and payment terms' },

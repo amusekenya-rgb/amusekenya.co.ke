@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -232,6 +232,32 @@ export const PendingCollections: React.FC = () => {
     );
   });
 
+  // Aggregate cumulative dues by parent (phone or email as key)
+  const parentAggregates = useMemo(() => {
+    const map = new Map<string, { totalDue: number; totalPaid: number; itemCount: number }>();
+    items.filter(i => i.status === 'pending').forEach(item => {
+      const key = item.phone || item.email || item.parent_name;
+      const existing = map.get(key) || { totalDue: 0, totalPaid: 0, itemCount: 0 };
+      existing.totalDue += item.amount_due;
+      existing.totalPaid += item.amount_paid;
+      existing.itemCount += 1;
+      map.set(key, existing);
+    });
+    return map;
+  }, [items]);
+
+  // Helper to get cumulative balance for a given item's parent
+  const getCumulativeBalance = (item: AccountsActionItem) => {
+    const key = item.phone || item.email || item.parent_name;
+    const agg = parentAggregates.get(key);
+    return agg ? agg.totalDue - agg.totalPaid : item.amount_due - item.amount_paid;
+  };
+
+  const getCumulativeItemCount = (item: AccountsActionItem) => {
+    const key = item.phone || item.email || item.parent_name;
+    return parentAggregates.get(key)?.itemCount || 1;
+  };
+
   const totalPending = items.filter(i => i.status === 'pending').reduce((sum, i) => sum + (i.amount_due - i.amount_paid), 0);
 
   return (
@@ -347,7 +373,12 @@ export const PendingCollections: React.FC = () => {
                       <TableCell>
                         <div className="font-medium">KES {(item.amount_due - item.amount_paid).toLocaleString()}</div>
                         {item.amount_paid > 0 && (
-                          <div className="text-xs text-muted-foreground">Paid: {item.amount_paid}</div>
+                          <div className="text-xs text-muted-foreground">Paid: {item.amount_paid.toLocaleString()}</div>
+                        )}
+                        {item.status === 'pending' && getCumulativeItemCount(item) > 1 && (
+                          <div className="text-xs font-medium text-red-600 mt-1">
+                            Cumulative: KES {getCumulativeBalance(item).toLocaleString()} ({getCumulativeItemCount(item)} visits)
+                          </div>
                         )}
                       </TableCell>
                       <TableCell>

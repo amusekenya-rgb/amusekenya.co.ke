@@ -11,6 +11,7 @@ import { PendingCollections } from './accounts/PendingCollections';
 import VendorManagement from './accounts/VendorManagement';
 import BillsManagement from './accounts/BillsManagement';
 import ProfileEditor from '../profile/ProfileEditor';
+import ClientStatements from './accounts/ClientStatements';
 
 interface AccountsPortalProps {
   activeTab: string;
@@ -39,6 +40,8 @@ const AccountsPortal: React.FC<AccountsPortalProps> = ({ activeTab }) => {
         return <MessageCenter />;
       case 'reports':
         return <FinancialReports />;
+      case 'client-statements':
+        return <ClientStatements />;
       case 'camp-analytics':
         return <CampReportsTab />;
       case 'my-profile':
