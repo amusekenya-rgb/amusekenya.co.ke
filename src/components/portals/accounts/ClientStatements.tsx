@@ -74,21 +74,32 @@ const buildStatementLines = (client: ClientSummary): StatementLine[] => {
   );
 
   const lines: StatementLine[] = [];
-  const seenRegIds = new Set<string>();
+  const seenPaymentRegIds = new Set<string>();
 
   sortedRecords.forEach(record => {
-    // Add charge line for each attendance
-    lines.push({
-      date: record.check_in_time,
-      description: `${record.child_name} — ${record.camp_type || 'Camp'} at ${record.location || 'N/A'}`,
-      charges: record.amount_due,
-      payments: 0,
-      balance: 0,
-    });
+    if (record.amount_due > 0) {
+      // Charge line — only the first attendance per registration+child carries a charge
+      lines.push({
+        date: record.check_in_time,
+        description: `${record.child_name} — ${record.camp_type || 'Camp'} at ${record.location || 'N/A'}`,
+        charges: record.amount_due,
+        payments: 0,
+        balance: 0,
+      });
+    } else {
+      // Subsequent check-in — informational only, no monetary impact
+      lines.push({
+        date: record.check_in_time,
+        description: `${record.child_name} — check-in (${record.camp_type || 'Camp'})`,
+        charges: 0,
+        payments: 0,
+        balance: 0,
+      });
+    }
 
     // Add payment line once per registration (avoid double-counting)
-    if (!seenRegIds.has(record.registration_id) && record.amount_paid > 0) {
-      seenRegIds.add(record.registration_id);
+    if (!seenPaymentRegIds.has(record.registration_id) && record.amount_paid > 0) {
+      seenPaymentRegIds.add(record.registration_id);
       const paymentDate = record.paid_at || record.check_in_time;
       lines.push({
         date: paymentDate,
@@ -124,8 +135,8 @@ const ClientStatements: React.FC = () => {
     try {
       setLoading(true);
 
-      // Load both data sources in parallel
-      const [attendanceResult, actionItemsResult] = await Promise.all([
+      // Load all three data sources in parallel
+      const [attendanceResult, actionItemsResult, paymentsResult] = await Promise.all([
         supabase
           .from('camp_attendance')
           .select('id, check_in_time, child_name, registration_id')
@@ -133,23 +144,37 @@ const ClientStatements: React.FC = () => {
         fromTable('accounts_action_items')
           .select('*')
           .eq('status', 'pending'),
+        fromTable('payments')
+          .select('id, registration_id, amount, created_at')
+          .order('created_at', { ascending: false }),
       ]);
 
       // Process action items (always available - source of truth for outstanding)
       const aiData = (actionItemsResult.data || []) as unknown as ActionItemRecord[];
       setActionItems(aiData);
 
+      // Build actual payments map: registration_id -> total paid
+      const paymentsData = (paymentsResult.data || []) as any[];
+      const paymentsByRegId = new Map<string, { totalPaid: number; paidAt: string | null }>();
+      paymentsData.forEach((p: any) => {
+        const existing = paymentsByRegId.get(p.registration_id) || { totalPaid: 0, paidAt: null };
+        existing.totalPaid += Number(p.amount) || 0;
+        if (!existing.paidAt || p.created_at > existing.paidAt) {
+          existing.paidAt = p.created_at;
+        }
+        paymentsByRegId.set(p.registration_id, existing);
+      });
+
       // Process attendance data
       const attendance = attendanceResult.data || [];
-      console.log('camp_attendance records:', attendance.length, 'action_items pending:', aiData.length);
+      console.log('camp_attendance records:', attendance.length, 'action_items pending:', aiData.length, 'payments:', paymentsData.length);
 
       if (attendance.length > 0) {
         // Primary path: load from camp_attendance + registrations
         const regIds = [...new Set(attendance.map(a => a.registration_id))];
-        // Only select columns that exist in camp_registrations
         const { data: registrations, error: regError } = await supabase
           .from('camp_registrations')
-          .select('id, parent_name, email, phone, camp_type, total_amount, payment_status, children, updated_at')
+          .select('id, parent_name, email, phone, camp_type, total_amount, payment_status, children, updated_at, location')
           .in('id', regIds);
 
         if (regError) {
@@ -159,29 +184,47 @@ const ClientStatements: React.FC = () => {
         const regMap = new Map((registrations || []).map((r: any) => [r.id, r]));
         console.log('Registrations loaded:', (registrations || []).length, 'for', regIds.length, 'unique IDs');
 
+        // Deduplicate by parent+child+camp_type to handle duplicate registrations from retries
+        const seenChargeKeys = new Set<string>();
+
         const records: AttendanceRecord[] = attendance.map(att => {
           const reg = regMap.get(att.registration_id) as any;
           let childAmount = 0;
+          let childrenCount = 1;
           if (reg?.children) {
             try {
               const children = typeof reg.children === 'string' ? JSON.parse(reg.children) : reg.children;
+              childrenCount = Array.isArray(children) ? Math.max(1, children.length) : 1;
               const childEntry = children.find((c: any) => c.name === att.child_name || c.childName === att.child_name);
               if (childEntry) {
                 childAmount = childEntry.price || childEntry.amount || 0;
               }
             } catch { /* ignore */ }
           }
+          // Fallback: divide total_amount by number of children
           if (childAmount === 0 && reg) {
-            childAmount = Number(reg.total_amount) || 0;
+            childAmount = Math.round((Number(reg.total_amount) || 0) / childrenCount);
           }
 
-          // Derive amount_paid from payment_status
+          // Deduplicate: use parent_phone+child_name+camp_type to prevent duplicate charges from retry registrations
+          const parentPhone = reg?.phone || '';
+          const campType = reg?.camp_type || '';
+          const chargeKey = `${parentPhone}::${att.child_name}::${campType}`;
+          const isFirstCharge = !seenChargeKeys.has(chargeKey);
+          seenChargeKeys.add(chargeKey);
+
+          const amountDue = isFirstCharge ? childAmount : 0;
+
+          // Use actual payment data from payments table instead of estimating
           let amountPaid = 0;
-          if (reg?.payment_status === 'paid') {
-            amountPaid = childAmount; // Fully paid
-          } else if (reg?.payment_status === 'partial') {
-            // For partial, estimate paid = due minus outstanding action items (if any)
-            amountPaid = Math.max(0, childAmount * 0.5); // Conservative estimate; refined by action items later
+          if (isFirstCharge) {
+            const paymentInfo = paymentsByRegId.get(att.registration_id);
+            if (reg?.payment_status === 'paid') {
+              amountPaid = childAmount; // Fully paid
+            } else if (paymentInfo && paymentInfo.totalPaid > 0) {
+              // Distribute actual payment amount per child
+              amountPaid = Math.round(paymentInfo.totalPaid / childrenCount);
+            }
           }
 
           return {
@@ -190,14 +233,14 @@ const ClientStatements: React.FC = () => {
             child_name: att.child_name,
             registration_id: att.registration_id,
             camp_type: reg?.camp_type || '',
-            location: '',
-            amount_due: childAmount,
+            location: reg?.location || 'Kurura Gate F',
+            amount_due: amountDue,
             amount_paid: amountPaid,
             payment_status: reg?.payment_status || 'unpaid',
             parent_name: reg?.parent_name || 'Unknown',
             email: reg?.email || '',
             phone: reg?.phone || '',
-            paid_at: reg?.payment_status === 'paid' ? reg?.updated_at : undefined,
+            paid_at: reg?.payment_status === 'paid' ? reg?.updated_at : (paymentsByRegId.get(att.registration_id)?.paidAt || undefined),
           };
         });
 
@@ -211,7 +254,7 @@ const ClientStatements: React.FC = () => {
         if (regIds.length > 0) {
           const { data: regs } = await supabase
             .from('camp_registrations')
-            .select('id, parent_name, email, phone, camp_type, total_amount, payment_status, children, updated_at')
+            .select('id, parent_name, email, phone, camp_type, total_amount, payment_status, children, updated_at, location')
             .in('id', regIds);
           registrations = regs || [];
         }
@@ -221,7 +264,7 @@ const ClientStatements: React.FC = () => {
         const records: AttendanceRecord[] = aiData.map(item => {
           const reg = regMap.get(item.registration_id) as any;
           const amountDue = Number(item.amount_due) || 0;
-          let amountPaid = 0;
+          let amountPaid = Number(item.amount_paid) || 0;
           if (reg?.payment_status === 'paid') {
             amountPaid = amountDue;
           }
@@ -231,7 +274,7 @@ const ClientStatements: React.FC = () => {
             child_name: item.child_name || 'Unknown',
             registration_id: item.registration_id || '',
             camp_type: reg?.camp_type || item.camp_type || '',
-            location: '',
+            location: reg?.location || 'Kurura Gate F',
             amount_due: amountDue,
             amount_paid: amountPaid,
             payment_status: reg?.payment_status || item.status || 'pending',
@@ -302,6 +345,7 @@ const ClientStatements: React.FC = () => {
       }
       const client = clientMap.get(key)!;
       client.totalVisits += 1;
+      // Only count charges from first-occurrence records (amount_due > 0)
       client.totalCharged += record.amount_due;
       client.records.push(record);
       if (!client.children.includes(record.child_name)) {
@@ -309,7 +353,7 @@ const ClientStatements: React.FC = () => {
       }
     });
 
-    // Calculate payments (deduplicate by registration) and set outstanding from action items
+    // Calculate payments (deduplicate by registration) and derive balance from ledger
     clientMap.forEach((client, key) => {
       const seenRegIds = new Set<string>();
       client.records.forEach(r => {
@@ -319,18 +363,14 @@ const ClientStatements: React.FC = () => {
         }
       });
 
-      // Use accounts_action_items as source of truth for outstanding balance
+      // Balance = charges - payments (internally consistent with ledger)
+      client.balanceDue = Math.max(0, client.totalCharged - client.totalPaid);
+
+      // Track action items info for display badges
       const actionData = parentOutstandingMap.get(key);
       if (actionData) {
         client.actionItemsOutstanding = actionData.totalDue - actionData.totalPaid;
         client.actionItemsPending = actionData.itemCount;
-        // Use action items outstanding as the authoritative balance
-        client.balanceDue = Math.max(0, actionData.totalDue - actionData.totalPaid);
-      } else {
-        // No pending action items = fully paid
-        client.balanceDue = 0;
-        client.actionItemsOutstanding = 0;
-        client.actionItemsPending = 0;
       }
     });
 

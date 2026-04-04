@@ -151,13 +151,30 @@ export const accountsActionService = {
     phone: string,
     amountDue: number,
     amountPaid: number,
-    campType: string
+    campType: string,
+    location?: string
   ) {
-    // Check if item already exists
+    // Check if item already exists (may have been created by DB trigger)
     const existing = await this.checkExistingItem(registrationId, childName);
-    if (existing) return existing;
+    if (existing) {
+      // Update existing item if we have a non-zero amountPaid or a different amountDue
+      const needsUpdate =
+        (amountPaid > 0 && existing.amount_paid !== amountPaid) ||
+        (amountDue > 0 && existing.amount_due !== amountDue) ||
+        (location && !(existing as any).location);
 
-    const item = await this.createActionItem({
+      if (needsUpdate) {
+        const updates: any = {
+          amount_paid: amountPaid,
+          amount_due: amountDue,
+        };
+        if (location) updates.location = location;
+        return this.updateActionItem(existing.id, updates);
+      }
+      return existing;
+    }
+
+    const insertData: any = {
       registration_id: registrationId,
       registration_type: 'camp',
       child_name: childName,
@@ -169,7 +186,10 @@ export const accountsActionService = {
       amount_paid: amountPaid,
       camp_type: campType,
       status: 'pending',
-    });
+    };
+    if (location) insertData.location = location;
+
+    const item = await this.createActionItem(insertData);
 
     // Send email notification to accountants (don't await to avoid blocking)
     notifyAccountants({

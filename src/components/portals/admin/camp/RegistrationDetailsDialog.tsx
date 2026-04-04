@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,12 @@ interface RegistrationDetailsDialogProps {
   onUpdate: () => void;
 }
 
+const derivePaymentStatus = (amountPaid: number, totalAmount: number): 'unpaid' | 'partial' | 'paid' => {
+  if (amountPaid <= 0) return 'unpaid';
+  if (amountPaid >= totalAmount) return 'paid';
+  return 'partial';
+};
+
 export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps> = ({
   open,
   onOpenChange,
@@ -33,22 +39,56 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
   onUpdate,
 }) => {
   const [editing, setEditing] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState(registration.payment_status);
+  const [amountPaid, setAmountPaid] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState(registration.payment_method);
   const [paymentReference, setPaymentReference] = useState(registration.payment_reference || '');
   const [adminNote, setAdminNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingPayment, setLoadingPayment] = useState(false);
+
+  const totalAmount = registration.total_amount || 0;
+
+  // Load existing payment amount when dialog opens or editing starts
+  useEffect(() => {
+    if (!open) return;
+    const loadExistingPayment = async () => {
+      setLoadingPayment(true);
+      try {
+        const amount = await campRegistrationService.getAmountPaidForRegistration(registration.id!);
+        setAmountPaid(amount);
+      } catch {
+        // Fallback: derive from status
+        if (registration.payment_status === 'paid') setAmountPaid(totalAmount);
+        else if (registration.payment_status === 'partial') setAmountPaid(0);
+        else setAmountPaid(0);
+      } finally {
+        setLoadingPayment(false);
+      }
+    };
+    loadExistingPayment();
+  }, [open, registration.id, registration.payment_status, totalAmount]);
+
+  const derivedStatus = useMemo(() => derivePaymentStatus(amountPaid, totalAmount), [amountPaid, totalAmount]);
+  const balanceDue = Math.max(0, totalAmount - amountPaid);
+
+  const statusBadgeVariant = derivedStatus === 'paid' ? 'default' : derivedStatus === 'partial' ? 'secondary' : 'destructive';
 
   const handleSavePayment = async () => {
     try {
       setSaving(true);
-      await campRegistrationService.updatePaymentStatus(
+      await campRegistrationService.updatePaymentWithAmount(
         registration.id!,
-        paymentStatus,
+        amountPaid,
+        totalAmount,
         paymentMethod,
-        paymentReference || undefined
+        paymentReference || undefined,
+        {
+          parentName: registration.parent_name,
+          campType: registration.camp_type,
+          children: registration.children,
+        }
       );
-      toast.success('Payment status updated');
+      toast.success('Payment info updated');
       onUpdate();
       setEditing(false);
     } catch (error) {
@@ -178,18 +218,35 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Payment Status</Label>
-                    <Select value={paymentStatus} onValueChange={(v: any) => setPaymentStatus(v)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unpaid">Unpaid</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="partial">Partial</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label>Amount Paid (KES)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={totalAmount}
+                      step={1}
+                      value={amountPaid}
+                      onChange={(e) => setAmountPaid(Math.max(0, Number(e.target.value)))}
+                      placeholder="0"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total: KES {totalAmount.toFixed(2)}
+                    </p>
                   </div>
+                  <div>
+                    <Label>Auto Status</Label>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Badge variant={statusBadgeVariant} className="text-sm">
+                        {derivedStatus.toUpperCase()}
+                      </Badge>
+                      {derivedStatus === 'partial' && (
+                        <span className="text-sm text-muted-foreground">
+                          Balance: KES {balanceDue.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Payment Method</Label>
                     <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
@@ -204,19 +261,19 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-                <div>
-                  <Label>Payment Reference</Label>
-                  <Input
-                    value={paymentReference}
-                    onChange={(e) => setPaymentReference(e.target.value)}
-                    placeholder="Enter payment reference number"
-                  />
+                  <div>
+                    <Label>Payment Reference</Label>
+                    <Input
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      placeholder="Enter payment reference number"
+                    />
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={handleSavePayment} disabled={saving}>
                     <Save className="h-4 w-4 mr-2" />
-                    Save Changes
+                    {saving ? 'Saving...' : 'Save Changes'}
                   </Button>
                   <Button variant="outline" onClick={() => setEditing(false)}>
                     Cancel
@@ -227,12 +284,24 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Amount:</span>
-                  <span className="font-bold text-lg">KES {registration.total_amount.toFixed(2)}</span>
+                  <span className="font-bold text-lg">KES {totalAmount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount Paid:</span>
+                  <span className="font-bold">
+                    {loadingPayment ? '...' : `KES ${amountPaid.toFixed(2)}`}
+                  </span>
+                </div>
+                {balanceDue > 0 && !loadingPayment && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Balance Due:</span>
+                    <span className="font-semibold text-destructive">KES {balanceDue.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Status:</span>
-                  <Badge variant={registration.payment_status === 'paid' ? 'default' : 'destructive'}>
-                    {registration.payment_status.toUpperCase()}
+                  <Badge variant={statusBadgeVariant}>
+                    {(loadingPayment ? registration.payment_status : derivedStatus).toUpperCase()}
                   </Badge>
                 </div>
                 <div className="flex justify-between">

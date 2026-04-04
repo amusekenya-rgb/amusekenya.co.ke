@@ -28,6 +28,7 @@ export const AttendanceMarkingTab: React.FC = () => {
   const { user } = useSupabaseAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [campTypeFilter, setCampTypeFilter] = useState<string>('all');
+  const [locationFilter, setLocationFilter] = useState<string>('all');
   const [registrations, setRegistrations] = useState<CampRegistration[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
@@ -87,11 +88,14 @@ export const AttendanceMarkingTab: React.FC = () => {
     loadRegistrations();
   }, [campTypeFilter, selectedDate]);
 
-  // Client-side filtering by child name or registration number
+  // Client-side filtering by child name, registration number, and location
   const filteredExpectedChildren = useMemo((): ExpectedChild[] => {
     const expected: ExpectedChild[] = [];
 
     for (const reg of registrations) {
+      // Filter by location
+      if (locationFilter !== 'all' && (reg.location || 'Kurura Gate F') !== locationFilter) continue;
+
       for (const child of reg.children) {
         const selectedDates = child.selectedDates || [];
         if (selectedDates.includes(selectedDate)) {
@@ -115,7 +119,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       item.registration.parent_name.toLowerCase().includes(term) ||
       item.registration.registration_number?.toLowerCase().includes(term)
     );
-  }, [registrations, selectedDate, searchTerm]);
+  }, [registrations, selectedDate, searchTerm, locationFilter]);
 
   const paidExpected = filteredExpectedChildren.filter(e => e.registration.payment_status === 'paid');
   const unpaidExpected = filteredExpectedChildren.filter(e => e.registration.payment_status !== 'paid');
@@ -379,8 +383,9 @@ export const AttendanceMarkingTab: React.FC = () => {
                   <TableHead>Parent</TableHead>
                   <TableHead>Child Name</TableHead>
                   <TableHead>Age</TableHead>
-                  <TableHead>Session</TableHead>
-                  <TableHead>Registered Dates</TableHead>
+                   <TableHead>Session</TableHead>
+                   <TableHead>Location</TableHead>
+                   <TableHead>Registered Dates</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Time</TableHead>
                   <TableHead>Actions</TableHead>
@@ -406,8 +411,11 @@ export const AttendanceMarkingTab: React.FC = () => {
                       <TableCell>{item.child.ageRange}</TableCell>
                       <TableCell>
                         <Badge variant={item.session === 'full' ? 'default' : 'outline'}>
-                          {item.session === 'full' ? 'Full Day' : 'Half Day'}
+                          {item.session === 'full' ? 'Full Day' : item.session === 'archery' ? 'Archery' : 'Half Day'}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">{item.registration.location || 'Kurura Gate F'}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-xs">
@@ -548,6 +556,16 @@ export const AttendanceMarkingTab: React.FC = () => {
                 <SelectItem value="summer">Summer</SelectItem>
                 <SelectItem value="end-year">End Year</SelectItem>
                 <SelectItem value="little-forest">Little Forest</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={locationFilter} onValueChange={setLocationFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Locations</SelectItem>
+                <SelectItem value="Kurura Gate F">Kurura Gate F</SelectItem>
+                <SelectItem value="Ngong Sanctuary">Ngong Sanctuary</SelectItem>
               </SelectContent>
             </Select>
           </div>

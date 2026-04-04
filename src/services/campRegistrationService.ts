@@ -204,6 +204,94 @@ export const campRegistrationService = {
     return result;
   },
 
+  /**
+   * Get total amount paid for a registration from the payments table.
+   */
+  async getAmountPaidForRegistration(registrationId: string): Promise<number> {
+    const { data, error } = await (supabase as any)
+      .from('payments')
+      .select('amount')
+      .eq('registration_id', registrationId);
+
+    if (error) {
+      console.error('Error fetching payments for registration:', error);
+      return 0;
+    }
+
+    return (data || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+  },
+
+  /**
+   * Update payment with a specific amount paid. Auto-derives status, syncs payments table & action items.
+   */
+  async updatePaymentWithAmount(
+    id: string,
+    amountPaid: number,
+    totalAmount: number,
+    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground',
+    reference?: string,
+    context?: {
+      parentName?: string;
+      campType?: string;
+      children?: { childName: string; price: number }[];
+    }
+  ) {
+    // Derive status
+    let status: 'unpaid' | 'paid' | 'partial' = 'unpaid';
+    if (amountPaid >= totalAmount) status = 'paid';
+    else if (amountPaid > 0) status = 'partial';
+
+    // 1. Update registration record
+    const updates: Partial<CampRegistration> = { payment_status: status };
+    if (method) updates.payment_method = method;
+    if (reference) updates.payment_reference = reference;
+    await this.updateRegistration(id, updates);
+
+    // 2. Upsert payment record (delete old + insert new to avoid duplicate constraint)
+    try {
+      // Remove existing payments for this registration
+      await (supabase as any).from('payments').delete().eq('registration_id', id).eq('source', 'camp_registration');
+
+      if (amountPaid > 0) {
+        await financialService.createPaymentFromRegistration({
+          registrationId: id,
+          registrationType: 'camp',
+          source: 'camp_registration',
+          customerName: context?.parentName || 'Unknown',
+          programName: context?.campType || 'Camp',
+          amount: amountPaid,
+          paymentMethod: (method === 'pending' ? 'other' : method) || 'mpesa',
+          paymentReference: reference,
+          notes: `Admin payment update – KES ${amountPaid} of ${totalAmount}`,
+        });
+      }
+    } catch (err) {
+      console.error('Error upserting payment record:', err);
+    }
+
+    // 3. Update accounts_action_items for each child
+    try {
+      const childCount = context?.children?.length || 1;
+      const perChildPaid = Math.round((amountPaid / childCount) * 100) / 100;
+      const newItemStatus = status === 'paid' ? 'completed' : 'pending';
+
+      for (const child of context?.children || []) {
+        await (supabase as any)
+          .from('accounts_action_items')
+          .update({
+            amount_paid: perChildPaid,
+            status: newItemStatus,
+          })
+          .eq('registration_id', id)
+          .eq('child_name', child.childName);
+      }
+    } catch (err) {
+      console.error('Error updating action items:', err);
+    }
+
+    return { status, amountPaid };
+  },
+
   async searchRegistrations(searchTerm: string) {
     const { data, error } = await supabase
       .from('camp_registrations')

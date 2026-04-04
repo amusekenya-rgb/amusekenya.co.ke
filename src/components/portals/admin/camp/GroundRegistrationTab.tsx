@@ -30,7 +30,7 @@ const childSchema = z.object({
   childName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name too long'),
   ageRange: z.string().min(1, 'Age range is required'),
   specialNeeds: z.string().max(500, 'Description too long').optional(),
-  selectedSessions: z.array(z.string()).min(1, 'Select at least one session'),
+  selectedSessions: z.array(z.string()).min(0), // Can be empty for multi-day (per-date sessions stored separately)
   price: z.number().min(0)
 });
 
@@ -91,6 +91,8 @@ export const GroundRegistrationTab: React.FC = () => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [completedRegistration, setCompletedRegistration] = useState<any>(null);
   const [selectedLocation, setSelectedLocation] = useState('Kurura Gate F');
+  // Per-date session tracking for multi-day bookings: { childIndex: { 'YYYY-MM-DD': 'full' | 'half' | 'archery' } }
+  const [perDateSessions, setPerDateSessions] = useState<Record<number, Record<string, string>>>({});
 
   // Client lookup state
   const [lookupQuery, setLookupQuery] = useState('');
@@ -130,8 +132,22 @@ export const GroundRegistrationTab: React.FC = () => {
     if (!child) return 0;
 
     const sessions = getSessionsForLocation();
-    const datesCount = registrationMode === 'book_future' ? (bookingDates.length || 1) : 1;
 
+    if (registrationMode === 'book_future' && bookingDates.length > 1) {
+      // Per-date pricing: sum the price for each date's chosen session
+      const childDateSessions = perDateSessions[childIndex] || {};
+      let total = 0;
+      for (const date of bookingDates) {
+        const dateStr = date.toISOString().split('T')[0];
+        const sessionType = childDateSessions[dateStr] || (sessions[0]?.value || 'full');
+        const price = sessions.find(s => s.value === sessionType)?.price || 0;
+        total += price;
+      }
+      return total;
+    }
+
+    // Single date: use selected sessions as before
+    const datesCount = 1;
     const sessionPrices = child.selectedSessions?.map(s =>
       sessions.find(session => session.value === s)?.price || 0
     ) || [];
@@ -148,6 +164,16 @@ export const GroundRegistrationTab: React.FC = () => {
 
   const totalAmount = calculateTotalAmount();
   const balanceDue = totalAmount - amountPaid;
+
+  const setDateSession = (childIndex: number, dateStr: string, sessionType: string) => {
+    setPerDateSessions(prev => ({
+      ...prev,
+      [childIndex]: {
+        ...(prev[childIndex] || {}),
+        [dateStr]: sessionType,
+      }
+    }));
+  };
 
   const toggleSession = (childIndex: number, session: string) => {
     const currentSessions = children[childIndex].selectedSessions || [];
@@ -219,6 +245,15 @@ export const GroundRegistrationTab: React.FC = () => {
       return;
     }
 
+    // Validate sessions: for single-day or walk-in, require at least one session per child
+    if (!(registrationMode === 'book_future' && bookingDates.length > 1)) {
+      const missingSession = data.children.some(c => !c.selectedSessions || c.selectedSessions.length === 0);
+      if (missingSession) {
+        toast.error('Please select a session type for each child.');
+        return;
+      }
+    }
+
     const securityCheck = await performSecurityChecks(data, 'ground-registration');
     if (!securityCheck.allowed) {
       toast.error(securityCheck.message || 'Submission blocked. Please try again later.');
@@ -237,7 +272,7 @@ export const GroundRegistrationTab: React.FC = () => {
         phone: data.phone,
         location: selectedLocation,
         emergency_contact: `${data.emergencyContact} (${data.emergencyPhone})`,
-        children: data.children.map(child => {
+        children: data.children.map((child, childIdx) => {
           const today = new Date().toISOString().split('T')[0];
           let actualDates: string[] = [];
 
@@ -247,6 +282,21 @@ export const GroundRegistrationTab: React.FC = () => {
             actualDates = bookingDates.map(d => d.toISOString().split('T')[0]);
           }
 
+          // Build per-date session map
+          let sessionData: string[] | Record<string, 'half' | 'full'>;
+          if (registrationMode === 'book_future' && bookingDates.length > 1) {
+            // Multi-day: use per-date sessions
+            const childDateSessions = perDateSessions[childIdx] || {};
+            const defaultSession = getSessionsForLocation()[0]?.value || 'full';
+            const sessionMap: Record<string, 'half' | 'full'> = {};
+            for (const dateStr of actualDates) {
+              sessionMap[dateStr] = (childDateSessions[dateStr] || defaultSession) as 'half' | 'full';
+            }
+            sessionData = sessionMap;
+          } else {
+            sessionData = child.selectedSessions || [];
+          }
+
           return {
             childName: child.childName || '',
             dateOfBirth: '',
@@ -254,8 +304,8 @@ export const GroundRegistrationTab: React.FC = () => {
             specialNeeds: child.specialNeeds || '',
             selectedDays: actualDates.map((_, i) => `Day ${i + 1}`),
             selectedDates: actualDates,
-            selectedSessions: child.selectedSessions || [],
-            price: child.price || 0
+            selectedSessions: sessionData,
+            price: calculateChildPrice(childIdx)
           };
         }),
         total_amount: totalAmount,
@@ -276,34 +326,52 @@ export const GroundRegistrationTab: React.FC = () => {
       const registration = await campRegistrationService.createRegistration(registrationData);
 
       if (registration) {
+        // Record submission immediately after successful registration to prevent duplicates
+        await recordSubmission(data, 'ground-registration');
+
+        // --- Non-critical post-registration steps (failures logged, not blocking) ---
+
         if (amountPaid > 0) {
-          await financialService.createPaymentFromRegistration({
-            registrationId: registration.id,
-            registrationType: 'camp',
-            source: 'ground_registration',
-            customerName: data.parentName,
-            programName: `${data.campType} (Ground)`,
-            amount: amountPaid,
-            paymentMethod: 'cash_ground',
-            paymentReference: `GROUND-${Date.now()}`,
-            notes: `Ground registration. Paid: KES ${amountPaid}/${totalAmount}`,
-            createdBy: user?.id
-          });
+          try {
+            await financialService.createPaymentFromRegistration({
+              registrationId: registration.id,
+              registrationType: 'camp',
+              source: 'ground_registration',
+              customerName: data.parentName,
+              programName: `${data.campType} (Ground)`,
+              amount: amountPaid,
+              paymentMethod: 'cash_ground',
+              paymentReference: `GROUND-${Date.now()}`,
+              notes: `Ground registration. Paid: KES ${amountPaid}/${totalAmount}`,
+              createdBy: user?.id
+            });
+          } catch (paymentError) {
+            console.error('Payment recording failed:', paymentError);
+            toast.warning('Registration saved but payment record failed. Please record payment manually.');
+          }
         }
 
-        const qrData = await qrCodeService.generateQRCode(registration.qr_code_data);
+        try {
+          const qrData = await qrCodeService.generateQRCode(registration.qr_code_data);
+          setQrCodeDataUrl(qrData);
+        } catch (qrError) {
+          console.error('QR code generation failed:', qrError);
+        }
 
-        await leadsService.createLead({
-          full_name: data.parentName,
-          email: data.email,
-          phone: data.phone,
-          program_type: data.campType,
-          program_name: `${data.campType} (Ground Registration)`,
-          form_data: data,
-          source: 'ground_registration'
-        });
+        try {
+          await leadsService.createLead({
+            full_name: data.parentName,
+            email: data.email,
+            phone: data.phone,
+            program_type: data.campType,
+            program_name: `${data.campType} (Ground Registration)`,
+            form_data: data,
+            source: 'ground_registration'
+          });
+        } catch (leadError) {
+          console.error('Lead creation failed:', leadError);
+        }
 
-        setQrCodeDataUrl(qrData);
         setCompletedRegistration(registration);
         setShowQRModal(true);
 
@@ -361,8 +429,6 @@ export const GroundRegistrationTab: React.FC = () => {
             console.error('Email notification failed:', emailError);
           }
         }
-
-        await recordSubmission(data, 'ground-registration');
       }
     } catch (error) {
       console.error('Ground registration error:', error);
@@ -626,32 +692,70 @@ export const GroundRegistrationTab: React.FC = () => {
                         rows={2}
                       />
                     </div>
-                    <div className="md:col-span-2">
-                      <Label>Select Sessions *</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {getSessionsForLocation().map(session => (
-                          <Button
-                            key={session.value}
-                            type="button"
-                            variant={children[index]?.selectedSessions?.includes(session.value) ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() => toggleSession(index, session.value)}
-                          >
-                            {session.label} - KES {session.price}
-                          </Button>
-                        ))}
+                    {/* Session selection: per-date for multi-day, global for single-day */}
+                    {registrationMode === 'book_future' && bookingDates.length > 1 ? (
+                      <div className="md:col-span-2">
+                        <Label>Session per Date *</Label>
+                        <div className="space-y-2 mt-2 max-h-48 overflow-y-auto">
+                          {bookingDates
+                            .sort((a, b) => a.getTime() - b.getTime())
+                            .map(date => {
+                              const dateStr = date.toISOString().split('T')[0];
+                              const currentSession = perDateSessions[index]?.[dateStr] || getSessionsForLocation()[0]?.value || 'full';
+                              return (
+                                <div key={dateStr} className="flex items-center gap-2 p-2 rounded border bg-background">
+                                  <span className="text-sm font-medium min-w-[100px]">{format(date, 'EEE, MMM d')}</span>
+                                  <div className="flex gap-1 flex-1">
+                                    {getSessionsForLocation().map(session => (
+                                      <Button
+                                        key={session.value}
+                                        type="button"
+                                        variant={currentSession === session.value ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="text-xs flex-1"
+                                        onClick={() => setDateSession(index, dateStr, session.value)}
+                                      >
+                                        {session.label} - KES {session.price}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                        {/* Hidden: keep zod happy with at least one session */}
+                        {children[index]?.selectedSessions?.length === 0 && (
+                          <input type="hidden" {...register(`children.${index}.selectedSessions.0`)} value={getSessionsForLocation()[0]?.value || 'full'} />
+                        )}
                       </div>
-                      {errors.children?.[index]?.selectedSessions && (
-                        <p className="text-sm text-destructive mt-1">{errors.children[index]?.selectedSessions?.message}</p>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="md:col-span-2">
+                        <Label>Select Sessions *</Label>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {getSessionsForLocation().map(session => (
+                            <Button
+                              key={session.value}
+                              type="button"
+                              variant={children[index]?.selectedSessions?.includes(session.value) ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => toggleSession(index, session.value)}
+                            >
+                              {session.label} - KES {session.price}
+                            </Button>
+                          ))}
+                        </div>
+                        {errors.children?.[index]?.selectedSessions && (
+                          <p className="text-sm text-destructive mt-1">{errors.children[index]?.selectedSessions?.message}</p>
+                        )}
+                      </div>
+                    )}
                     <div className="md:col-span-2 bg-muted p-3 rounded">
                       <p className="text-sm font-medium">
                         Subtotal for {children[index]?.childName || 'this child'}:
                         <span className="ml-2 text-primary">KES {calculateChildPrice(index).toLocaleString()}</span>
                         {registrationMode === 'book_future' && bookingDates.length > 1 && (
                           <span className="ml-1 text-xs text-muted-foreground">
-                            (× {bookingDates.length} dates)
+                            ({bookingDates.length} dates)
                           </span>
                         )}
                       </p>

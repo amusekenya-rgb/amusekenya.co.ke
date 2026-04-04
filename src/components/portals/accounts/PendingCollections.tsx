@@ -18,42 +18,37 @@ import { toast } from 'sonner';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { formatDistanceToNow } from 'date-fns';
 
+// Helper to get a stable parent key from an action item
+const getParentKey = (item: AccountsActionItem) =>
+  item.phone || item.email || item.parent_name;
+
 export const PendingCollections: React.FC = () => {
   const { user } = useSupabaseAuth();
   const [items, setItems] = useState<AccountsActionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedItem, setSelectedItem] = useState<AccountsActionItem | null>(null);
   const [actionDialog, setActionDialog] = useState<'invoice' | 'payment' | null>(null);
   const [notes, setNotes] = useState('');
   const [sendingDigest, setSendingDigest] = useState(false);
+  // For family-level actions we store the parent key instead of a single item
+  const [selectedParentKey, setSelectedParentKey] = useState<string | null>(null);
+  // Payment amount input for partial payment support
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
 
   const handleSendTestDigest = async () => {
     try {
       setSendingDigest(true);
-      console.log('Invoking daily-pending-digest function...');
-      
       const { data, error } = await supabase.functions.invoke('daily-pending-digest');
-      
-      console.log('Function response:', { data, error });
-      
-      if (error) {
-        console.error('Function invocation error:', error);
-        throw error;
-      }
-      
-      // Check if the function itself returned an error
+      if (error) throw error;
       if (data?.success === false) {
-        console.error('Function returned error:', data.error);
         toast.error(`Failed: ${data.error || 'Unknown error'}`);
         return;
       }
-      
       if (data?.pendingCount === 0) {
         toast.info('No pending collections to report');
       } else {
-        toast.success(`Digest sent to accounts@amusekenya.co.ke! ${data?.pendingCount || 0} items, Email ID: ${data?.emailId || 'N/A'}`);
+        toast.success(`Digest sent! ${data?.pendingCount || 0} items`);
       }
     } catch (error: any) {
       console.error('Error sending digest:', error);
@@ -78,55 +73,99 @@ export const PendingCollections: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadItems();
-  }, [statusFilter]);
+  useEffect(() => { loadItems(); }, [statusFilter]);
 
-  // Real-time subscription for auto-refresh when data changes
   useEffect(() => {
     const channel = supabase
       .channel('accounts-action-items-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'accounts_action_items'
-        },
-        () => {
-          // Reload items when any change happens
-          loadItems();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts_action_items' }, () => loadItems())
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [statusFilter]);
 
-  const handleSendInvoice = async () => {
-    if (!selectedItem || !user?.id) return;
+  // ── Aggregate by parent ──────────────────────────────────────────────
+  const parentAggregates = useMemo(() => {
+    const map = new Map<string, {
+      totalDue: number;
+      totalPaid: number;
+      items: AccountsActionItem[];
+      parentName: string;
+      email: string;
+      phone: string;
+    }>();
+    items.filter(i => i.status === 'pending').forEach(item => {
+      const key = getParentKey(item);
+      const existing = map.get(key) || {
+        totalDue: 0, totalPaid: 0, items: [],
+        parentName: item.parent_name,
+        email: item.email || '',
+        phone: item.phone || '',
+      };
+      existing.totalDue += item.amount_due;
+      existing.totalPaid += item.amount_paid;
+      existing.items.push(item);
+      map.set(key, existing);
+    });
+    return map;
+  }, [items]);
+
+  // Get family items for the selected parent
+  const selectedFamilyItems = useMemo(() => {
+    if (!selectedParentKey) return [];
+    return parentAggregates.get(selectedParentKey)?.items || [];
+  }, [selectedParentKey, parentAggregates]);
+
+  const selectedFamilyBalance = useMemo(() => {
+    return selectedFamilyItems.reduce((sum, i) => sum + (i.amount_due - i.amount_paid), 0);
+  }, [selectedFamilyItems]);
+
+  // Track which parent keys are the "first row" so we only show buttons once
+  const isFirstRowForParent = useMemo(() => {
+    const seen = new Set<string>();
+    const map = new Map<string, boolean>();
+    items.forEach(item => {
+      const key = getParentKey(item);
+      map.set(item.id, !seen.has(key));
+      seen.add(key);
+    });
+    return map;
+  }, [items]);
+
+  // Check if any items for a parent already have invoices sent
+  const parentHasInvoiceSent = (parentKey: string) => {
+    const agg = parentAggregates.get(parentKey);
+    return agg?.items.some(i => i.invoice_sent) || false;
+  };
+
+  // ── Send Family Invoice ──────────────────────────────────────────────
+  const handleSendFamilyInvoice = async () => {
+    if (!selectedParentKey || !user?.id) return;
+    const family = parentAggregates.get(selectedParentKey);
+    if (!family || family.items.length === 0) return;
 
     try {
-      // Create actual invoice from registration data
-      const amountDue = selectedItem.amount_due - selectedItem.amount_paid;
-      
+      // Build children array for consolidated invoice
+      const children = family.items.map(item => ({
+        childName: item.child_name,
+        price: item.amount_due - item.amount_paid,
+      }));
+
+      const totalAmount = children.reduce((sum, c) => sum + c.price, 0);
+      // Use first item's registration id as the primary reference
+      const primaryItem = family.items[0];
+
       const invoice = await invoiceService.createFromRegistration({
-        id: selectedItem.registration_id,
-        type: (selectedItem.registration_type as any) || 'camp',
-        parentName: selectedItem.parent_name,
-        email: selectedItem.email || '',
-        programName: selectedItem.camp_type || 'Camp Program',
-        totalAmount: amountDue,
-        children: [{
-          childName: selectedItem.child_name,
-          price: amountDue
-        }]
+        id: primaryItem.registration_id,
+        type: (primaryItem.registration_type as any) || 'camp',
+        parentName: family.parentName,
+        email: family.email,
+        programName: primaryItem.camp_type || 'Camp Program',
+        totalAmount,
+        children,
       }, user.id);
 
-      // Send invoice email if email exists
-      if (selectedItem.email) {
+      // Send one email
+      if (family.email) {
         const emailResult = await invoiceService.sendInvoiceEmail(invoice);
         if (!emailResult.success) {
           console.error('Failed to send invoice email:', emailResult.error);
@@ -134,73 +173,130 @@ export const PendingCollections: React.FC = () => {
         }
       }
 
-      // Update action item with invoice reference - keep as pending but mark invoice sent
-      await accountsActionService.updateActionItem(selectedItem.id, {
-        invoice_id: invoice.id,
-        invoice_sent: true,
-        invoice_sent_at: new Date().toISOString(),
-        notes: notes || `Invoice ${invoice.invoice_number} sent`
-      });
+      // Update ALL action items for this parent with the invoice reference
+      for (const item of family.items) {
+        await accountsActionService.updateActionItem(item.id, {
+          invoice_id: invoice.id,
+          invoice_sent: true,
+          invoice_sent_at: new Date().toISOString(),
+          notes: notes || `Invoice ${invoice.invoice_number} sent (family)`,
+        });
+      }
 
-      toast.success(`Invoice ${invoice.invoice_number} created and sent for ${selectedItem.child_name}`);
-      setActionDialog(null);
-      setSelectedItem(null);
-      setNotes('');
+      toast.success(`Family invoice ${invoice.invoice_number} sent to ${family.parentName} (${family.items.length} children)`);
+      closeDialog();
       loadItems();
     } catch (error) {
-      console.error('Error creating/sending invoice:', error);
-      toast.error('Failed to create invoice');
+      console.error('Error creating/sending family invoice:', error);
+      toast.error('Failed to create family invoice');
     }
   };
 
+  // ── Record Payment (with partial support) ────────────────────────────
   const handleRecordPayment = async () => {
-    if (!selectedItem || !user?.id) return;
+    if (!selectedParentKey || !user?.id) return;
+    const family = parentAggregates.get(selectedParentKey);
+    if (!family || family.items.length === 0) return;
+
+    const enteredAmount = parseFloat(paymentAmount) || 0;
+    if (enteredAmount <= 0) {
+      toast.error('Please enter a valid payment amount');
+      return;
+    }
+
+    const familyBalance = family.totalDue - family.totalPaid;
+    const isFullPayment = enteredAmount >= familyBalance;
 
     try {
-      const amountPaid = selectedItem.amount_due - selectedItem.amount_paid;
       const paymentRef = `ACCOUNTS-${Date.now()}`;
 
-      // Update registration payment status
-      if (selectedItem.registration_id) {
-        await campRegistrationService.updatePaymentStatus(
-          selectedItem.registration_id,
-          'paid',
-          undefined,
-          paymentRef
-        );
+      if (isFullPayment) {
+        // ── Full payment: mark all items completed ──
+        for (const item of family.items) {
+          if (item.registration_id) {
+            await campRegistrationService.updatePaymentStatus(
+              item.registration_id, 'paid', undefined, paymentRef
+            );
+          }
+          if (item.invoice_id) {
+            await financialService.updateInvoice(item.invoice_id, { status: 'paid' });
+          }
+          await accountsActionService.markCompleted(item.id, user.id, notes || 'Full payment recorded');
+        }
+
+        // Record one unified payment
+        await financialService.createPaymentFromRegistration({
+          registrationId: family.items[0].registration_id,
+          registrationType: (family.items[0].registration_type || 'camp') as 'camp' | 'program',
+          source: 'pending_collections',
+          customerName: family.parentName,
+          programName: family.items[0].camp_type || 'Camp',
+          amount: enteredAmount,
+          paymentMethod: 'mpesa',
+          paymentReference: paymentRef,
+          notes: notes || 'Full family payment from Pending Collections',
+          createdBy: user.id,
+          invoiceId: family.items[0].invoice_id,
+        });
+
+        toast.success(`Full payment of KES ${enteredAmount.toLocaleString()} recorded for ${family.parentName}`);
+      } else {
+        // ── Partial payment: distribute proportionally across items ──
+        let remaining = enteredAmount;
+
+        for (const item of family.items) {
+          const itemBalance = item.amount_due - item.amount_paid;
+          if (itemBalance <= 0) continue;
+
+          const allocated = Math.min(remaining, itemBalance);
+          remaining -= allocated;
+
+          const newAmountPaid = item.amount_paid + allocated;
+          const isItemFullyPaid = newAmountPaid >= item.amount_due;
+
+          // Update action item's amount_paid
+          await accountsActionService.updateActionItem(item.id, {
+            amount_paid: newAmountPaid,
+            notes: notes || `Partial payment: KES ${allocated.toLocaleString()} applied`,
+            ...(isItemFullyPaid ? {
+              status: 'completed' as const,
+              completed_at: new Date().toISOString(),
+              completed_by: user.id,
+            } : {}),
+          });
+
+          // Update registration payment status
+          if (item.registration_id) {
+            await campRegistrationService.updatePaymentStatus(
+              item.registration_id,
+              isItemFullyPaid ? 'paid' : 'partial',
+              undefined,
+              paymentRef
+            );
+          }
+
+          if (remaining <= 0) break;
+        }
+
+        // Record the payment record
+        await financialService.createPaymentFromRegistration({
+          registrationId: family.items[0].registration_id,
+          registrationType: (family.items[0].registration_type || 'camp') as 'camp' | 'program',
+          source: 'pending_collections',
+          customerName: family.parentName,
+          programName: family.items[0].camp_type || 'Camp',
+          amount: enteredAmount,
+          paymentMethod: 'mpesa',
+          paymentReference: paymentRef,
+          notes: notes || `Partial payment (KES ${enteredAmount.toLocaleString()} of ${familyBalance.toLocaleString()})`,
+          createdBy: user.id,
+          invoiceId: family.items[0].invoice_id,
+        });
+
+        toast.success(`Partial payment of KES ${enteredAmount.toLocaleString()} recorded for ${family.parentName}. Remaining: KES ${(familyBalance - enteredAmount).toLocaleString()}`);
       }
 
-      // Create unified payment record (linked to invoice if exists)
-      await financialService.createPaymentFromRegistration({
-        registrationId: selectedItem.registration_id,
-        registrationType: (selectedItem.registration_type || 'camp') as 'camp' | 'program',
-        source: 'pending_collections',
-        customerName: selectedItem.parent_name,
-        programName: selectedItem.camp_type || 'Camp',
-        amount: amountPaid,
-        paymentMethod: 'mpesa',
-        paymentReference: paymentRef,
-        notes: notes || 'Payment recorded from Pending Collections',
-        createdBy: user.id,
-        invoiceId: selectedItem.invoice_id // Link to invoice if one was created
-      });
-
-      // If there was an invoice, update its status to paid
-      if (selectedItem.invoice_id) {
-        await financialService.updateInvoice(selectedItem.invoice_id, { status: 'paid' });
-      }
-
-      // Mark action item as completed
-      await accountsActionService.markCompleted(
-        selectedItem.id,
-        user.id,
-        notes || 'Payment recorded'
-      );
-
-      toast.success(`Payment recorded for ${selectedItem.child_name}`);
-      setActionDialog(null);
-      setSelectedItem(null);
-      setNotes('');
+      closeDialog();
       loadItems();
     } catch (error) {
       console.error('Error recording payment:', error);
@@ -210,7 +306,6 @@ export const PendingCollections: React.FC = () => {
 
   const handleMarkComplete = async (item: AccountsActionItem) => {
     if (!user?.id) return;
-
     try {
       await accountsActionService.markCompleted(item.id, user.id, 'Marked complete');
       toast.success('Item marked as complete');
@@ -218,6 +313,23 @@ export const PendingCollections: React.FC = () => {
     } catch (error) {
       console.error('Error:', error);
       toast.error('Failed to update');
+    }
+  };
+
+  const closeDialog = () => {
+    setActionDialog(null);
+    setSelectedParentKey(null);
+    setNotes('');
+    setPaymentAmount('');
+  };
+
+  const openFamilyAction = (item: AccountsActionItem, action: 'invoice' | 'payment') => {
+    const key = getParentKey(item);
+    setSelectedParentKey(key);
+    setActionDialog(action);
+    if (action === 'payment') {
+      const agg = parentAggregates.get(key);
+      setPaymentAmount(agg ? (agg.totalDue - agg.totalPaid).toString() : (item.amount_due - item.amount_paid).toString());
     }
   };
 
@@ -232,32 +344,6 @@ export const PendingCollections: React.FC = () => {
     );
   });
 
-  // Aggregate cumulative dues by parent (phone or email as key)
-  const parentAggregates = useMemo(() => {
-    const map = new Map<string, { totalDue: number; totalPaid: number; itemCount: number }>();
-    items.filter(i => i.status === 'pending').forEach(item => {
-      const key = item.phone || item.email || item.parent_name;
-      const existing = map.get(key) || { totalDue: 0, totalPaid: 0, itemCount: 0 };
-      existing.totalDue += item.amount_due;
-      existing.totalPaid += item.amount_paid;
-      existing.itemCount += 1;
-      map.set(key, existing);
-    });
-    return map;
-  }, [items]);
-
-  // Helper to get cumulative balance for a given item's parent
-  const getCumulativeBalance = (item: AccountsActionItem) => {
-    const key = item.phone || item.email || item.parent_name;
-    const agg = parentAggregates.get(key);
-    return agg ? agg.totalDue - agg.totalPaid : item.amount_due - item.amount_paid;
-  };
-
-  const getCumulativeItemCount = (item: AccountsActionItem) => {
-    const key = item.phone || item.email || item.parent_name;
-    return parentAggregates.get(key)?.itemCount || 1;
-  };
-
   const totalPending = items.filter(i => i.status === 'pending').reduce((sum, i) => sum + (i.amount_due - i.amount_paid), 0);
 
   return (
@@ -270,12 +356,7 @@ export const PendingCollections: React.FC = () => {
               Pending Collections
             </CardTitle>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleSendTestDigest}
-                disabled={sendingDigest}
-              >
+              <Button variant="outline" size="sm" onClick={handleSendTestDigest} disabled={sendingDigest}>
                 <Mail className="h-4 w-4 mr-1" />
                 {sendingDigest ? 'Sending...' : 'Send Digest'}
               </Button>
@@ -359,95 +440,107 @@ export const PendingCollections: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="font-medium">{item.child_name}</div>
-                        <div className="text-xs text-muted-foreground">{item.camp_type}</div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">{item.parent_name}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">{item.phone}</div>
-                        <div className="text-xs text-muted-foreground">{item.email}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">KES {(item.amount_due - item.amount_paid).toLocaleString()}</div>
-                        {item.amount_paid > 0 && (
-                          <div className="text-xs text-muted-foreground">Paid: {item.amount_paid.toLocaleString()}</div>
-                        )}
-                        {item.status === 'pending' && getCumulativeItemCount(item) > 1 && (
-                          <div className="text-xs font-medium text-red-600 mt-1">
-                            Cumulative: KES {getCumulativeBalance(item).toLocaleString()} ({getCumulativeItemCount(item)} visits)
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge
-                            variant={
-                              item.status === 'completed' ? 'default' :
-                              item.status === 'in_progress' ? 'secondary' :
-                              'outline'
-                            }
-                            className="text-xs w-fit"
-                          >
-                            {item.status}
-                          </Badge>
-                          {item.invoice_sent && (
-                            <Badge variant="outline" className="text-xs w-fit bg-blue-50 text-blue-700 border-blue-200">
-                              <Receipt className="h-3 w-3 mr-1" />
-                              Invoice Sent
+                  {filteredItems.map((item) => {
+                    const parentKey = getParentKey(item);
+                    const isFirst = isFirstRowForParent.get(item.id) || false;
+                    const agg = parentAggregates.get(parentKey);
+                    const familyChildCount = agg?.items.length || 1;
+                    const familyBalance = agg ? agg.totalDue - agg.totalPaid : 0;
+                    const familyPaid = agg?.totalPaid || 0;
+
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="font-medium">{item.child_name}</div>
+                          <div className="text-xs text-muted-foreground">{item.camp_type}</div>
+                          {(item as any).location && (item as any).location !== 'Kurura Gate F' && (
+                            <div className="text-xs text-muted-foreground">{(item as any).location}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">{item.parent_name}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">{item.phone}</div>
+                          <div className="text-xs text-muted-foreground">{item.email}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">KES {(item.amount_due - item.amount_paid).toLocaleString()}</div>
+                          {item.amount_paid > 0 && (
+                            <Badge variant="outline" className="text-xs mt-1 bg-amber-50 text-amber-700 border-amber-200">
+                              Partial — KES {item.amount_paid.toLocaleString()} paid
                             </Badge>
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.status === 'pending' && (
-                          <div className="flex gap-1 justify-end">
-                            {!item.invoice_sent && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setSelectedItem(item);
-                                  setActionDialog('invoice');
-                                }}
-                              >
-                                <Send className="h-3 w-3 mr-1" />
-                                <span className="hidden sm:inline">Invoice</span>
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setActionDialog('payment');
-                              }}
+                          {item.status === 'pending' && familyChildCount > 1 && isFirst && (
+                            <div className="text-xs font-medium text-red-600 mt-1">
+                              Family total: KES {familyBalance.toLocaleString()} ({familyChildCount} children)
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <Badge
+                              variant={
+                                item.status === 'completed' ? 'default' :
+                                item.status === 'in_progress' ? 'secondary' :
+                                'outline'
+                              }
+                              className="text-xs w-fit"
                             >
-                              <DollarSign className="h-3 w-3 mr-1" />
-                              <span className="hidden sm:inline">Paid</span>
-                            </Button>
+                              {item.status}
+                            </Badge>
+                            {item.invoice_sent && (
+                              <Badge variant="outline" className="text-xs w-fit bg-blue-50 text-blue-700 border-blue-200">
+                                <Receipt className="h-3 w-3 mr-1" />
+                                Invoice Sent
+                              </Badge>
+                            )}
                           </div>
-                        )}
-                        {item.status === 'in_progress' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleMarkComplete(item)}
-                          >
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Complete
-                          </Button>
-                        )}
-                        {item.status === 'completed' && (
-                          <span className="text-xs text-muted-foreground">Done</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.status === 'pending' && (
+                            <div className="flex gap-1 justify-end">
+                              {/* Family Invoice button — only on first row per parent, only if no invoice sent yet */}
+                              {isFirst && !parentHasInvoiceSent(parentKey) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openFamilyAction(item, 'invoice')}
+                                >
+                                  <Send className="h-3 w-3 mr-1" />
+                                  <span className="hidden sm:inline">
+                                    {familyChildCount > 1 ? 'Family Invoice' : 'Invoice'}
+                                  </span>
+                                </Button>
+                              )}
+                              {/* Family Payment button — only on first row per parent */}
+                              {isFirst && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => openFamilyAction(item, 'payment')}
+                                >
+                                  <DollarSign className="h-3 w-3 mr-1" />
+                                  <span className="hidden sm:inline">
+                                    {familyPaid > 0 ? `Partial — KES ${familyPaid.toLocaleString()}` : 'Record Payment'}
+                                  </span>
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                          {item.status === 'in_progress' && (
+                            <Button size="sm" variant="outline" onClick={() => handleMarkComplete(item)}>
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Complete
+                            </Button>
+                          )}
+                          {item.status === 'completed' && (
+                            <span className="text-xs text-muted-foreground">Done</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -455,23 +548,65 @@ export const PendingCollections: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Action Dialog */}
-      <Dialog open={!!actionDialog} onOpenChange={() => { setActionDialog(null); setSelectedItem(null); setNotes(''); }}>
+      {/* Family Action Dialog */}
+      <Dialog open={!!actionDialog} onOpenChange={() => closeDialog()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionDialog === 'invoice' ? 'Send Invoice' : 'Record Payment'}
+              {actionDialog === 'invoice' ? 'Send Family Invoice' : 'Record Family Payment'}
             </DialogTitle>
           </DialogHeader>
-          {selectedItem && (
+          {selectedParentKey && selectedFamilyItems.length > 0 && (
             <div className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                <div><span className="text-muted-foreground">Child:</span> {selectedItem.child_name}</div>
-                <div><span className="text-muted-foreground">Parent:</span> {selectedItem.parent_name}</div>
-                <div><span className="text-muted-foreground">Amount:</span> KES {(selectedItem.amount_due - selectedItem.amount_paid).toLocaleString()}</div>
-                <div><span className="text-muted-foreground">Email:</span> {selectedItem.email}</div>
-                <div><span className="text-muted-foreground">Phone:</span> {selectedItem.phone}</div>
+                <div className="font-medium">{selectedFamilyItems[0].parent_name}</div>
+                <div className="text-sm text-muted-foreground">{selectedFamilyItems[0].email}</div>
+                <div className="text-sm text-muted-foreground">{selectedFamilyItems[0].phone}</div>
               </div>
+
+              {/* Children breakdown */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Children</Label>
+                {selectedFamilyItems.map(item => (
+                  <div key={item.id} className="flex justify-between items-center bg-muted/30 rounded px-3 py-2 text-sm">
+                    <div>
+                      <span className="font-medium">{item.child_name}</span>
+                      <span className="text-muted-foreground ml-2">({item.camp_type})</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-medium">KES {(item.amount_due - item.amount_paid).toLocaleString()}</span>
+                      {item.amount_paid > 0 && (
+                        <div className="text-xs text-amber-600">KES {item.amount_paid.toLocaleString()} already paid</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center font-bold pt-2 border-t">
+                  <span>Total Due</span>
+                  <span>KES {selectedFamilyBalance.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Payment amount input (only for payment dialog) */}
+              {actionDialog === 'payment' && (
+                <div>
+                  <Label>Payment Amount (KES)</Label>
+                  <Input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    placeholder="Enter amount received"
+                    min={0}
+                    max={selectedFamilyBalance}
+                  />
+                  {parseFloat(paymentAmount) > 0 && parseFloat(paymentAmount) < selectedFamilyBalance && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Partial payment — KES {(selectedFamilyBalance - parseFloat(paymentAmount)).toLocaleString()} will remain outstanding
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <Label>Notes</Label>
                 <Textarea
@@ -484,11 +619,11 @@ export const PendingCollections: React.FC = () => {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setActionDialog(null); setSelectedItem(null); }}>
-              Cancel
-            </Button>
-            <Button onClick={actionDialog === 'invoice' ? handleSendInvoice : handleRecordPayment}>
-              {actionDialog === 'invoice' ? 'Mark Invoice Sent' : 'Record Payment'}
+            <Button variant="outline" onClick={closeDialog}>Cancel</Button>
+            <Button onClick={actionDialog === 'invoice' ? handleSendFamilyInvoice : handleRecordPayment}>
+              {actionDialog === 'invoice'
+                ? `Send Invoice (${selectedFamilyItems.length} ${selectedFamilyItems.length === 1 ? 'child' : 'children'})`
+                : 'Record Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>

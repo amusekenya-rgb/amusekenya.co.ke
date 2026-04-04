@@ -12,6 +12,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { campRegistrationService } from '@/services/campRegistrationService';
+import { attendanceService } from '@/services/attendanceService';
 import { financialService } from '@/services/financialService';
 import { qrCodeService } from '@/services/qrCodeService';
 import { leadsService } from '@/services/leadsService';
@@ -199,32 +200,46 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
       const registration = await campRegistrationService.createRegistration(registrationData);
 
       if (registration) {
-        if (amountPaid > 0) {
-          await financialService.createPaymentFromRegistration({
-            registrationId: registration.id,
-            registrationType: 'camp',
-            source: 'ground_registration',
-            customerName: data.parentName,
-            programName: `${data.campType} (Walk-in)`,
-            amount: amountPaid,
-            paymentMethod: 'cash_ground',
-            paymentReference: `WALK-${Date.now()}`,
-            notes: `Walk-in registration. Paid: KES ${amountPaid}/${totalAmount}`,
-            createdBy: user?.id
-          });
-        }
-
-        await leadsService.createLead({
-          full_name: data.parentName,
-          email: data.email,
-          phone: data.phone,
-          program_type: data.campType,
-          program_name: `${data.campType} (Walk-in)`,
-          form_data: data,
-          source: 'ground_registration'
-        });
+        // Record submission immediately after successful registration to prevent duplicates
+        await recordSubmission(data, 'ground-registration');
 
         toast.success(`Registered! #${registration.registration_number}`);
+
+        // --- Non-critical post-registration steps (failures logged, not blocking) ---
+
+        if (amountPaid > 0) {
+          try {
+            await financialService.createPaymentFromRegistration({
+              registrationId: registration.id,
+              registrationType: 'camp',
+              source: 'ground_registration',
+              customerName: data.parentName,
+              programName: `${data.campType} (Walk-in)`,
+              amount: amountPaid,
+              paymentMethod: 'cash_ground',
+              paymentReference: `WALK-${Date.now()}`,
+              notes: `Walk-in registration. Paid: KES ${amountPaid}/${totalAmount}`,
+              createdBy: user?.id
+            });
+          } catch (paymentError) {
+            console.error('Payment recording failed:', paymentError);
+            toast.warning('Registration saved but payment record failed. Please record payment manually.');
+          }
+        }
+
+        try {
+          await leadsService.createLead({
+            full_name: data.parentName,
+            email: data.email,
+            phone: data.phone,
+            program_type: data.campType,
+            program_name: `${data.campType} (Walk-in)`,
+            form_data: data,
+            source: 'ground_registration'
+          });
+        } catch (leadError) {
+          console.error('Lead creation failed:', leadError);
+        }
 
         if (sendEmail) {
           try {
@@ -258,7 +273,26 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
           }
         }
 
+        // Mark attendance for today (creates camp_attendance record + triggers action item via DB trigger)
+        try {
+          for (const child of data.children) {
+            await attendanceService.checkInForDate(
+              registration.id,
+              child.childName,
+              user?.id || '',
+              new Date().toISOString().split('T')[0],
+              'Auto check-in from quick walk-in registration'
+            );
+          }
+        } catch (attendanceError) {
+          console.error('Auto attendance marking failed:', attendanceError);
+          toast.warning('Registration saved but attendance marking failed. Please mark manually.');
+        }
+
+        // For unpaid/partial: also ensure action items exist with correct amounts (in case trigger didn't fire or has stale data)
         if (paymentStatus !== 'paid') {
+          const perChildAmount = Math.round(totalAmount / data.children.length);
+          const perChildPaid = Math.round(amountPaid / data.children.length);
           for (const child of data.children) {
             try {
               await accountsActionService.createUnpaidCheckInItem(
@@ -267,9 +301,10 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
                 data.parentName,
                 data.email,
                 data.phone,
-                totalAmount,
-                amountPaid,
-                data.campType
+                perChildAmount,
+                perChildPaid,
+                data.campType,
+                selectedLocation
               );
             } catch (actionError) {
               console.error('Failed to create pending collection item:', actionError);
@@ -278,13 +313,12 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
           }
         }
 
-        await recordSubmission(data, 'ground-registration');
         reset();
         onComplete();
       }
     } catch (error) {
       console.error('Registration error:', error);
-      toast.error('Registration failed');
+      toast.error('Registration failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
