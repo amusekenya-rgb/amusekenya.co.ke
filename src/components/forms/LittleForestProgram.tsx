@@ -1,4 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useClientAuth } from '@/hooks/useClientAuth';
+import SignUpBenefitsDialog from '@/components/SignUpBenefitsDialog';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
+import AutoFilledBadge from '@/components/ui/AutoFilledBadge';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,6 +19,7 @@ import { Link } from 'react-router-dom';
 import dailyActivitiesImage from '@/assets/daily-activities.jpg';
 import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
+import { ParticipationConsentDialog } from './ParticipationConsentDialog';
 import { PaymentGatewayPlaceholder } from '@/components/camp/PaymentGatewayPlaceholder';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
 import SimpleDateSelector from './SimpleDateSelector';
@@ -45,11 +50,15 @@ const littleForestSchema = z.object({
   email: z.string().email('Invalid email address'),
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
   consent: z.boolean().default(false),
+  participationConsent: z.literal(true, { errorMap: () => ({ message: 'You must read and accept the participation form' }) }),
 });
 
 type LittleForestFormData = z.infer<typeof littleForestSchema>;
 
 const LittleForestProgram = () => {
+  const { isSignedIn, isLoading: authLoading, profile: clientProfile } = useClientAuth();
+  const [showBenefitsDialog, setShowBenefitsDialog] = useState(false);
+  const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const { config, pageConfig, isLoading: configLoading } = useLittleForestConfig();
   
   const [submitType, setSubmitType] = useState<'register' | 'pay'>('register');
@@ -93,6 +102,27 @@ const LittleForestProgram = () => {
 
   const watchChildren = watch('children');
   const watchConsent = watch('consent');
+
+  // Benefits dialog for non-signed-in users
+  useEffect(() => {
+    if (authLoading) return;
+    if (isSignedIn) { setShowBenefitsDialog(false); return; }
+    if (!sessionStorage.getItem('benefits_dialog_dismissed')) {
+      const timer = setTimeout(() => setShowBenefitsDialog(true), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSignedIn, authLoading]);
+
+  // Auto-fill from profile
+  useEffect(() => {
+    if (clientProfile && isSignedIn) {
+      const filled = new Set<string>();
+      if (clientProfile.full_name) { setValue('parentName', clientProfile.full_name); filled.add('parentName'); }
+      if (clientProfile.email) { setValue('email', clientProfile.email); filled.add('email'); }
+      if (clientProfile.phone) { setValue('phone', clientProfile.phone); filled.add('phone'); }
+      setAutoFilledFields(filled);
+    }
+  }, [clientProfile, isSignedIn, setValue]);
 
   const handleDatesChange = useCallback(
     (childIndex: number, dates: string[]) => {
@@ -354,9 +384,20 @@ const LittleForestProgram = () => {
           <Card className="p-8 sticky top-8">
             <h3 className="text-2xl font-bold text-primary mb-6">Register Your Little Explorer</h3>
             
+            <SignUpBenefitsDialog open={showBenefitsDialog} onOpenChange={setShowBenefitsDialog} />
+
+            {!isSignedIn && !authLoading && (
+              <div className="mb-6 p-3 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Sign in with Google</span> to auto-fill your details and save time
+                </p>
+                <GoogleSignInButton />
+              </div>
+            )}
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
-                <Label htmlFor="parentName" className="text-base font-medium">{config.fields.parentName.label}</Label>
+                <Label htmlFor="parentName" className="text-base font-medium">{config.fields.parentName.label}{autoFilledFields.has('parentName') && <AutoFilledBadge />}</Label>
                 <Input id="parentName" {...register('parentName')} className="mt-2" placeholder={config.fields.parentName.placeholder} />
                 {errors.parentName && <p className="text-destructive text-sm mt-1">{errors.parentName.message}</p>}
               </div>
@@ -499,16 +540,30 @@ const LittleForestProgram = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="email" className="text-base font-medium">{config.fields.email.label}</Label>
+                  <Label htmlFor="email" className="text-base font-medium">{config.fields.email.label}{autoFilledFields.has('email') && <AutoFilledBadge />}</Label>
                   <Input id="email" type="email" {...register('email')} className="mt-2" placeholder={config.fields.email.placeholder} />
                   {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="phone" className="text-base font-medium">{config.fields.phone.label}</Label>
+                  <Label htmlFor="phone" className="text-base font-medium">{config.fields.phone.label}{autoFilledFields.has('phone') && <AutoFilledBadge />}</Label>
                   <Input id="phone" {...register('phone')} className="mt-2" placeholder={config.fields.phone.placeholder} />
                   {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
                 </div>
               </div>
+
+              <Controller
+                name="participationConsent"
+                control={control}
+                render={({ field }) => (
+                  <ParticipationConsentDialog
+                    checked={field.value === true}
+                    onCheckedChange={(v) => field.onChange(v ? true : undefined)}
+                    error={errors.participationConsent?.message}
+                    variant="child"
+                    eventName="Little Forest"
+                  />
+                )}
+              />
 
               <ConsentDialog
                 checked={watchConsent}

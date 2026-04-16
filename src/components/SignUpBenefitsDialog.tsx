@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useClientAuth } from '@/hooks/useClientAuth';
-import { Zap, Tag, Sparkles, X } from 'lucide-react';
+import { Zap, Tag, Sparkles, Shield, X } from 'lucide-react';
 
 interface SignUpBenefitsDialogProps {
   open: boolean;
@@ -23,6 +23,11 @@ const benefits = [
     icon: Sparkles,
     title: 'Personalised Experience',
     description: 'We remember your children\'s details, preferences, and past activities to tailor recommendations.',
+  },
+  {
+    icon: Shield,
+    title: 'One-Time Safety Consent',
+    description: 'Read and accept the participation consent form once — it carries over to all future registrations automatically.',
   },
 ];
 

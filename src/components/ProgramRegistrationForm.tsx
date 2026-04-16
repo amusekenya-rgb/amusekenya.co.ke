@@ -44,6 +44,7 @@ import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import AutoFilledBadge from '@/components/ui/AutoFilledBadge';
+import { ParticipationConsentDialog } from '@/components/forms/ParticipationConsentDialog';
 
 // Define schemas for form validation
 const childSchema = z.object({
@@ -64,6 +65,7 @@ const formSchema = z.object({
   paymentMethod: z.enum(["card", "mpesa"], {
     required_error: "Please select a payment method",
   }),
+  participationConsent: z.literal(true, { errorMap: () => ({ message: 'You must read and accept the participation form' }) }),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -79,16 +81,18 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
   const [totalCost, setTotalCost] = useState<number>(0);
   
   // Client auth for auto-fill
-  const { isSignedIn, profile: clientProfile } = useClientAuth();
+  const { isSignedIn, isLoading: authLoading, profile: clientProfile } = useClientAuth();
   const [showBenefitsDialog, setShowBenefitsDialog] = useState(false);
 
   // Show benefits dialog for non-signed-in users after a delay
   useEffect(() => {
-    if (!isSignedIn && !sessionStorage.getItem('benefits_dialog_dismissed')) {
+    if (authLoading) return;
+    if (isSignedIn) { setShowBenefitsDialog(false); return; }
+    if (!sessionStorage.getItem('benefits_dialog_dismissed')) {
       const timer = setTimeout(() => setShowBenefitsDialog(true), 4000);
       return () => clearTimeout(timer);
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, authLoading]);
   useEffect(() => {
     const fetchPrograms = async () => {
       // Load available programs from calendar events
@@ -369,7 +373,7 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
           <Form {...form}>
             <SignUpBenefitsDialog open={showBenefitsDialog} onOpenChange={setShowBenefitsDialog} />
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              {!isSignedIn && (
+              {!isSignedIn && !authLoading && (
                 <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
                     <span className="font-medium text-foreground">Sign in with Google</span> to auto-fill your details and save time
@@ -652,6 +656,24 @@ const ProgramRegistrationForm: React.FC<ProgramRegistrationFormProps> = ({ progr
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="participationConsent"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <ParticipationConsentDialog
+                        checked={field.value === true}
+                        onCheckedChange={(v) => field.onChange(v ? true : undefined)}
+                        error={form.formState.errors.participationConsent?.message}
+                        variant="child"
+                        eventName="Program Registration"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
               <Button type="submit" className="w-full">
                 Complete Registration

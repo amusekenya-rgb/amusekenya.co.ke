@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useClientAuth } from '@/hooks/useClientAuth';
+import SignUpBenefitsDialog from '@/components/SignUpBenefitsDialog';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
+import AutoFilledBadge from '@/components/ui/AutoFilledBadge';
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,6 +19,7 @@ import { Link } from "react-router-dom";
 import adventureImage from "@/assets/adventure.jpg";
 import DatePickerField from "./DatePickerField";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
+import { ParticipationConsentDialog } from './ParticipationConsentDialog';
 import { leadsService } from '@/services/leadsService';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 import { useTeamBuildingPageConfig } from '@/hooks/useTeamBuildingPageConfig';
@@ -35,7 +40,8 @@ const teamBuildingSchema = z.object({
   catering: z.boolean().default(false),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(1, "Phone number is required").max(20),
-  consent: z.boolean().default(false)
+  consent: z.boolean().default(false),
+  participationConsent: z.literal(true, { errorMap: () => ({ message: 'You must read and accept the participation form' }) })
 });
 
 type TeamBuildingFormData = z.infer<typeof teamBuildingSchema>;
@@ -136,6 +142,9 @@ const audienceTypes = [{
 }];
 
 const TeamBuildingProgram = () => {
+  const { isSignedIn, isLoading: authLoading, profile: clientProfile } = useClientAuth();
+  const [showBenefitsDialog, setShowBenefitsDialog] = useState(false);
+  const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const { config: cmsConfig, isLoading, refresh } = useTeamBuildingPageConfig();
   const [selectedActivity, setSelectedActivity] = useState<ActivityDetail | null>(null);
 
@@ -164,6 +173,26 @@ const TeamBuildingProgram = () => {
   });
 
   const consent = watch("consent");
+
+  // Benefits dialog for non-signed-in users
+  useEffect(() => {
+    if (authLoading) return;
+    if (isSignedIn) { setShowBenefitsDialog(false); return; }
+    if (!sessionStorage.getItem('benefits_dialog_dismissed')) {
+      const timer = setTimeout(() => setShowBenefitsDialog(true), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSignedIn, authLoading]);
+
+  // Auto-fill from profile
+  useEffect(() => {
+    if (clientProfile && isSignedIn) {
+      const filled = new Set<string>();
+      if (clientProfile.email) { setValue('email', clientProfile.email); filled.add('email'); }
+      if (clientProfile.phone) { setValue('phone', clientProfile.phone); filled.add('phone'); }
+      setAutoFilledFields(filled);
+    }
+  }, [clientProfile, isSignedIn, setValue]);
 
   const onSubmit = async (data: TeamBuildingFormData) => {
     // Security checks: prevent duplicates and rate limiting
@@ -375,6 +404,17 @@ const TeamBuildingProgram = () => {
           <Card className="p-8 sticky top-8">
             <h3 className="text-2xl font-bold text-primary mb-6">{cmsConfig?.formConfig?.formTitle || "Book Your Team-Building Experience"}</h3>
 
+            <SignUpBenefitsDialog open={showBenefitsDialog} onOpenChange={setShowBenefitsDialog} />
+
+            {!isSignedIn && !authLoading && (
+              <div className="mb-6 p-3 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Sign in with Google</span> to auto-fill your details and save time
+                </p>
+                <GoogleSignInButton />
+              </div>
+            )}
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
                 <Label className="text-base font-medium">{cmsConfig?.formConfig?.fields?.occasion?.label || "Occasion"} *</Label>
@@ -484,19 +524,33 @@ const TeamBuildingProgram = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="email" className="text-base font-medium">
-                    Email *
+                    Email *{autoFilledFields.has('email') && <AutoFilledBadge />}
                   </Label>
                   <Input id="email" type="email" {...register("email")} className="mt-2" placeholder="your@email.com" />
                   {errors.email && <p className="text-destructive text-sm mt-1">{errors.email.message}</p>}
                 </div>
                 <div>
                   <Label htmlFor="phone" className="text-base font-medium">
-                    Phone *
+                    Phone *{autoFilledFields.has('phone') && <AutoFilledBadge />}
                   </Label>
                   <Input id="phone" {...register("phone")} className="mt-2" placeholder="+254 700 000 000" />
                   {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
                 </div>
               </div>
+
+              <Controller
+                name="participationConsent"
+                control={control}
+                render={({ field }) => (
+                  <ParticipationConsentDialog
+                    checked={field.value === true}
+                    onCheckedChange={(v) => field.onChange(v ? true : undefined)}
+                    error={errors.participationConsent?.message}
+                    variant="adult"
+                    eventName="Team Building"
+                  />
+                )}
+              />
 
               <div className="flex items-start space-x-3 pt-4">
                 <Controller name="consent" control={control} render={({ field }) => (

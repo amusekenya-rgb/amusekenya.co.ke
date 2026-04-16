@@ -14,6 +14,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import DatePickerField from './DatePickerField';
 import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
+import { ParticipationConsentDialog } from './ParticipationConsentDialog';
 import { differenceInYears } from 'date-fns';
 import { useCampFormConfig } from '@/hooks/useCampFormConfig';
 import { campRegistrationService } from '@/services/campRegistrationService';
@@ -47,7 +48,8 @@ const holidayCampSchema = z.object({
   emergencyContact: z.string().min(1, 'Emergency contact is required').max(100),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().default(false)
+  consent: z.boolean().default(false),
+  participationConsent: z.literal(true, { errorMap: () => ({ message: 'You must read and accept the participation form' }) })
 });
 
 type HolidayCampFormData = z.infer<typeof holidayCampSchema>;
@@ -73,15 +75,17 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
   const [showBenefitsDialog, setShowBenefitsDialog] = useState(false);
   
   // Client auth for auto-fill
-  const { isSignedIn, profile: clientProfile } = useClientAuth();
+  const { isSignedIn, isLoading: authLoading, profile: clientProfile } = useClientAuth();
 
   // Show benefits dialog for non-signed-in users after a delay
   useEffect(() => {
-    if (!isSignedIn && !sessionStorage.getItem('benefits_dialog_dismissed')) {
+    if (authLoading) return;
+    if (isSignedIn) { setShowBenefitsDialog(false); return; }
+    if (!sessionStorage.getItem('benefits_dialog_dismissed')) {
       const timer = setTimeout(() => setShowBenefitsDialog(true), 4000);
       return () => clearTimeout(timer);
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, authLoading]);
 
   const calculatePrice = (selectedDates: string[], sessionTypes: Record<string, 'half' | 'full'>, activityType: 'camp' | 'archery' = 'camp', location?: string): number => {
     if (!config) return 0;
@@ -386,7 +390,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
       
       <SignUpBenefitsDialog open={showBenefitsDialog} onOpenChange={setShowBenefitsDialog} />
       
-      {!isSignedIn && (
+      {!isSignedIn && !authLoading && (
         <div className="mb-6 p-3 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">Sign in with Google</span> to auto-fill your details and save time
@@ -598,6 +602,20 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
             {errors.phone && <p className="text-destructive text-sm mt-1">{errors.phone.message}</p>}
           </div>
         </div>
+
+        <Controller
+          name="participationConsent"
+          control={control}
+          render={({ field }) => (
+            <ParticipationConsentDialog
+              checked={field.value === true}
+              onCheckedChange={(v) => field.onChange(v ? true : undefined)}
+              error={errors.participationConsent?.message}
+              variant="child"
+              eventName={campTitle}
+            />
+          )}
+        />
 
         <ConsentDialog checked={consent} onCheckedChange={checked => setValue('consent', checked)} error={errors.consent?.message} />
 

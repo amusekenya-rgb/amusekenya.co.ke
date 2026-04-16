@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useClientAuth } from '@/hooks/useClientAuth';
+import SignUpBenefitsDialog from '@/components/SignUpBenefitsDialog';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
+import AutoFilledBadge from '@/components/ui/AutoFilledBadge';
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +21,7 @@ import schoolsImage from "@/assets/schools.jpg";
 import DatePickerField from "./DatePickerField";
 import { ConsentDialog } from "./ConsentDialog";
 import { RefundPolicyDialog } from "./RefundPolicyDialog";
+import { ParticipationConsentDialog } from './ParticipationConsentDialog';
 import { leadsService } from "@/services/leadsService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useSchoolAdventuresPageConfig } from "@/hooks/useSchoolAdventuresPageConfig";
@@ -42,7 +47,8 @@ const schoolExperienceSchema = z.object({
   specialNeeds: z.string().max(500),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(1, "Phone number is required").max(20),
-  consent: z.boolean().default(false)
+  consent: z.boolean().default(false),
+  participationConsent: z.literal(true, { errorMap: () => ({ message: 'You must read and accept the participation form' }) })
 });
 
 type SchoolExperienceFormData = z.infer<typeof schoolExperienceSchema>;
@@ -135,6 +141,9 @@ const defaultProgramDetails: ProgramDetail[] = [{
 }];
 
 const SchoolExperienceProgram = () => {
+  const { isSignedIn, isLoading: authLoading, profile: clientProfile } = useClientAuth();
+  const [showBenefitsDialog, setShowBenefitsDialog] = useState(false);
+  const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const { config, isLoading, refresh } = useSchoolAdventuresPageConfig();
 
@@ -206,6 +215,26 @@ const SchoolExperienceProgram = () => {
   });
 
   const consent = watch("consent");
+
+  // Benefits dialog for non-signed-in users
+  useEffect(() => {
+    if (authLoading) return;
+    if (isSignedIn) { setShowBenefitsDialog(false); return; }
+    if (!sessionStorage.getItem('benefits_dialog_dismissed')) {
+      const timer = setTimeout(() => setShowBenefitsDialog(true), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSignedIn, authLoading]);
+
+  // Auto-fill from profile
+  useEffect(() => {
+    if (clientProfile && isSignedIn) {
+      const filled = new Set<string>();
+      if (clientProfile.email) { setValue('email', clientProfile.email); filled.add('email'); }
+      if (clientProfile.phone) { setValue('phone', clientProfile.phone); filled.add('phone'); }
+      setAutoFilledFields(filled);
+    }
+  }, [clientProfile, isSignedIn, setValue]);
 
   const onSubmit = async (data: SchoolExperienceFormData) => {
     // Security checks: prevent duplicates and rate limiting
@@ -360,6 +389,17 @@ const SchoolExperienceProgram = () => {
           {/* Registration Form */}
           <Card className="p-8 sticky top-8">
             <h3 className="text-2xl font-bold text-primary mb-6">School Registration</h3>
+
+            <SignUpBenefitsDialog open={showBenefitsDialog} onOpenChange={setShowBenefitsDialog} />
+
+            {!isSignedIn && !authLoading && (
+              <div className="mb-6 p-3 rounded-lg bg-primary/5 border border-primary/20 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Sign in with Google</span> to auto-fill your details and save time
+                </p>
+                <GoogleSignInButton />
+              </div>
+            )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
@@ -570,7 +610,7 @@ const SchoolExperienceProgram = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="email" className="text-base font-medium">
-                    {config?.formConfig?.fields?.email?.label || "Email Address"} *
+                    {config?.formConfig?.fields?.email?.label || "Email Address"} *{autoFilledFields.has('email') && <AutoFilledBadge />}
                   </Label>
                   <Input 
                     id="email" 
@@ -583,7 +623,7 @@ const SchoolExperienceProgram = () => {
                 </div>
                 <div>
                   <Label htmlFor="phone" className="text-base font-medium">
-                    {config?.formConfig?.fields?.phone?.label || "Phone Number"} *
+                    {config?.formConfig?.fields?.phone?.label || "Phone Number"} *{autoFilledFields.has('phone') && <AutoFilledBadge />}
                   </Label>
                   <Input 
                     id="phone" 
@@ -596,6 +636,19 @@ const SchoolExperienceProgram = () => {
               </div>
 
               <div className="space-y-4 pt-4 border-t">
+                <Controller
+                  name="participationConsent"
+                  control={control}
+                  render={({ field }) => (
+                    <ParticipationConsentDialog
+                      checked={field.value === true}
+                      onCheckedChange={(v) => field.onChange(v ? true : undefined)}
+                      error={errors.participationConsent?.message}
+                      variant="child"
+                      eventName="School Experience"
+                    />
+                  )}
+                />
                 <ConsentDialog 
                   checked={consent} 
                   onCheckedChange={checked => setValue("consent", checked as boolean)} 
