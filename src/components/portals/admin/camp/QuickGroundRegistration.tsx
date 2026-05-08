@@ -179,7 +179,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
           specialNeeds: '',
           selectedDays: ['Day 1'],
           selectedDates: [new Date().toISOString().split('T')[0]],
-          selectedSessions: [data.sessionType],
+          selectedSessions: { [new Date().toISOString().split('T')[0]]: data.sessionType as 'full' | 'half' },
           price: sessionPrice
         })),
         total_amount: totalAmount,

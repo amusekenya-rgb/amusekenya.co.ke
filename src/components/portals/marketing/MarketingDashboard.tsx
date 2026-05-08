@@ -3,8 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, Mail, TrendingUp, Target, Plus } from "lucide-react";
+import { Users, Mail, TrendingUp, Target } from "lucide-react";
 import { leadsService } from '@/services/leadsService';
+import { emailManagementService } from '@/services/emailManagementService';
+import { supabase } from '@/integrations/supabase/client';
 
 const MarketingDashboard: React.FC = () => {
   const [metrics, setMetrics] = useState({
@@ -13,6 +15,7 @@ const MarketingDashboard: React.FC = () => {
     activeCampaigns: 0,
     emailOpenRate: 0
   });
+  const [recentCampaigns, setRecentCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,11 +29,32 @@ const MarketingDashboard: React.FC = () => {
       const convertedLeads = safeLeads.filter(l => l.status === 'converted');
       const conversionRate = safeLeads.length > 0 ? (convertedLeads.length / safeLeads.length) * 100 : 0;
 
+      // Active campaigns from DB
+      const client = supabase as any;
+      const { data: activeCamps } = await client
+        .from('campaigns')
+        .select('id')
+        .in('status', ['active', 'planning']);
+
+      // Recent email campaigns (last 5)
+      const allCamps = await emailManagementService.getCampaigns();
+      setRecentCampaigns(allCamps.slice(0, 5));
+
+      // Email open rate from email_deliveries (marketing only)
+      const { data: deliveries } = await client
+        .from('email_deliveries')
+        .select('status')
+        .eq('email_type', 'marketing');
+      const dRows = (deliveries || []) as any[];
+      const delivered = dRows.filter(d => ['delivered', 'opened', 'clicked'].includes(d.status)).length;
+      const opened = dRows.filter(d => ['opened', 'clicked'].includes(d.status)).length;
+      const openRate = delivered > 0 ? Math.round((opened / delivered) * 100) : 0;
+
       setMetrics({
         totalLeads: safeLeads.length,
         conversionRate: Math.round(conversionRate),
-        activeCampaigns: 3, // TODO: Fetch from campaigns table
-        emailOpenRate: 68 // TODO: Implement email tracking
+        activeCampaigns: activeCamps?.length || 0,
+        emailOpenRate: openRate,
       });
     } catch (error) {
       console.error('Error loading metrics:', error);
@@ -104,36 +128,30 @@ const MarketingDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Campaign Management */}
+      {/* Recent Email Campaigns */}
       <Card>
         <CardHeader>
-          <CardTitle>Campaign Management</CardTitle>
-          <CardDescription>Active marketing campaigns</CardDescription>
+          <CardTitle>Recent Email Campaigns</CardTitle>
+          <CardDescription>Last campaigns sent from the Campaigns tab</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            <div className="border rounded-lg p-3">
-              <h4 className="font-medium">Summer Program Launch</h4>
-              <p className="text-sm text-muted-foreground">Email campaign</p>
-              <div className="flex justify-between items-center mt-2">
-                <Badge variant="default">Active</Badge>
-                <span className="text-xs text-muted-foreground">72% open rate</span>
+          <div className="space-y-3">
+            {recentCampaigns.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No campaigns sent yet. Use the Campaigns tab to create one.
+              </p>
+            ) : recentCampaigns.map(c => (
+              <div key={c.id} className="border rounded-lg p-3">
+                <h4 className="font-medium">{c.name}</h4>
+                <p className="text-sm text-muted-foreground">{c.subject}</p>
+                <div className="flex justify-between items-center mt-2">
+                  <Badge variant={c.status === 'completed' ? 'default' : 'secondary'}>{c.status}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {c.sent_count ?? 0} / {c.recipient_count ?? 0} sent
+                  </span>
+                </div>
               </div>
-            </div>
-            
-            <div className="border rounded-lg p-3">
-              <h4 className="font-medium">Parent Referral Program</h4>
-              <p className="text-sm text-muted-foreground">Social media campaign</p>
-              <div className="flex justify-between items-center mt-2">
-                <Badge variant="secondary">Planning</Badge>
-                <span className="text-xs text-muted-foreground">Starts next week</span>
-              </div>
-            </div>
-
-            <Button className="w-full" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Campaign
-            </Button>
+            ))}
           </div>
         </CardContent>
       </Card>

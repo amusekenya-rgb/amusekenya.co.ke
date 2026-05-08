@@ -6,7 +6,8 @@ import MarketingDashboard from './marketing/MarketingDashboard';
 import CustomerManagement from './marketing/CustomerManagement';
 import LeadsManagement from './marketing/LeadsManagement';
 import ContentManagement from './marketing/ContentManagement';
-import { CampaignsTab, LeadGenerationTab, ReportsTab } from './marketing/MarketingTabs';
+import { ReportsTab } from './marketing/MarketingTabs';
+import EmailCampaignsTab from './marketing/EmailCampaignsTab';
 import { FAQManager } from './marketing/FAQManager';
 import ServiceLocationsManager from './marketing/ServiceLocationsManager';
 import EmailHealthDashboard from './marketing/EmailHealthDashboard';
@@ -32,7 +33,7 @@ const MarketingPortal: React.FC<MarketingPortalProps> = ({ activeTab }) => {
       case 'content':
         return <ContentManagement />;
       case 'campaigns':
-        return <CampaignsTab />;
+        return <EmailCampaignsTab />;
       case 'analytics':
         return <AnalyticsDashboard />;
       case 'communication':

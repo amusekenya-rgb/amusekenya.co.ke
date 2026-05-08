@@ -173,17 +173,25 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
         phone: data.phone,
         emergency_contact: data.emergencyContact,
         location: selectedLocation,
-        children: data.children.map(child => ({
-          childName: child.childName,
-          dateOfBirth: child.dateOfBirth.toISOString(),
-          ageRange: child.ageRange,
-          specialNeeds: child.specialNeeds || '',
-          selectedDays: child.selectedDates.map((date, i) => `Day ${i + 1}`),
-          selectedDates: child.selectedDates,
-          selectedSessions: child.sessionTypes,
-          price: child.totalPrice,
-          activityType: child.activityType,
-        })),
+        children: data.children.map(child => {
+          // Default sessionTypes when not set per-date (e.g. Ngong Sanctuary flat rate, archery)
+          let sessionTypes = child.sessionTypes || {};
+          if (!Object.keys(sessionTypes).length && child.selectedDates?.length) {
+            const defaultSession: 'half' | 'full' = (selectedLocation === 'Ngong Sanctuary' || child.activityType === 'archery') ? 'half' : 'full';
+            sessionTypes = child.selectedDates.reduce((acc, d) => ({ ...acc, [d]: defaultSession }), {} as Record<string, 'half' | 'full'>);
+          }
+          return {
+            childName: child.childName,
+            dateOfBirth: child.dateOfBirth.toISOString(),
+            ageRange: child.ageRange,
+            specialNeeds: child.specialNeeds || '',
+            selectedDays: child.selectedDates.map((date, i) => `Day ${i + 1}`),
+            selectedDates: child.selectedDates,
+            selectedSessions: sessionTypes,
+            price: child.totalPrice,
+            activityType: child.activityType,
+          };
+        }),
         total_amount: totalAmount,
         payment_status: 'unpaid' as const,
         payment_method: 'pending' as const,

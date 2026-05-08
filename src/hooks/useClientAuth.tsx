@@ -107,7 +107,8 @@ export const ClientAuthProvider = ({ children }: { children: ReactNode }) => {
       password,
       options: {
         emailRedirectTo: window.location.origin + window.location.pathname,
-        data: { full_name: fullName, name: fullName },
+        // account_type=client keeps public-site signups out of the staff approval queue
+        data: { full_name: fullName, name: fullName, account_type: 'client' },
       },
     });
     return { error: error as Error | null };

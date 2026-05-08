@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions."send-coach-availability-notice"]
 verify_jwt = false
+
+[functions."paystack-webhook"]
+verify_jwt = false
+
+[functions."send-marketing-campaign"]
+verify_jwt = false

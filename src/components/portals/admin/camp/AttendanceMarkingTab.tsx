@@ -99,12 +99,12 @@ export const AttendanceMarkingTab: React.FC = () => {
       for (const child of reg.children) {
         const selectedDates = child.selectedDates || [];
         if (selectedDates.includes(selectedDate)) {
-          let session = 'full';
-          if (child.selectedSessions) {
-            if (typeof child.selectedSessions === 'object' && !Array.isArray(child.selectedSessions)) {
-              session = (child.selectedSessions as Record<string, 'half' | 'full'>)[selectedDate] || 'full';
-            }
+          const defaultSession = (reg.camp_type === 'little-forest' || (reg.location || '') === 'Ngong Sanctuary') ? 'half' : 'full';
+          let session: string = defaultSession;
+          if (child.selectedSessions && typeof child.selectedSessions === 'object' && !Array.isArray(child.selectedSessions)) {
+            session = (child.selectedSessions as Record<string, 'half' | 'full'>)[selectedDate] || defaultSession;
           }
+          if ((child as any).activityType === 'archery') session = 'archery';
           expected.push({ registration: reg, child, session });
         }
       }
@@ -131,10 +131,12 @@ export const AttendanceMarkingTab: React.FC = () => {
       for (const child of reg.children) {
         const selectedDates = child.selectedDates || [];
         if (selectedDates.includes(selectedDate)) {
-          let session = 'full';
+          const defaultSession = (reg.camp_type === 'little-forest' || (reg.location || '') === 'Ngong Sanctuary') ? 'half' : 'full';
+          let session: string = defaultSession;
           if (child.selectedSessions && typeof child.selectedSessions === 'object' && !Array.isArray(child.selectedSessions)) {
-            session = (child.selectedSessions as Record<string, 'half' | 'full'>)[selectedDate] || 'full';
+            session = (child.selectedSessions as Record<string, 'half' | 'full'>)[selectedDate] || defaultSession;
           }
+          if ((child as any).activityType === 'archery') session = 'archery';
           expected.push({ registration: reg, child, session });
         }
       }

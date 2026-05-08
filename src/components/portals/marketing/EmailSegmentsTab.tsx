@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit, Trash2, Users, Filter } from "lucide-react";
 import { emailManagementService, EmailSegment } from '@/services/emailManagementService';
 import { useToast } from "@/hooks/use-toast";
@@ -26,9 +27,12 @@ const EmailSegmentsTab: React.FC = () => {
     }
   });
   const { toast } = useToast();
+  const [filterOptions, setFilterOptions] = useState<{ programTypes: string[]; statuses: string[] }>({ programTypes: [], statuses: [] });
+  const [recipientPreview, setRecipientPreview] = useState<Record<string, number>>({});
 
   useEffect(() => {
     loadSegments();
+    emailManagementService.getSegmentFilterOptions().then(setFilterOptions);
   }, []);
 
   const loadSegments = async () => {
@@ -36,6 +40,11 @@ const EmailSegmentsTab: React.FC = () => {
     const data = await emailManagementService.getEmailSegments();
     setSegments(data);
     setIsLoading(false);
+    // Pre-resolve recipient counts
+    data.forEach(async (s) => {
+      const r = await emailManagementService.resolveSegmentRecipients(s.id);
+      setRecipientPreview(prev => ({ ...prev, [s.id]: r.length }));
+    });
   };
 
   const handleCreateOrUpdate = async () => {
@@ -166,27 +175,35 @@ const EmailSegmentsTab: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="program_type">Program Type</Label>
-                    <Input
-                      id="program_type"
-                      value={formData.filters.program_type}
-                      onChange={(e) => setFormData({
+                    <Select
+                      value={formData.filters.program_type || 'any'}
+                      onValueChange={(v) => setFormData({
                         ...formData,
-                        filters: { ...formData.filters, program_type: e.target.value }
+                        filters: { ...formData.filters, program_type: v === 'any' ? '' : v }
                       })}
-                      placeholder="e.g., summer-camp"
-                    />
+                    >
+                      <SelectTrigger id="program_type"><SelectValue placeholder="Any" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Any</SelectItem>
+                        {filterOptions.programTypes.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label htmlFor="status">Lead Status</Label>
-                    <Input
-                      id="status"
-                      value={formData.filters.status}
-                      onChange={(e) => setFormData({
+                    <Select
+                      value={formData.filters.status || 'any'}
+                      onValueChange={(v) => setFormData({
                         ...formData,
-                        filters: { ...formData.filters, status: e.target.value }
+                        filters: { ...formData.filters, status: v === 'any' ? '' : v }
                       })}
-                      placeholder="e.g., new, qualified"
-                    />
+                    >
+                      <SelectTrigger id="status"><SelectValue placeholder="Any" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Any</SelectItem>
+                        {filterOptions.statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label htmlFor="min_age">Min Age</Label>
@@ -274,6 +291,11 @@ const EmailSegmentsTab: React.FC = () => {
                         </Badge>
                       ) : null
                     )}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm pt-2 border-t mt-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{recipientPreview[segment.id] ?? '…'}</span>
+                    <span className="text-muted-foreground">eligible recipients</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     Created: {new Date(segment.created_at).toLocaleDateString()}

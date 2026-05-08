@@ -294,7 +294,13 @@ export const GroundRegistrationTab: React.FC = () => {
             }
             sessionData = sessionMap;
           } else {
-            sessionData = child.selectedSessions || [];
+            // Single-day: store as per-date map so attendance reads the correct session type
+            const selected = (child.selectedSessions && child.selectedSessions[0]) || (getSessionsForLocation()[0]?.value || 'full');
+            const sessionMap: Record<string, 'half' | 'full'> = {};
+            for (const dateStr of actualDates) {
+              sessionMap[dateStr] = selected as 'half' | 'full';
+            }
+            sessionData = sessionMap;
           }
 
           return {

@@ -15,12 +15,15 @@ export interface MyRegistrationRow {
   registration_type: string;
   status: string | null;
   created_at: string | null;
+  amount_paid?: number;
+  amount_remaining?: number;
 }
 
 export const myRegistrationsService = {
   /**
-   * Fetch all camp registrations for the signed-in user, matched by email.
-   * RLS ensures only rows where email = auth.jwt()->>email are returned.
+   * Fetch all camp registrations for the signed-in user, matched by email,
+   * and enrich each with the total amount already paid (sum of completed
+   * payments) and the remaining balance.
    */
   async listByEmail(email: string): Promise<MyRegistrationRow[]> {
     if (!email) return [];
@@ -36,6 +39,43 @@ export const myRegistrationsService = {
       console.error('Error fetching my registrations:', error);
       return [];
     }
-    return (data || []) as unknown as MyRegistrationRow[];
+
+    const rows = (data || []) as unknown as MyRegistrationRow[];
+    if (rows.length === 0) return rows;
+
+    const ids = rows.map((r) => r.id);
+    const { data: pays, error: payErr } = await (supabase as any)
+      .from('payments')
+      .select('registration_id, amount, status, source')
+      .in('registration_id', ids);
+
+    if (payErr) {
+      console.warn('Could not fetch payments for registrations:', payErr);
+      return rows.map((r) => ({
+        ...r,
+        amount_paid: 0,
+        amount_remaining: Number(r.total_amount) || 0,
+      }));
+    }
+
+    const paidByReg: Record<string, number> = {};
+    (pays || []).forEach((p: any) => {
+      const src = String(p.source || '');
+      const st = String(p.status || '').toLowerCase();
+      if (src === 'camp_registration_attempt') return;
+      if (st && st !== 'completed' && st !== 'paid') return;
+      paidByReg[p.registration_id] =
+        (paidByReg[p.registration_id] || 0) + (Number(p.amount) || 0);
+    });
+
+    return rows.map((r) => {
+      const paid = paidByReg[r.id] || 0;
+      const total = Number(r.total_amount) || 0;
+      return {
+        ...r,
+        amount_paid: paid,
+        amount_remaining: Math.max(0, total - paid),
+      };
+    });
   },
 };
