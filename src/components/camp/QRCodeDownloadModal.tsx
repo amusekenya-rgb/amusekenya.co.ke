@@ -131,9 +131,9 @@ export const QRCodeDownloadModal: React.FC<QRCodeDownloadModalProps> = ({
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Payment Status:</span>
               <span className={`font-medium capitalize ${
-                registration.payment_status === 'paid' ? 'text-green-600' : 'text-orange-600'
+                (registrationType === 'online_paid' || registration.payment_status === 'paid') ? 'text-green-600' : 'text-orange-600'
               }`}>
-                {registration.payment_status}
+                {registrationType === 'online_paid' ? 'paid' : registration.payment_status}
               </span>
             </div>
           </div>
