@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useClientAuth } from '@/hooks/useClientAuth';
-import { Zap, Tag, Sparkles, Shield, Mail } from 'lucide-react';
+import { Zap, Tag, Sparkles, Shield, X, Mail } from 'lucide-react';
 import EmailAuthDialog from './EmailAuthDialog';
 
 interface SignUpBenefitsDialogProps {
@@ -55,9 +55,9 @@ const SignUpBenefitsDialog = ({ open, onOpenChange }: SignUpBenefitsDialogProps)
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md border-primary/20 max-h-[90vh] p-0 flex flex-col gap-0">
-          <DialogHeader className="text-center sticky top-0 z-10 bg-background border-b px-6 pt-6 pb-4 rounded-t-lg">
-            <DialogTitle className="text-xl font-bold text-foreground pr-8">
+        <DialogContent className="sm:max-w-md border-primary/20 max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-xl font-bold text-foreground">
               Make Registration Effortless
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -65,7 +65,7 @@ const SignUpBenefitsDialog = ({ open, onOpenChange }: SignUpBenefitsDialogProps)
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <div className="space-y-4 py-4">
             {benefits.map((benefit) => (
               <div key={benefit.title} className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -79,7 +79,7 @@ const SignUpBenefitsDialog = ({ open, onOpenChange }: SignUpBenefitsDialogProps)
             ))}
           </div>
 
-          <div className="flex flex-col gap-2 sticky bottom-0 z-10 bg-background border-t px-6 py-4 rounded-b-lg">
+          <div className="flex flex-col gap-2 pt-2">
             <Button
               onClick={handleSignIn}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
@@ -93,6 +93,12 @@ const SignUpBenefitsDialog = ({ open, onOpenChange }: SignUpBenefitsDialogProps)
               Sign in with Google
             </Button>
 
+            <div className="flex items-center gap-2 my-1">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">or</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
             <Button
               variant="outline"
               onClick={handleEmailClick}
@@ -105,7 +111,7 @@ const SignUpBenefitsDialog = ({ open, onOpenChange }: SignUpBenefitsDialogProps)
             <Button
               variant="ghost"
               onClick={handleDismiss}
-              className="text-muted-foreground text-sm h-9"
+              className="text-muted-foreground text-sm"
             >
               Maybe later
             </Button>

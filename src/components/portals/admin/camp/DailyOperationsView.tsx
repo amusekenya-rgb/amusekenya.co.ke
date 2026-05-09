@@ -25,6 +25,7 @@ const CAMP_TYPES = [
   { value: 'end-year', label: 'End Year' },
   { value: 'little-forest', label: 'Little Forest' },
   { value: 'mid-term-feb-march', label: 'Mid-Term Feb/March' },
+  { value: 'mid-term-may-june', label: 'Mid-Term May/June' },
   { value: 'mid-term-october', label: 'Mid-Term October' },
 ];
 

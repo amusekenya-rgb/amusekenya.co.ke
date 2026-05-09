@@ -50,6 +50,7 @@ type GroundRegistrationForm = z.infer<typeof groundRegistrationSchema>;
 
 const CAMP_TYPES = [
   { value: 'mid-term-feb-march', label: 'Mid-Term Camp - Feb/March' },
+  { value: 'mid-term-may-june', label: 'Mid-Term Camp - May/June' },
   { value: 'mid-term-october', label: 'Mid-Term Camp - October' },
   { value: 'easter', label: 'Easter Camp' },
   { value: 'summer', label: 'Summer Camp' },

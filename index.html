@@ -152,42 +152,7 @@
   </head>
 
   <body>
-    <div id="root">
-      <div style="padding:16px;font-family:ui-sans-serif,system-ui;color:#111827">
-        Loading…
-      </div>
-    </div>
-
-    <script>
-      (function () {
-        function showError(title, details) {
-          try {
-            var root = document.getElementById("root");
-            if (!root) return;
-            root.innerHTML =
-              '<div style="padding:16px;font-family:ui-sans-serif,system-ui">' +
-              '<h1 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#111827">' +
-              title +
-              "</h1>" +
-              '<pre style="white-space:pre-wrap;background:#111827;color:#e5e7eb;padding:12px;border-radius:8px;overflow:auto">' +
-              String(details || "Unknown error") +
-              "</pre>" +
-              "</div>";
-          } catch (e) {
-            // ignore
-          }
-        }
-
-        window.addEventListener("error", function (e) {
-          showError("Runtime error (before React mounted)", e && (e.error && e.error.stack) || e.message);
-        });
-
-        window.addEventListener("unhandledrejection", function (e) {
-          var reason = e && e.reason;
-          showError("Unhandled promise rejection (before React mounted)", reason && (reason.stack || reason.message) || reason);
-        });
-      })();
-    </script>
+    <div id="root"></div>
 
     <!-- Noscript fallback for crawlers and non-JS browsers -->
     <noscript>
