@@ -2,7 +2,7 @@
 // Loads the official inline JS once and exposes a typed openPaystackCheckout().
 
 const PAYSTACK_INLINE_URL = 'https://js.paystack.co/v2/inline.js';
-export const PAYSTACK_PUBLIC_KEY = 'pk_test_b2b67346f0813441687dda0fc1212b0583f74e4a';
+export const PAYSTACK_PUBLIC_KEY = 'pk_live_f19af6f851fbc0615819ba14187530c3c36c0de9';
 
 let loadPromise: Promise<void> | null = null;
 

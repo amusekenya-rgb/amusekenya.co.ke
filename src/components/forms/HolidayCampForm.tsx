@@ -25,6 +25,7 @@ import { leadsService } from '@/services/leadsService';
 import { DateSelector } from './DateSelector';
 import { invoiceService } from '@/services/invoiceService';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
+import { discountService } from '@/services/discountService';
 import { LocationSelector } from './LocationSelector';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { ActivityTypeSelector } from './ActivityTypeSelector';
@@ -230,11 +231,32 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
     }
     
     try {
-      const totalAmount = data.children.reduce((sum, child) => sum + child.totalPrice, 0);
-      
+      const subtotalAmount = data.children.reduce((sum, child) => sum + child.totalPrice, 0);
+
+      // Look up an active discount issued to this client (by email OR phone)
+      let totalAmount = subtotalAmount;
+      let appliedDiscount: Awaited<ReturnType<typeof discountService.findApplicable>> = null;
+      try {
+        appliedDiscount = await discountService.findApplicable({
+          email: data.email,
+          phone: data.phone,
+          campType: campType as string,
+          totalBeforeDiscount: subtotalAmount,
+          numChildren: data.children.length,
+        });
+        if (appliedDiscount) {
+          totalAmount = appliedDiscount.finalTotal;
+          toast.success(
+            `Discount applied: ${appliedDiscount.description} — you save KES ${appliedDiscount.discountAmount.toLocaleString()}`
+          );
+        }
+      } catch (e) {
+        console.warn('Discount lookup failed (non-fatal):', e);
+      }
+
       const tempId = crypto.randomUUID();
       const qrCodeData = qrCodeService.generateQRCodeData(tempId);
-      
+
       const registrationData = {
         camp_type: campType as any,
         parent_name: data.parentName,
@@ -254,6 +276,8 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
           activityType: child.activityType,
         })),
         total_amount: totalAmount,
+        discount_id: appliedDiscount?.discount.id ?? null,
+        discount_amount: appliedDiscount?.discountAmount ?? 0,
         payment_status: 'unpaid' as const,
         payment_method: 'pending' as const,
         registration_type: 'online_only' as const,
@@ -263,7 +287,20 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
       };
 
       const registration = await campRegistrationService.createRegistration(registrationData);
-      
+
+      // Mark applied discount as used (non-blocking)
+      if (appliedDiscount) {
+        try {
+          await discountService.markUsed(
+            appliedDiscount.discount.id,
+            registration.id,
+            appliedDiscount.discountAmount
+          );
+        } catch (e) {
+          console.warn('Failed to mark discount used (non-fatal):', e);
+        }
+      }
+
       const qrUrl = await qrCodeService.generateQRCode(qrCodeData);
       
       await leadsService.createLead({
@@ -294,9 +331,74 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         console.error('⚠️ Failed to create auto-invoice:', invoiceError);
       }
       
-      console.log('📧 Attempting to send confirmation email...');
       const { supabase } = await import('@/integrations/supabase/client');
-      const { data: emailData, error: emailError } = await supabase.functions.invoke('send-confirmation-email', {
+
+      // For "Pay Now" flow: open Paystack FIRST so it isn't blocked by email failures
+      // or hidden behind the QR success modal.
+      if (buttonType === 'pay') {
+        try {
+          console.log('💳 Opening Paystack checkout...', { email: data.email, amount: totalAmount });
+          const { openPaystackCheckout, generatePaystackReference } = await import('@/lib/paystack');
+          const reference = generatePaystackReference('AMU');
+          await openPaystackCheckout({
+            email: data.email,
+            amountKES: totalAmount,
+            reference,
+            metadata: {
+              registrationId: registration.id,
+              registrationNumber: registration.registration_number,
+              parentName: data.parentName,
+              programName: campTitle,
+            },
+            onSuccess: async (ref) => {
+              try {
+                const { data: verifyData, error: verifyErr } = await supabase.functions.invoke(
+                  'paystack-verify',
+                  { body: { reference: ref, registrationId: registration.id } }
+                );
+                if (verifyErr) throw verifyErr;
+                if (!verifyData?.success) throw new Error(verifyData?.error || 'Verification failed');
+                toast.success('Payment received. Thank you!');
+              } catch (e) {
+                console.error('Verify error:', e);
+                toast.error(`Payment processed but verification failed. Reference: ${ref}`);
+              } finally {
+                // Show success/QR modal AFTER payment attempt completes
+                setRegistrationResult(registration);
+                setQrCodeDataUrl(qrUrl);
+                setRegistrationType('online_paid');
+                setShowQRModal(true);
+              }
+            },
+            onClose: () => {
+              toast.info('Payment cancelled. You can complete it later from My Registrations.');
+              // Still show QR modal so the user has their registration confirmation
+              setRegistrationResult(registration);
+              setQrCodeDataUrl(qrUrl);
+              setRegistrationType('online_only');
+              setShowQRModal(true);
+            },
+          });
+        } catch (e) {
+          console.error('Paystack init error:', e);
+          toast.error('Could not start online payment. Please try again from My Registrations.');
+          // Fallback: still show confirmation
+          setRegistrationResult(registration);
+          setQrCodeDataUrl(qrUrl);
+          setRegistrationType('online_only');
+          setShowQRModal(true);
+        }
+      } else {
+        // "Register only" flow: show confirmation immediately
+        setRegistrationResult(registration);
+        setQrCodeDataUrl(qrUrl);
+        setRegistrationType('online_only');
+        setShowQRModal(true);
+      }
+
+      // Send confirmation email in background (non-blocking, never breaks payment)
+      console.log('📧 Sending confirmation email (background)...');
+      supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
           programType: 'holiday-camp',
@@ -314,24 +416,10 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
             paymentMethod: buttonType === 'pay' ? 'online_payment' : 'cash'
           }
         }
-      });
+      }).then(({ error }) => {
+        if (error) console.error('❌ Email sending failed (non-blocking):', error);
+      }).catch((e) => console.error('❌ Email invoke error (non-blocking):', e));
 
-      if (emailError) {
-        console.error('❌ Email sending failed:', emailError);
-        throw emailError;
-      }
-
-      setRegistrationResult(registration);
-      setQrCodeDataUrl(qrUrl);
-      setRegistrationType('online_only');
-      setShowQRModal(true);
-      
-      if (buttonType === 'pay') {
-        setTimeout(() => {
-          toast.info('Payment integration coming soon! You will receive an invoice with payment instructions via email.');
-        }, 500);
-      }
-      
       toast.success(config.messages.registrationSuccess);
       await recordSubmission(data, 'holiday-camp');
 

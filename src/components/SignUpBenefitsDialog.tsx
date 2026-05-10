@@ -55,7 +55,7 @@ const SignUpBenefitsDialog = ({ open, onOpenChange }: SignUpBenefitsDialogProps)
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md border-primary/20">
+        <DialogContent className="sm:max-w-md border-primary/20 max-h-[90vh] overflow-y-auto">
           <DialogHeader className="text-center">
             <DialogTitle className="text-xl font-bold text-foreground">
               Make Registration Effortless

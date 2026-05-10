@@ -175,7 +175,7 @@ const LittleForestProgram = () => {
           specialNeeds: child.nannyRequired ? 'Accompanied by Nanny' : '',
           selectedDays: child.selectedDates.map((_, i) => `Day ${i + 1}`),
           selectedDates: child.selectedDates,
-          selectedSessions: {},
+          selectedSessions: child.selectedDates.reduce((acc, d) => ({ ...acc, [d]: 'half' as const }), {} as Record<string, 'half' | 'full'>),
           price: getChildPrice(index),
         })),
         total_amount: totalAmount,

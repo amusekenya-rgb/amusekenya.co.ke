@@ -363,6 +363,292 @@ class EmailManagementService {
       return [];
     }
   }
+
+  /**
+   * Resolve a saved segment into a deduplicated list of opt-in lead recipients.
+   * Excludes any address present in email_suppressions or with email_subscribed=false.
+   */
+  async resolveSegmentRecipients(segmentId: string): Promise<{ email: string; full_name: string | null; lead_id: string }[]> {
+    try {
+      const supabaseClient = supabase as any;
+      const { data: segment, error: segError } = await supabaseClient
+        .from('email_segments')
+        .select('filters')
+        .eq('id', segmentId)
+        .single();
+      if (segError || !segment) return [];
+
+      const f = segment.filters || {};
+      let q = supabaseClient
+        .from('leads')
+        .select('id, email, full_name, email_subscribed, program_type, status')
+        .not('email', 'is', null);
+
+      if (f.program_type) q = q.eq('program_type', f.program_type);
+      if (f.status) q = q.eq('status', f.status);
+
+      const { data: leads, error: leadsError } = await q;
+      if (leadsError) throw leadsError;
+
+      const { data: suppressions } = await supabaseClient
+        .from('email_suppressions')
+        .select('email');
+      const suppressedSet = new Set((suppressions || []).map((s: any) => (s.email || '').toLowerCase()));
+
+      const seen = new Set<string>();
+      const recipients: { email: string; full_name: string | null; lead_id: string }[] = [];
+      for (const l of (leads || []) as any[]) {
+        const email = (l.email || '').trim().toLowerCase();
+        if (!email) continue;
+        if (l.email_subscribed === false) continue;
+        if (suppressedSet.has(email)) continue;
+        if (seen.has(email)) continue;
+        seen.add(email);
+        recipients.push({ email, full_name: l.full_name || null, lead_id: l.id });
+      }
+      return recipients;
+    } catch (error) {
+      console.error('Error resolving segment recipients:', error);
+      return [];
+    }
+  }
+
+  /** Distinct values for segment filter dropdowns */
+  async getSegmentFilterOptions(): Promise<{ programTypes: string[]; statuses: string[] }> {
+    try {
+      const supabaseClient = supabase as any;
+      const { data } = await supabaseClient.from('leads').select('program_type, status');
+      const programTypes = new Set<string>();
+      const statuses = new Set<string>();
+      for (const r of (data || []) as any[]) {
+        if (r.program_type) programTypes.add(r.program_type);
+        if (r.status) statuses.add(r.status);
+      }
+      return {
+        programTypes: Array.from(programTypes).sort(),
+        statuses: Array.from(statuses).sort(),
+      };
+    } catch {
+      return { programTypes: [], statuses: [] };
+    }
+  }
+
+  // ---------- Campaign management ----------
+
+  async getCampaigns(): Promise<any[]> {
+    try {
+      const supabaseClient = supabase as any;
+      const { data, error } = await supabaseClient
+        .from('campaigns')
+        .select('*')
+        .eq('campaign_type', 'email')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.error('Error fetching campaigns:', e);
+      return [];
+    }
+  }
+
+  async createCampaign(payload: {
+    name: string;
+    subject: string;
+    body_html: string;
+    from_name?: string;
+    segment_id: string;
+    recipient_count: number;
+  }): Promise<any | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const supabaseClient = supabase as any;
+      const { data, error } = await supabaseClient
+        .from('campaigns')
+        .insert({
+          name: payload.name,
+          subject: payload.subject,
+          body_html: payload.body_html,
+          from_name: payload.from_name || 'Amuse Bush Camp',
+          segment_id: payload.segment_id,
+          recipient_count: payload.recipient_count,
+          campaign_type: 'email',
+          status: 'planning',
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      console.error('Error creating campaign:', e);
+      return null;
+    }
+  }
+
+  async deleteCampaign(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const supabaseClient = supabase as any;
+      const { error } = await supabaseClient
+        .from('campaigns')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return { success: true };
+    } catch (e: any) {
+      console.error('Error deleting campaign:', e);
+      return { success: false, error: e?.message || 'Delete failed' };
+    }
+  }
+
+  /** Extract a useful error message out of Edge Function errors. */
+  private async parseFunctionError(error: any): Promise<string> {
+    try {
+      // FunctionsHttpError exposes the raw Response on .context
+      const ctx = error?.context;
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json();
+        if (body?.error) return body.error;
+      } else if (ctx && typeof ctx.text === 'function') {
+        const text = await ctx.text();
+        if (text) return text;
+      }
+    } catch (_) { /* ignore */ }
+    return error?.message || 'Send failed';
+  }
+
+  /**
+   * Call Edge Functions with fetch instead of supabase.functions.invoke.
+   * invoke can overwrite the Authorization header with the anon key in some
+   * sessions, so we explicitly forward the current access token.
+   */
+  private async callMarketingFunction<T>(payload: Record<string, any>): Promise<T> {
+    const token = await this.getAccessToken();
+    const supabaseClient = supabase as any;
+    const functionsBaseUrl = (supabaseClient.functionsUrl?.href || `${supabaseClient.supabaseUrl}/functions/v1`).replace(/\/$/, '');
+    const response = await fetch(`${functionsBaseUrl}/send-marketing-campaign`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseClient.supabaseKey,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await response.text();
+    let body: any = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch (_) {
+      body = { error: text };
+    }
+
+    if (!response.ok || body?.success === false) {
+      throw new Error(body?.error || body?.message || `Function failed with status ${response.status}`);
+    }
+
+    return (body || { success: true }) as T;
+  }
+
+  /** Get the current user's access token, or throw if not signed in. */
+  private async getAccessToken(): Promise<string> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) {
+      throw new Error('You are not signed in. Please log in again and retry.');
+    }
+    return token;
+  }
+
+  async sendCampaign(
+    campaignId: string,
+    options?: { recipients?: string[]; retry?: boolean }
+  ): Promise<{ success: boolean; sent?: number; failed?: number; error?: string; warning?: string }> {
+    try {
+      return await this.callMarketingFunction({
+        campaignId,
+        recipients: options?.recipients,
+        retry: options?.retry,
+      });
+    } catch (e: any) {
+      console.error('Error sending campaign:', e);
+      return { success: false, error: e?.message || 'Send failed' };
+    }
+  }
+
+  /** Return the deduplicated list of email addresses that bounced/failed for a campaign. */
+  async getFailedRecipients(campaignId: string): Promise<string[]> {
+    try {
+      const supabaseClient = supabase as any;
+      const { data, error } = await supabaseClient
+        .from('email_deliveries')
+        .select('email, status')
+        .eq('campaign_id', campaignId)
+        .in('status', ['bounced', 'spam']);
+      if (error) throw error;
+      // Exclude any address that ALSO has a successful send for this campaign
+      // (e.g. retried later) to avoid resending to people who eventually got it.
+      const { data: sentRows } = await supabaseClient
+        .from('email_deliveries')
+        .select('email')
+        .eq('campaign_id', campaignId)
+        .in('status', ['sent', 'delivered', 'opened', 'clicked']);
+      const sentSet = new Set(((sentRows || []) as any[]).map(r => (r.email || '').toLowerCase()));
+      const seen = new Set<string>();
+      const result: string[] = [];
+      for (const r of (data || []) as any[]) {
+        const e = (r.email || '').trim().toLowerCase();
+        if (!e || sentSet.has(e) || seen.has(e)) continue;
+        seen.add(e);
+        result.push(e);
+      }
+      return result;
+    } catch (e) {
+      console.error('Error fetching failed recipients:', e);
+      return [];
+    }
+  }
+  async sendTestCampaign(payload: {
+    subject: string;
+    body_html: string;
+    from_name?: string;
+    testEmail: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    try {
+      return await this.callMarketingFunction({
+        test: true,
+        testEmail: payload.testEmail,
+        subject: payload.subject,
+        body_html: payload.body_html,
+        from_name: payload.from_name,
+      });
+    } catch (e: any) {
+      console.error('Error sending test campaign:', e);
+      return { success: false, error: e?.message || 'Send failed' };
+    }
+  }
+
+  async getCampaignStats(campaignId: string): Promise<{ sent: number; delivered: number; opened: number; clicked: number; bounced: number }> {
+    try {
+      const supabaseClient = supabase as any;
+      const { data } = await supabaseClient
+        .from('email_deliveries')
+        .select('status')
+        .eq('campaign_id', campaignId);
+      const rows = (data || []) as any[];
+      const deliveredStatuses = ['delivered', 'opened', 'clicked'];
+      const openedStatuses = ['opened', 'clicked'];
+      return {
+        sent: rows.length,
+        delivered: rows.filter(r => deliveredStatuses.includes(r.status)).length,
+        opened: rows.filter(r => openedStatuses.includes(r.status)).length,
+        clicked: rows.filter(r => r.status === 'clicked').length,
+        bounced: rows.filter(r => r.status === 'bounced').length,
+      };
+    } catch {
+      return { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0 };
+    }
+  }
 }
 
 export const emailManagementService = new EmailManagementService();

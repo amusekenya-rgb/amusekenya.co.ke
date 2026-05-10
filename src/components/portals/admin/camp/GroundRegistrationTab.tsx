@@ -50,6 +50,7 @@ type GroundRegistrationForm = z.infer<typeof groundRegistrationSchema>;
 
 const CAMP_TYPES = [
   { value: 'mid-term-feb-march', label: 'Mid-Term Camp - Feb/March' },
+  { value: 'mid-term-may-june', label: 'Mid-Term Camp - May/June' },
   { value: 'mid-term-october', label: 'Mid-Term Camp - October' },
   { value: 'easter', label: 'Easter Camp' },
   { value: 'summer', label: 'Summer Camp' },
@@ -294,7 +295,13 @@ export const GroundRegistrationTab: React.FC = () => {
             }
             sessionData = sessionMap;
           } else {
-            sessionData = child.selectedSessions || [];
+            // Single-day: store as per-date map so attendance reads the correct session type
+            const selected = (child.selectedSessions && child.selectedSessions[0]) || (getSessionsForLocation()[0]?.value || 'full');
+            const sessionMap: Record<string, 'half' | 'full'> = {};
+            for (const dateStr of actualDates) {
+              sessionMap[dateStr] = selected as 'half' | 'full';
+            }
+            sessionData = sessionMap;
           }
 
           return {

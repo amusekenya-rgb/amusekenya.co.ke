@@ -43,6 +43,7 @@ type QuickRegForm = z.infer<typeof quickRegSchema>;
 
 const CAMP_TYPES = [
   { value: 'mid-term-feb-march', label: 'Mid-Term Feb/March' },
+  { value: 'mid-term-may-june', label: 'Mid-Term May/June' },
   { value: 'mid-term-october', label: 'Mid-Term October' },
   { value: 'easter', label: 'Easter Camp' },
   { value: 'summer', label: 'Summer Camp' },
@@ -179,7 +180,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
           specialNeeds: '',
           selectedDays: ['Day 1'],
           selectedDates: [new Date().toISOString().split('T')[0]],
-          selectedSessions: [data.sessionType],
+          selectedSessions: { [new Date().toISOString().split('T')[0]]: data.sessionType as 'full' | 'half' },
           price: sessionPrice
         })),
         total_amount: totalAmount,

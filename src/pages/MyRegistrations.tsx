@@ -20,6 +20,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import PayWithPaystackButton from '@/components/payments/PayWithPaystackButton';
 
 const CAMP_TYPE_LABELS: Record<string, string> = {
   easter: 'Easter Camp',
@@ -146,12 +147,14 @@ const MyRegistrations: React.FC = () => {
     );
   }
 
-  const totalPaid = rows
-    .filter((r) => (r.payment_status || '').toLowerCase() === 'paid')
-    .reduce((sum, r) => sum + Number(r.total_amount || 0), 0);
-  const totalOutstanding = rows
-    .filter((r) => (r.payment_status || '').toLowerCase() !== 'paid')
-    .reduce((sum, r) => sum + Number(r.total_amount || 0), 0);
+  const totalPaid = rows.reduce(
+    (sum, r) => sum + Number(r.amount_paid ?? 0),
+    0
+  );
+  const totalOutstanding = rows.reduce(
+    (sum, r) => sum + Number(r.amount_remaining ?? r.total_amount ?? 0),
+    0
+  );
 
   return (
     <>
@@ -300,6 +303,53 @@ const MyRegistrations: React.FC = () => {
                                 </Badge>
                               ))}
                             </div>
+                          </div>
+                        )}
+
+                        {(r.payment_status || '').toLowerCase() !== 'paid' && (
+                          <div className="mt-3 pt-3 border-t flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-xs text-muted-foreground">
+                              {Number(r.amount_paid || 0) > 0 ? (
+                                <>
+                                  Paid{' '}
+                                  <span className="font-semibold text-forest-700">
+                                    {formatMoney(Number(r.amount_paid || 0))}
+                                  </span>{' '}
+                                  · Remaining{' '}
+                                  <span className="font-semibold text-destructive">
+                                    {formatMoney(
+                                      Number(r.amount_remaining ?? r.total_amount) || 0
+                                    )}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  Outstanding{' '}
+                                  <span className="font-semibold text-destructive">
+                                    {formatMoney(Number(r.total_amount) || 0)}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <PayWithPaystackButton
+                              registrationId={r.id}
+                              registrationNumber={r.registration_number}
+                              email={r.email}
+                              parentName={r.parent_name}
+                              programName={formatCampType(r.camp_type)}
+                              amountKES={
+                                Number(r.amount_remaining ?? r.total_amount) || 0
+                              }
+                              size="sm"
+                              label={
+                                (r.payment_status || '').toLowerCase() === 'partial'
+                                  ? `Pay Remaining (${formatMoney(
+                                      Number(r.amount_remaining ?? r.total_amount) || 0
+                                    )})`
+                                  : 'Pay Now'
+                              }
+                              onPaid={() => setRefreshKey((k) => k + 1)}
+                            />
                           </div>
                         )}
                       </CardContent>
