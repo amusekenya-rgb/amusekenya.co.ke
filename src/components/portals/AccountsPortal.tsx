@@ -14,6 +14,7 @@ import ProfileEditor from '../profile/ProfileEditor';
 import ClientStatements from './accounts/ClientStatements';
 import DataExplorer from './accounts/DataExplorer';
 import ActivityCategoriesManager from './accounts/ActivityCategoriesManager';
+import ClientDiscounts from './accounts/ClientDiscounts';
 
 interface AccountsPortalProps {
   activeTab: string;
@@ -50,6 +51,8 @@ const AccountsPortal: React.FC<AccountsPortalProps> = ({ activeTab }) => {
         return <DataExplorer />;
       case 'activity-categories':
         return <ActivityCategoriesManager />;
+      case 'client-discounts':
+        return <ClientDiscounts />;
       case 'my-profile':
         return <ProfileEditor />;
       default:

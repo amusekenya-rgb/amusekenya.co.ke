@@ -25,6 +25,7 @@ import { leadsService } from '@/services/leadsService';
 import { DateSelector } from './DateSelector';
 import { invoiceService } from '@/services/invoiceService';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
+import { discountService } from '@/services/discountService';
 import { LocationSelector } from './LocationSelector';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { ActivityTypeSelector } from './ActivityTypeSelector';
@@ -230,11 +231,32 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
     }
     
     try {
-      const totalAmount = data.children.reduce((sum, child) => sum + child.totalPrice, 0);
-      
+      const subtotalAmount = data.children.reduce((sum, child) => sum + child.totalPrice, 0);
+
+      // Look up an active discount issued to this client (by email OR phone)
+      let totalAmount = subtotalAmount;
+      let appliedDiscount: Awaited<ReturnType<typeof discountService.findApplicable>> = null;
+      try {
+        appliedDiscount = await discountService.findApplicable({
+          email: data.email,
+          phone: data.phone,
+          campType: campType as string,
+          totalBeforeDiscount: subtotalAmount,
+          numChildren: data.children.length,
+        });
+        if (appliedDiscount) {
+          totalAmount = appliedDiscount.finalTotal;
+          toast.success(
+            `Discount applied: ${appliedDiscount.description} — you save KES ${appliedDiscount.discountAmount.toLocaleString()}`
+          );
+        }
+      } catch (e) {
+        console.warn('Discount lookup failed (non-fatal):', e);
+      }
+
       const tempId = crypto.randomUUID();
       const qrCodeData = qrCodeService.generateQRCodeData(tempId);
-      
+
       const registrationData = {
         camp_type: campType as any,
         parent_name: data.parentName,
@@ -254,6 +276,8 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
           activityType: child.activityType,
         })),
         total_amount: totalAmount,
+        discount_id: appliedDiscount?.discount.id ?? null,
+        discount_amount: appliedDiscount?.discountAmount ?? 0,
         payment_status: 'unpaid' as const,
         payment_method: 'pending' as const,
         registration_type: 'online_only' as const,
@@ -263,7 +287,20 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
       };
 
       const registration = await campRegistrationService.createRegistration(registrationData);
-      
+
+      // Mark applied discount as used (non-blocking)
+      if (appliedDiscount) {
+        try {
+          await discountService.markUsed(
+            appliedDiscount.discount.id,
+            registration.id,
+            appliedDiscount.discountAmount
+          );
+        } catch (e) {
+          console.warn('Failed to mark discount used (non-fatal):', e);
+        }
+      }
+
       const qrUrl = await qrCodeService.generateQRCode(qrCodeData);
       
       await leadsService.createLead({
