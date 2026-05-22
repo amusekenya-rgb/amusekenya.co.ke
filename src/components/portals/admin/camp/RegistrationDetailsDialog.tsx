@@ -372,6 +372,26 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
             </div>
             <div>Registration Type: {registration.registration_type.replace('_', ' ')}</div>
             <div>Status: {registration.status}</div>
+            <div className="pt-2 mt-2 border-t">
+              <div>
+                Billing Document:{' '}
+                <Badge
+                  variant={registration.billing_doc_type === 'paid' ? 'default' : registration.billing_doc_type === 'invoice' ? 'secondary' : 'outline'}
+                  className="ml-1"
+                >
+                  {(registration.billing_doc_type || (registration.payment_status === 'paid' ? 'paid' : 'quotation')).toUpperCase()}
+                </Badge>
+              </div>
+              {registration.quote_number && (
+                <div>Quotation #: <span className="font-mono">{registration.quote_number}</span></div>
+              )}
+              {registration.invoice_number && (
+                <div>Invoice #: <span className="font-mono">{registration.invoice_number}</span></div>
+              )}
+              {registration.converted_to_invoice_at && (
+                <div>Converted to invoice: {new Date(registration.converted_to_invoice_at).toLocaleString()}</div>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

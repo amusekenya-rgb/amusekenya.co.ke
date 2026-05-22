@@ -17,6 +17,10 @@ export interface MyRegistrationRow {
   created_at: string | null;
   amount_paid?: number;
   amount_remaining?: number;
+  billing_doc_type?: 'quotation' | 'invoice' | 'paid';
+  quote_number?: string | null;
+  invoice_number?: string | null;
+  converted_to_invoice_at?: string | null;
 }
 
 export const myRegistrationsService = {
@@ -30,7 +34,7 @@ export const myRegistrationsService = {
     const { data, error } = await supabase
       .from('camp_registrations')
       .select(
-        'id, registration_number, camp_type, parent_name, email, phone, children, total_amount, payment_status, payment_method, payment_reference, registration_type, status, created_at'
+        'id, registration_number, camp_type, parent_name, email, phone, children, total_amount, payment_status, payment_method, payment_reference, registration_type, status, created_at, billing_doc_type, quote_number, invoice_number, converted_to_invoice_at'
       )
       .ilike('email', email)
       .order('created_at', { ascending: false });

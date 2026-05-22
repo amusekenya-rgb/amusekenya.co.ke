@@ -31,6 +31,11 @@ export interface CampRegistration {
   created_at?: string;
   created_by?: string;
   updated_at?: string;
+  /** 'quotation' = registered, not paid & not attended; 'invoice' = unpaid but attended; 'paid' = fully paid */
+  billing_doc_type?: 'quotation' | 'invoice' | 'paid';
+  quote_number?: string;
+  invoice_number?: string;
+  converted_to_invoice_at?: string;
   admin_notes?: string;
 }
 

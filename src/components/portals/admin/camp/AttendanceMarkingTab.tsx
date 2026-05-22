@@ -367,6 +367,11 @@ export const AttendanceMarkingTab: React.FC = () => {
               {title}
             </span>
             <div className="flex items-center gap-2">
+              {!isPaid && (
+                <Badge variant="outline" className="border-amber-500 text-amber-700" title="Check-in converts a quotation into an invoice">
+                  Check-in raises invoice
+                </Badge>
+              )}
               <Badge variant="outline">{presentCount}/{items.length} Present</Badge>
               <Badge variant={isPaid ? 'default' : 'secondary'}>{items.length} Expected</Badge>
             </div>
@@ -428,19 +433,32 @@ export const AttendanceMarkingTab: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {checkedOut ? (
-                          <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                            <CheckCircle className="h-3 w-3" /> Checked Out
-                          </Badge>
-                        ) : checkedIn ? (
-                          <Badge variant="default" className="flex items-center gap-1 w-fit">
-                            <Clock className="h-3 w-3" /> Present
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                            <XCircle className="h-3 w-3" /> Not Arrived
-                          </Badge>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          {checkedOut ? (
+                            <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                              <CheckCircle className="h-3 w-3" /> Checked Out
+                            </Badge>
+                          ) : checkedIn ? (
+                            <Badge variant="default" className="flex items-center gap-1 w-fit">
+                              <Clock className="h-3 w-3" /> Present
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                              <XCircle className="h-3 w-3" /> Not Arrived
+                            </Badge>
+                          )}
+                          {item.registration.payment_status !== 'paid' && (
+                            checkedIn ? (
+                              <Badge className="bg-amber-500 hover:bg-amber-600 text-white w-fit text-[10px]" title="Attended unpaid — invoice raised">
+                                INVOICE
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="w-fit text-[10px]" title="Registered but not paid — quotation">
+                                QUOTE
+                              </Badge>
+                            )
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm">
                         {attendance && (

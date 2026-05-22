@@ -21,6 +21,14 @@ import { exportService } from '@/services/exportService';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
+type DocType = 'quotation' | 'invoice' | 'paid';
+const deriveDocType = (reg: CampRegistration): DocType => {
+  if (reg.billing_doc_type) return reg.billing_doc_type;
+  if (reg.payment_status === 'paid') return 'paid';
+  return 'quotation';
+};
+
+
 export const AllRegistrationsTab: React.FC = () => {
   const [registrations, setRegistrations] = useState<CampRegistration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +37,7 @@ export const AllRegistrationsTab: React.FC = () => {
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [registrationTypeFilter, setRegistrationTypeFilter] = useState<string>('all');
   const [locationFilter, setLocationFilter] = useState<string>('all');
+  const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
   const [selectedRegistration, setSelectedRegistration] = useState<CampRegistration | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   
@@ -62,6 +71,10 @@ export const AllRegistrationsTab: React.FC = () => {
       if (locationFilter !== 'all') {
         data = data.filter(reg => (reg.location || 'Kurura Gate F') === locationFilter);
       }
+
+      if (docTypeFilter !== 'all') {
+        data = data.filter(reg => deriveDocType(reg) === docTypeFilter);
+      }
       
       if (minAmount) {
         data = data.filter(reg => reg.total_amount >= parseFloat(minAmount));
@@ -82,7 +95,7 @@ export const AllRegistrationsTab: React.FC = () => {
 
   useEffect(() => {
     loadRegistrations();
-  }, [campTypeFilter, paymentFilter, registrationTypeFilter, locationFilter, dateFrom, dateTo]);
+  }, [campTypeFilter, paymentFilter, registrationTypeFilter, locationFilter, docTypeFilter, dateFrom, dateTo]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
@@ -115,6 +128,18 @@ export const AllRegistrationsTab: React.FC = () => {
     };
     return <Badge variant={variants[status] || 'default'}>{status.toUpperCase()}</Badge>;
   };
+
+  const getDocTypeBadge = (reg: CampRegistration) => {
+    const t = deriveDocType(reg);
+    if (t === 'paid') {
+      return <Badge className="bg-green-600 hover:bg-green-700 text-white" title="Fully paid">PAID</Badge>;
+    }
+    if (t === 'invoice') {
+      return <Badge className="bg-amber-500 hover:bg-amber-600 text-white" title="Attended but not paid — invoice issued">INVOICE</Badge>;
+    }
+    return <Badge variant="outline" title="Registered but not paid and not yet attended">QUOTATION</Badge>;
+  };
+
 
   // Bulk selection handlers
   const handleSelectAll = () => {
@@ -254,6 +279,7 @@ export const AllRegistrationsTab: React.FC = () => {
     setPaymentFilter('all');
     setRegistrationTypeFilter('all');
     setLocationFilter('all');
+    setDocTypeFilter('all');
     setDateFrom(undefined);
     setDateTo(undefined);
     setMinAmount('');
@@ -261,8 +287,9 @@ export const AllRegistrationsTab: React.FC = () => {
     setSearchTerm('');
   };
 
-  const hasActiveFilters = campTypeFilter !== 'all' || paymentFilter !== 'all' || 
-    registrationTypeFilter !== 'all' || locationFilter !== 'all' || dateFrom || dateTo || minAmount || maxAmount || searchTerm;
+  const hasActiveFilters = campTypeFilter !== 'all' || paymentFilter !== 'all' ||
+    registrationTypeFilter !== 'all' || locationFilter !== 'all' || docTypeFilter !== 'all' ||
+    dateFrom || dateTo || minAmount || maxAmount || searchTerm;
 
   return (
     <>
@@ -330,6 +357,17 @@ export const AllRegistrationsTab: React.FC = () => {
                   <SelectItem value="paid">Paid</SelectItem>
                   <SelectItem value="unpaid">Unpaid</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={docTypeFilter} onValueChange={setDocTypeFilter}>
+                <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectValue placeholder="Doc Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Documents</SelectItem>
+                  <SelectItem value="quotation">Quotation (no-show)</SelectItem>
+                  <SelectItem value="invoice">Invoice (attended unpaid)</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={locationFilter} onValueChange={setLocationFilter}>
@@ -502,6 +540,7 @@ export const AllRegistrationsTab: React.FC = () => {
                     <TableHead className="text-xs sm:text-sm">Kids</TableHead>
                     <TableHead className="text-xs sm:text-sm">Amount</TableHead>
                     <TableHead className="text-xs sm:text-sm">Status</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Doc Type</TableHead>
                     <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Type</TableHead>
                     <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Date</TableHead>
                     <TableHead>Actions</TableHead>
@@ -523,6 +562,7 @@ export const AllRegistrationsTab: React.FC = () => {
                       <TableCell className="text-xs sm:text-sm">{reg.children.length}</TableCell>
                       <TableCell className="text-xs sm:text-sm">KES {reg.total_amount.toFixed(0)}</TableCell>
                       <TableCell>{getPaymentBadge(reg.payment_status)}</TableCell>
+                      <TableCell>{getDocTypeBadge(reg)}</TableCell>
                       <TableCell className="capitalize text-xs hidden lg:table-cell">{reg.registration_type.replace('_', ' ')}</TableCell>
                       <TableCell className="text-xs sm:text-sm hidden sm:table-cell">
                         {new Date(reg.created_at!).toLocaleDateString()}

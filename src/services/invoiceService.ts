@@ -133,15 +133,16 @@ export const invoiceService = {
     };
   },
 
-  // Generate PDF invoice
-  generatePDF(invoice: InvoiceWithItems): Blob {
+  // Generate PDF invoice (or quotation)
+  generatePDF(invoice: InvoiceWithItems, documentType: 'invoice' | 'quotation' = 'invoice'): Blob {
+    const isQuotation = documentType === 'quotation';
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
     // Header
     doc.setFontSize(24);
     doc.setTextColor(45, 80, 22); // Forest green
-    doc.text('INVOICE', pageWidth / 2, 25, { align: 'center' });
+    doc.text(isQuotation ? 'QUOTATION' : 'INVOICE', pageWidth / 2, 25, { align: 'center' });
 
     // Company info
     doc.setFontSize(10);
@@ -154,9 +155,9 @@ export const invoiceService = {
 
     // Invoice details (right side)
     doc.setFontSize(10);
-    doc.text(`Invoice #: ${invoice.invoice_number}`, pageWidth - 14, 40, { align: 'right' });
+    doc.text(`${isQuotation ? 'Quote' : 'Invoice'} #: ${invoice.invoice_number}`, pageWidth - 14, 40, { align: 'right' });
     doc.text(`Date: ${new Date(invoice.created_at).toLocaleDateString()}`, pageWidth - 14, 45, { align: 'right' });
-    doc.text(`Due Date: ${new Date(invoice.due_date).toLocaleDateString()}`, pageWidth - 14, 50, { align: 'right' });
+    doc.text(`${isQuotation ? 'Valid Until' : 'Due Date'}: ${new Date(invoice.due_date).toLocaleDateString()}`, pageWidth - 14, 50, { align: 'right' });
     doc.text(`Status: ${invoice.status.toUpperCase()}`, pageWidth - 14, 55, { align: 'right' });
 
     // Bill To
@@ -251,8 +252,8 @@ export const invoiceService = {
   },
 
   // Download PDF
-  downloadPDF(invoice: InvoiceWithItems) {
-    const blob = this.generatePDF(invoice);
+  downloadPDF(invoice: InvoiceWithItems, documentType: 'invoice' | 'quotation' = 'invoice') {
+    const blob = this.generatePDF(invoice, documentType);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -263,8 +264,11 @@ export const invoiceService = {
     URL.revokeObjectURL(url);
   },
 
-  // Send invoice email
-  async sendInvoiceEmail(invoice: InvoiceWithItems): Promise<{ success: boolean; error?: string }> {
+  // Send invoice (or quotation) email
+  async sendInvoiceEmail(
+    invoice: InvoiceWithItems,
+    documentType: 'invoice' | 'quotation' = 'invoice'
+  ): Promise<{ success: boolean; error?: string }> {
     if (!invoice.customer_email) {
       return { success: false, error: 'No customer email provided' };
     }
@@ -295,7 +299,7 @@ export const invoiceService = {
     try {
       const { data, error } = await supabase.functions.invoke('send-invoice-email', {
         body: {
-          invoiceId: invoice.id,
+          invoiceId: documentType === 'quotation' ? undefined : invoice.id,
           email: invoice.customer_email,
           invoiceNumber: invoice.invoice_number,
           customerName: invoice.customer_name,
@@ -306,7 +310,8 @@ export const invoiceService = {
           discountAmount: invoice.discount_amount || 0,
           taxAmount: invoice.tax_amount,
           notes: invoice.notes,
-          paymentTerms: invoice.payment_terms
+          paymentTerms: invoice.payment_terms,
+          documentType,
         }
       });
 

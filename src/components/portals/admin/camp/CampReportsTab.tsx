@@ -380,6 +380,48 @@ export const CampReportsTab: React.FC = () => {
         </Card>
       </div>
 
+      {/* Quote vs Invoice KPIs */}
+      {(() => {
+        const quote = filteredRegistrations.filter(r => (r.billing_doc_type || (r.payment_status === 'paid' ? 'paid' : 'quotation')) === 'quotation');
+        const invoice = filteredRegistrations.filter(r => r.billing_doc_type === 'invoice');
+        const paidRegs = filteredRegistrations.filter(r => r.payment_status === 'paid');
+        const sum = (arr: CampRegistration[]) => arr.reduce((s, r) => s + (r.total_amount || 0), 0);
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-muted-foreground/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Quotations Outstanding</CardTitle>
+                <CardDescription className="text-xs">Registered, not paid, not attended — prospective no-shows</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{quote.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">KES {sum(quote).toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-amber-700">Invoices Outstanding</CardTitle>
+                <CardDescription className="text-xs">Attended but unpaid — real receivables</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-700">{invoice.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">KES {sum(invoice).toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-green-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-green-700">Paid Registrations</CardTitle>
+                <CardDescription className="text-xs">Fully collected</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-700">{paidRegs.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">KES {sum(paidRegs).toLocaleString()}</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
       {/* Comparison Summary Card */}
       {canShowComparison && (
         <Card className="bg-muted/50">

@@ -80,6 +80,23 @@ const PaymentBadge: React.FC<{ status: string }> = ({ status }) => {
   );
 };
 
+const DocTypeBadge: React.FC<{ row: MyRegistrationRow }> = ({ row }) => {
+  const t = row.billing_doc_type || (row.payment_status === 'paid' ? 'paid' : 'quotation');
+  if (t === 'paid') return null;
+  if (t === 'invoice') {
+    return (
+      <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px]">
+        Invoice {row.invoice_number ? `· ${row.invoice_number}` : ''}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-[10px]">
+      Quotation {row.quote_number ? `· ${row.quote_number}` : ''}
+    </Badge>
+  );
+};
+
 const MyRegistrations: React.FC = () => {
   const { isSignedIn, isLoading: authLoading, user, profile } = useClientAuth();
   const [rows, setRows] = useState<MyRegistrationRow[]>([]);
@@ -257,6 +274,7 @@ const MyRegistrations: React.FC = () => {
                             </p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
+                            <DocTypeBadge row={r} />
                             <PaymentBadge status={r.payment_status} />
                             <span className="text-base font-semibold text-foreground">
                               {formatMoney(r.total_amount)}
@@ -324,7 +342,7 @@ const MyRegistrations: React.FC = () => {
                                 </>
                               ) : (
                                 <>
-                                  Outstanding{' '}
+                                  {(r.billing_doc_type === 'invoice') ? 'Invoice due ' : 'Quotation total '}
                                   <span className="font-semibold text-destructive">
                                     {formatMoney(Number(r.total_amount) || 0)}
                                   </span>

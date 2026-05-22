@@ -48,11 +48,23 @@ export const campRegistrationService = {
     const time = Date.now().toString(36).toUpperCase();
     const registrationNumber = `${prefix}-${time}-${rand}`;
 
+    // Derive billing doc type + quote/invoice number from initial payment status.
+    // Unpaid/partial registrations begin life as a QUOTATION; paying converts it to an
+    // INVOICE (handled by DB trigger). Attendance also converts quote -> invoice.
+    const initialPaymentStatus = (data as any).payment_status as string | undefined;
+    const isPaid = initialPaymentStatus === 'paid';
+    const billingDocType: 'quotation' | 'invoice' | 'paid' = isPaid ? 'paid' : 'quotation';
+    const quoteNumber = `QUO-${time}-${rand}`;
+    const invoiceNumber = isPaid ? `INV-${time}-${rand}` : undefined;
+
     const insertData = {
       ...toDb(data),
       id: tempId,
       // Override/bypass DB auto-generation if it is misbehaving
       registration_number: registrationNumber,
+      billing_doc_type: billingDocType,
+      quote_number: quoteNumber,
+      ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
     };
 
     const { error } = await supabase.from('camp_registrations').insert(insertData);
@@ -66,6 +78,9 @@ export const campRegistrationService = {
       id: tempId,
       ...data,
       registration_number: registrationNumber,
+      billing_doc_type: billingDocType,
+      quote_number: quoteNumber,
+      invoice_number: invoiceNumber,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     } as CampRegistration;

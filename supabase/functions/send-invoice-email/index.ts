@@ -107,10 +107,15 @@ const handler = async (req: Request): Promise<Response> => {
     const taxAmount = Number(requestBody.taxAmount ?? 0);
     const notes = requestBody.notes;
     const paymentTerms = requestBody.paymentTerms ?? 'Due on Receipt';
+    const documentType: 'invoice' | 'quotation' = requestBody.documentType === 'quotation' ? 'quotation' : 'invoice';
+    const isQuotation = documentType === 'quotation';
+    const docLabel = isQuotation ? 'QUOTATION' : 'INVOICE';
+    const docLabelLower = isQuotation ? 'Quotation' : 'Invoice';
+    const dueLabel = isQuotation ? 'Valid Until' : 'Due Date';
 
-    if (!invoiceId || !email || !invoiceNumber || !customerName || !dueDate) {
-      console.error('❌ Missing fields:', { invoiceId: !!invoiceId, email: !!email, invoiceNumber: !!invoiceNumber, customerName: !!customerName, dueDate: !!dueDate });
-      return jsonResponse({ error: 'Missing required invoice email fields' }, 400);
+    if (!email || !invoiceNumber || !customerName || !dueDate || (!isQuotation && !invoiceId)) {
+      console.error('❌ Missing fields:', { invoiceId: !!invoiceId, email: !!email, invoiceNumber: !!invoiceNumber, customerName: !!customerName, dueDate: !!dueDate, documentType });
+      return jsonResponse({ error: `Missing required ${docLabelLower.toLowerCase()} email fields` }, 400);
     }
 
     console.log('📧 Sending invoice to:', email, 'Invoice:', invoiceNumber);
@@ -149,7 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
           <div style="background-color: #2d5016; color: white; padding: 25px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="margin: 0; font-size: 28px;">INVOICE</h1>
+            <h1 style="margin: 0; font-size: 28px;">${docLabel}</h1>
             <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">${invoiceNumber}</p>
           </div>
           <div style="background-color: white; padding: 30px; border: 1px solid #ddd; border-top: none;">
@@ -168,7 +173,7 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
             </div>
             <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-              <p style="margin: 0;"><strong>Due Date:</strong> ${new Date(dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <p style="margin: 0;"><strong>${dueLabel}:</strong> ${new Date(dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
               <p style="margin: 5px 0 0 0;"><strong>Payment Terms:</strong> ${paymentTerms}</p>
             </div>
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
@@ -189,7 +194,7 @@ const handler = async (req: Request): Promise<Response> => {
               <p style="margin: 5px 0;"><strong>Subtotal:</strong> KES ${subtotal.toLocaleString()}</p>
               ${discountAmount > 0 ? `<p style="margin: 5px 0; color: #28a745;"><strong>Discount:</strong> -KES ${discountAmount.toLocaleString()}</p>` : ''}
               ${taxAmount > 0 ? `<p style="margin: 5px 0;"><strong>Tax:</strong> KES ${taxAmount.toLocaleString()}</p>` : ''}
-              <p style="margin: 15px 0 0 0; font-size: 20px; color: #2d5016;"><strong>Total Due: KES ${totalAmount.toLocaleString()}</strong></p>
+              <p style="margin: 15px 0 0 0; font-size: 20px; color: #2d5016;"><strong>${isQuotation ? 'Estimated Total' : 'Total Due'}: KES ${totalAmount.toLocaleString()}</strong></p>
             </div>
             ${notes ? `
               <div style="margin-top: 30px; padding: 15px; background-color: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
@@ -219,7 +224,7 @@ const handler = async (req: Request): Promise<Response> => {
     const emailResponse = await resend.emails.send({
       from: 'Amuse Kenya <info@amusekenya.co.ke>',
       to: [email],
-      subject: `Invoice ${invoiceNumber} from Amuse Kenya`,
+      subject: `${docLabelLower} ${invoiceNumber} from Amuse Kenya`,
       html: emailHtml,
     });
 
@@ -228,19 +233,21 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(emailResponse.error.message);
     }
 
-    console.log('✅ Invoice email sent successfully. Resend ID:', emailResponse.data?.id);
+    console.log(`✅ ${docLabelLower} email sent successfully. Resend ID:`, emailResponse.data?.id);
 
     // Step 9: Post-send DB updates (non-fatal warnings)
     const warnings: string[] = [];
 
-    const { error: invoiceUpdateError } = await adminClient
-      .from('invoices')
-      .update({ status: 'sent' })
-      .eq('id', invoiceId);
+    if (!isQuotation && invoiceId) {
+      const { error: invoiceUpdateError } = await adminClient
+        .from('invoices')
+        .update({ status: 'sent' })
+        .eq('id', invoiceId);
 
-    if (invoiceUpdateError) {
-      console.error('⚠️ Failed to update invoice status:', JSON.stringify(invoiceUpdateError));
-      warnings.push('Invoice sent, but the invoice status could not be updated.');
+      if (invoiceUpdateError) {
+        console.error('⚠️ Failed to update invoice status:', JSON.stringify(invoiceUpdateError));
+        warnings.push('Invoice sent, but the invoice status could not be updated.');
+      }
     }
 
     const { error: deliveryError } = await adminClient
@@ -250,7 +257,7 @@ const handler = async (req: Request): Promise<Response> => {
         message_id: emailResponse.data?.id || `resend-${Date.now()}`,
         recipient_type: 'customer',
         email_type: 'transactional',
-        subject: `Invoice ${invoiceNumber} from Amuse Kenya`,
+        subject: `${docLabelLower} ${invoiceNumber} from Amuse Kenya`,
         status: 'sent',
         sent_at: new Date().toISOString(),
       });
