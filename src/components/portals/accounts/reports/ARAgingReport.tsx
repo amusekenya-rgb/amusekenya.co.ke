@@ -275,19 +275,19 @@ const ARAgingReport: React.FC<ARAgingReportProps> = ({ activities = [], dateRang
       <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
         <Card className="bg-muted/30 border-destructive/50">
           <CardContent className="py-4">
-            <p className="text-sm font-medium text-muted-foreground">AR Aging Total (Active)</p>
+            <p className="text-sm font-medium text-muted-foreground">AR Aging Total</p>
             <p className="text-3xl font-bold text-destructive">{formatCurrency(data.total)}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Sum of aging buckets above. Built from active, non-cancelled registrations and their pending collections.
+              Sum of all aging buckets above. Matches the Pending Collections total and Dashboard "Total Outstanding".
             </p>
           </CardContent>
         </Card>
         <Card className="bg-muted/30 border-yellow-500/40">
           <CardContent className="py-4">
-            <p className="text-sm font-medium text-muted-foreground">Orphaned / Exempt</p>
+            <p className="text-sm font-medium text-muted-foreground">Flagged for Review</p>
             <p className="text-3xl font-bold text-yellow-600">{formatCurrency(data.orphanedTotal)}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {data.orphanedItems.length} item{data.orphanedItems.length === 1 ? '' : 's'} from cancelled, deleted, or quote-stage registrations. Listed below — not aged.
+              {data.orphanedItems.length} item{data.orphanedItems.length === 1 ? '' : 's'} linked to cancelled, deleted, or quote-stage registrations. Already included in aging above — listed below for triage.
             </p>
           </CardContent>
         </Card>
@@ -296,7 +296,7 @@ const ARAgingReport: React.FC<ARAgingReportProps> = ({ activities = [], dateRang
             <p className="text-sm font-medium text-muted-foreground">Grand Total Outstanding</p>
             <p className="text-3xl font-bold text-primary">{formatCurrency(data.grandTotal)}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Aging + Orphaned. Reconciles to the Accounts Dashboard "Total Outstanding".
+              Equals AR Aging Total. Reconciles to the Accounts Dashboard "Total Outstanding".
             </p>
           </CardContent>
         </Card>

@@ -533,7 +533,9 @@ export const financialReportService = {
         const created = c.created_at ? parseISO(c.created_at) : today;
         const daysOld = differenceInDays(today, created);
 
-        // Orphan check: missing reg link, deleted reg, cancelled reg, or quote-stage
+        // Diagnostic-only orphan classification — these items are STILL aged
+        // into buckets below so AR Aging matches Pending Collections exactly.
+        // The orphan list is informational (review/triage), not exclusionary.
         const linkedActive = c.registration_id && activeRegIdSet.has(c.registration_id);
         if (!linkedActive) {
           let reason: AROrphanItem['reason'] = 'no-registration-link';
@@ -565,7 +567,7 @@ export const financialReportService = {
             reason,
             reasonLabel,
           });
-          return;
+          // fall through — also include in aging
         }
 
         const bucket = bucketize(daysOld);
@@ -665,7 +667,9 @@ export const financialReportService = {
         case '90+': summary.days90plus += item.balanceDue; break;
       }
     });
-    summary.grandTotal = summary.total + summary.orphanedTotal;
+    // Orphans are already included in `items` (aged into buckets); the orphan
+    // list is informational only, so grandTotal == aging total — no double-count.
+    summary.grandTotal = summary.total;
 
     return summary;
   },
