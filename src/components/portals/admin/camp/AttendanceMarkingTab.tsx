@@ -316,13 +316,14 @@ export const AttendanceMarkingTab: React.FC = () => {
       toast.error('No data to export');
       return;
     }
-    const headers = ['Reg #', 'Parent Name', 'Phone', 'Child Name', 'Age', 'Session', 'Payment', 'Status', 'Check-In Time', 'Check-Out Time'];
+    const headers = ['Reg #', 'Camp Type', 'Parent Name', 'Phone', 'Child Name', 'Age', 'Session', 'Payment', 'Status', 'Check-In Time', 'Check-Out Time'];
     const rows = items.map(item => {
       const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
       const att = attendanceStatus[key];
       const status = att?.check_out_time ? 'Checked Out' : att ? 'Present' : 'Not Arrived';
       return [
         item.registration.registration_number || '',
+        item.registration.camp_type || '',
         item.registration.parent_name,
         item.registration.phone ? item.registration.phone.slice(0, 4) + '****' + item.registration.phone.slice(-2) : '-',
         item.child.childName,
@@ -368,6 +369,7 @@ export const AttendanceMarkingTab: React.FC = () => {
         const status = att?.check_out_time ? 'Checked Out' : att ? 'Present' : 'Not Arrived';
         return [
           item.registration.registration_number || '',
+          item.registration.camp_type || '',
           item.registration.parent_name,
           item.registration.phone ? item.registration.phone.slice(0, 4) + '****' + item.registration.phone.slice(-2) : '-',
           item.child.childName,
@@ -381,7 +383,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       });
 
       autoTable(doc, {
-        head: [['Reg #', 'Parent', 'Phone', 'Child', 'Age', 'Session', 'Payment', 'Status', 'In', 'Out']],
+        head: [['Reg #', 'Camp', 'Parent', 'Phone', 'Child', 'Age', 'Session', 'Payment', 'Status', 'In', 'Out']],
         body: tableData,
         startY: 34,
         styles: { fontSize: 8 },

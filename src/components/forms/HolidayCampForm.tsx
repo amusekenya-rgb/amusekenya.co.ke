@@ -17,6 +17,7 @@ import { RefundPolicyDialog } from './RefundPolicyDialog';
 import { ParticipationConsentDialog } from './ParticipationConsentDialog';
 import { differenceInYears } from 'date-fns';
 import { useCampFormConfig } from '@/hooks/useCampFormConfig';
+import { useCampDatesForLocation } from '@/hooks/useCampDatesForLocation';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { qrCodeService } from '@/services/qrCodeService';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
@@ -73,6 +74,11 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
   // (e.g., 'mid-term-february' only gets mid-term-feb dates, not all mid-term dates)
   const { config, isLoading } = useCampFormConfig(campType);
   const [selectedLocation, setSelectedLocation] = useState('');
+  const { dates: locationScopedDates } = useCampDatesForLocation(
+    campType,
+    selectedLocation,
+    config?.availableDates
+  );
   const [showBenefitsDialog, setShowBenefitsDialog] = useState(false);
   
   // Client auth for auto-fill
@@ -535,7 +541,14 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
           <LocationSelector
             locations={config.locations}
             value={selectedLocation}
-            onChange={setSelectedLocation}
+            onChange={(loc) => {
+              setSelectedLocation(loc);
+              // Clear any dates already picked — they may not belong to the new location
+              watchedChildren.forEach((_, index) => {
+                setValue(`children.${index}.selectedDates`, [], { shouldValidate: false });
+                setValue(`children.${index}.sessionTypes`, {}, { shouldValidate: false });
+              });
+            }}
           />
         )}
 
@@ -642,9 +655,15 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
                 )}
 
                 {/* Date & Session selection — hide session picker for archery */}
-                {watchedChildren[index]?.activityType !== 'archery' ? (
+                {locationScopedDates.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-4 text-sm text-muted-foreground">
+                    {selectedLocation
+                      ? `${selectedLocation} dates for ${campTitle} are not yet published. Please check back soon or pick another location.`
+                      : `No upcoming dates for ${campTitle} have been published yet.`}
+                  </div>
+                ) : watchedChildren[index]?.activityType !== 'archery' ? (
                   <DateSelector
-                    availableDates={config.availableDates || []}
+                    availableDates={locationScopedDates}
                     selectedDates={watchedChildren[index]?.selectedDates || []}
                     sessionTypes={isNgongSanctuary ? {} : (watchedChildren[index]?.sessionTypes || {})}
                     onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
@@ -661,7 +680,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
                   />
                 ) : (
                   <DateSelector
-                    availableDates={config.availableDates || []}
+                    availableDates={locationScopedDates}
                     selectedDates={watchedChildren[index]?.selectedDates || []}
                     sessionTypes={{}}
                     onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}

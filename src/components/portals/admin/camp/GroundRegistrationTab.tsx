@@ -43,8 +43,12 @@ const groundRegistrationSchema = z.object({
   campType: z.string().min(1, 'Please select a camp type'),
   children: z.array(childSchema).min(1, 'Add at least one child'),
   amountPaid: z.number().min(0, 'Amount must be positive'),
+  paymentMethod: z.enum(['cash_ground', 'mpesa', 'card', 'bank_transfer']).default('cash_ground'),
   paymentNotes: z.string().max(500, 'Notes too long').optional()
-});
+}).refine(
+  (data) => data.amountPaid === 0 || !!data.paymentMethod,
+  { message: 'Select a payment method when recording a payment', path: ['paymentMethod'] }
+);
 
 type GroundRegistrationForm = z.infer<typeof groundRegistrationSchema>;
 
@@ -110,7 +114,8 @@ export const GroundRegistrationTab: React.FC = () => {
         selectedSessions: [],
         price: 0
       }],
-      amountPaid: 0
+      amountPaid: 0,
+      paymentMethod: 'cash_ground'
     }
   });
 
@@ -317,8 +322,8 @@ export const GroundRegistrationTab: React.FC = () => {
         }),
         total_amount: totalAmount,
         payment_status: paymentStatus,
-        payment_method: 'cash_ground',
-        payment_reference: `GROUND-${Date.now()}`,
+        payment_method: data.paymentMethod,
+        payment_reference: `${data.paymentMethod.toUpperCase()}-${Date.now()}`,
         registration_type: 'ground_registration',
         qr_code_data: JSON.stringify({
           type: 'camp_registration',
@@ -347,8 +352,8 @@ export const GroundRegistrationTab: React.FC = () => {
               customerName: data.parentName,
               programName: `${data.campType} (Ground)`,
               amount: amountPaid,
-              paymentMethod: 'cash_ground',
-              paymentReference: `GROUND-${Date.now()}`,
+              paymentMethod: data.paymentMethod,
+              paymentReference: `${data.paymentMethod.toUpperCase()}-${Date.now()}`,
               notes: `Ground registration. Paid: KES ${amountPaid}/${totalAmount}`,
               createdBy: user?.id
             });
@@ -428,7 +433,7 @@ export const GroundRegistrationTab: React.FC = () => {
                 },
                 invoiceDetails: {
                   totalAmount,
-                  paymentMethod: 'cash_ground',
+                  paymentMethod: data.paymentMethod,
                 },
               },
             });
@@ -784,7 +789,7 @@ export const GroundRegistrationTab: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="amountPaid">Amount Paid (Cash) *</Label>
+                  <Label htmlFor="amountPaid">Amount Paid *</Label>
                   <Input
                     id="amountPaid"
                     type="number"
@@ -794,8 +799,26 @@ export const GroundRegistrationTab: React.FC = () => {
                   {errors.amountPaid && <p className="text-sm text-destructive mt-1">{errors.amountPaid.message}</p>}
                 </div>
                 <div>
+                  <Label htmlFor="paymentMethod">Payment Method *</Label>
+                  <Select
+                    value={watch('paymentMethod') || 'cash_ground'}
+                    onValueChange={(v) => setValue('paymentMethod', v as any, { shouldValidate: true })}
+                  >
+                    <SelectTrigger id="paymentMethod">
+                      <SelectValue placeholder="Select method..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash_ground">Cash (at gate)</SelectItem>
+                      <SelectItem value="mpesa">M-Pesa (Paybill / Till)</SelectItem>
+                      <SelectItem value="card">Card (Paystack / POS)</SelectItem>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.paymentMethod && <p className="text-sm text-destructive mt-1">{(errors.paymentMethod as any).message}</p>}
+                </div>
+                <div className="md:col-span-2">
                   <Label htmlFor="paymentNotes">Payment Notes</Label>
-                  <Textarea id="paymentNotes" {...register('paymentNotes')} placeholder="Any additional payment notes" rows={2} />
+                  <Textarea id="paymentNotes" {...register('paymentNotes')} placeholder="Any additional payment notes (e.g. M-Pesa transaction code)" rows={2} />
                 </div>
               </div>
 

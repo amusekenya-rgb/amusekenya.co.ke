@@ -179,7 +179,7 @@ export const campRegistrationService = {
   async updatePaymentStatus(
     id: string,
     status: 'unpaid' | 'paid' | 'partial',
-    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground',
+    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground' | 'bank_transfer',
     reference?: string,
     options?: {
       createPaymentRecord?: boolean;
@@ -189,6 +189,12 @@ export const campRegistrationService = {
       createdBy?: string;
     }
   ) {
+    // Guard: a paid registration must record a real payment method.
+    // Reject 'pending' or missing method so the row never ends up as paid|pending.
+    if (status === 'paid' && (!method || method === 'pending')) {
+      throw new Error('Payment method is required when marking a registration as paid. Choose mpesa, card, cash_ground, or bank_transfer.');
+    }
+
     const updates: Partial<CampRegistration> = { payment_status: status };
     if (method) updates.payment_method = method;
     if (reference) updates.payment_reference = reference;
@@ -212,7 +218,6 @@ export const campRegistrationService = {
         });
       } catch (error) {
         console.error('Error creating unified payment record:', error);
-        // Don't throw - the registration update succeeded
       }
     }
 
@@ -233,7 +238,7 @@ export const campRegistrationService = {
       return 0;
     }
 
-    return (data || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+    return (data || []).reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   },
 
   /**
@@ -243,7 +248,7 @@ export const campRegistrationService = {
     id: string,
     amountPaid: number,
     totalAmount: number,
-    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground',
+    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground' | 'bank_transfer',
     reference?: string,
     context?: {
       parentName?: string;
@@ -255,6 +260,11 @@ export const campRegistrationService = {
     let status: 'unpaid' | 'paid' | 'partial' = 'unpaid';
     if (amountPaid >= totalAmount) status = 'paid';
     else if (amountPaid > 0) status = 'partial';
+
+    // Guard: paid/partial registrations must record a real payment method.
+    if ((status === 'paid' || status === 'partial') && (!method || method === 'pending')) {
+      throw new Error('Payment method is required for paid/partial registrations. Choose mpesa, card, cash_ground, or bank_transfer.');
+    }
 
     // 1. Update registration record
     const updates: Partial<CampRegistration> = { payment_status: status };

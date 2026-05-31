@@ -36,6 +36,7 @@ const quickRegSchema = z.object({
   children: z.array(childSchema).min(1, 'Add at least one child'),
   sessionType: z.string().min(1, 'Select session'),
   amountPaid: z.number().min(0),
+  paymentMethod: z.enum(['cash_ground', 'mpesa', 'card', 'bank_transfer']).default('cash_ground'),
   notes: z.string().optional()
 });
 
@@ -95,7 +96,8 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
     defaultValues: {
       children: [{ childName: '', ageRange: '', price: 0 }],
       amountPaid: 0,
-      sessionType: 'full'
+      sessionType: 'full',
+      paymentMethod: 'cash_ground'
     }
   });
 
@@ -185,8 +187,8 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         })),
         total_amount: totalAmount,
         payment_status: paymentStatus,
-        payment_method: 'cash_ground',
-        payment_reference: `WALK-${Date.now()}`,
+        payment_method: data.paymentMethod,
+        payment_reference: `${data.paymentMethod.toUpperCase()}-${Date.now()}`,
         registration_type: 'ground_registration',
         qr_code_data: JSON.stringify({
           type: 'camp_registration',
@@ -217,8 +219,8 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
               customerName: data.parentName,
               programName: `${data.campType} (Walk-in)`,
               amount: amountPaid,
-              paymentMethod: 'cash_ground',
-              paymentReference: `WALK-${Date.now()}`,
+              paymentMethod: data.paymentMethod,
+              paymentReference: `${data.paymentMethod.toUpperCase()}-${Date.now()}`,
               notes: `Walk-in registration. Paid: KES ${amountPaid}/${totalAmount}`,
               createdBy: user?.id
             });
@@ -265,7 +267,7 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
                 },
                 invoiceDetails: {
                   totalAmount,
-                  paymentMethod: 'cash_ground',
+                  paymentMethod: data.paymentMethod,
                 },
               },
             });
@@ -461,6 +463,23 @@ export const QuickGroundRegistration: React.FC<QuickGroundRegistrationProps> = (
         <div>
           <Label>Amount Paid (KES)</Label>
           <Input type="number" {...register('amountPaid', { valueAsNumber: true })} placeholder="0" />
+        </div>
+        <div>
+          <Label>Payment Method</Label>
+          <Select
+            value={watch('paymentMethod') || 'cash_ground'}
+            onValueChange={(v) => setValue('paymentMethod', v as any, { shouldValidate: true })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select method..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash_ground">Cash (at gate)</SelectItem>
+              <SelectItem value="mpesa">M-Pesa (Paybill / Till)</SelectItem>
+              <SelectItem value="card">Card (Paystack / POS)</SelectItem>
+              <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         {/* Balance indicator */}
         {totalAmount > 0 && (

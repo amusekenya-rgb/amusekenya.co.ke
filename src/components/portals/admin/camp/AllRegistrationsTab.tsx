@@ -21,6 +21,7 @@ import { exportService } from '@/services/exportService';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { registrationInDateWindow } from '@/utils/registrationDate';
+import { promptForPaymentMethod } from '@/utils/promptPaymentMethod';
 
 type DocType = 'quotation' | 'invoice' | 'paid';
 const deriveDocType = (reg: CampRegistration): DocType => {
@@ -185,9 +186,16 @@ export const AllRegistrationsTab: React.FC = () => {
       return;
     }
 
+    let method: 'mpesa' | 'card' | 'cash_ground' | 'bank_transfer' | undefined;
+    if (status === 'paid') {
+      const picked = promptForPaymentMethod();
+      if (!picked) return; // cancelled or invalid
+      method = picked;
+    }
+
     try {
       for (const reg of selected) {
-        await campRegistrationService.updatePaymentStatus(reg.id!, status);
+        await campRegistrationService.updatePaymentStatus(reg.id!, status, method);
       }
       toast.success(`Updated ${selected.length} registration(s) to ${status}`);
       setSelectedIds(new Set());

@@ -40,7 +40,9 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
 }) => {
   const [editing, setEditing] = useState(false);
   const [amountPaid, setAmountPaid] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState(registration.payment_method);
+  const [paymentMethod, setPaymentMethod] = useState<CampRegistration['payment_method'] | ''>(
+    registration.payment_method === 'pending' ? '' : registration.payment_method
+  );
   const [paymentReference, setPaymentReference] = useState(registration.payment_reference || '');
   const [adminNote, setAdminNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -74,13 +76,18 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
   const statusBadgeVariant = derivedStatus === 'paid' ? 'default' : derivedStatus === 'partial' ? 'secondary' : 'destructive';
 
   const handleSavePayment = async () => {
+    // Block paid/partial without a real payment method
+    if ((derivedStatus === 'paid' || derivedStatus === 'partial') && (!paymentMethod || paymentMethod === 'pending')) {
+      toast.error('Select a payment method (Card, M-Pesa, Cash, or Bank Transfer) before saving.');
+      return;
+    }
     try {
       setSaving(true);
       await campRegistrationService.updatePaymentWithAmount(
         registration.id!,
         amountPaid,
         totalAmount,
-        paymentMethod,
+        paymentMethod || undefined,
         paymentReference || undefined,
         {
           parentName: registration.parent_name,
@@ -93,7 +100,7 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
       setEditing(false);
     } catch (error) {
       console.error('Error updating payment:', error);
-      toast.error('Failed to update payment');
+      toast.error(error instanceof Error ? error.message : 'Failed to update payment');
     } finally {
       setSaving(false);
     }
@@ -251,13 +258,13 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
                     <Label>Payment Method</Label>
                     <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select method..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="card">Card</SelectItem>
-                        <SelectItem value="mpesa">M-Pesa</SelectItem>
-                        <SelectItem value="cash_ground">Cash (Ground)</SelectItem>
+                        <SelectItem value="mpesa">M-Pesa (Paybill / Till)</SelectItem>
+                        <SelectItem value="card">Card (Paystack / POS)</SelectItem>
+                        <SelectItem value="cash_ground">Cash (at gate)</SelectItem>
+                        <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

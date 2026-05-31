@@ -202,8 +202,11 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
                   <p className="text-sm text-muted-foreground mb-3">
                     Past dates are automatically hidden from registration forms but remain visible in the calendar.
                   </p>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    <strong>Per-location scheduling:</strong> Dates are now scoped to the location set on each calendar event. If Karura and Ngong run the same camp on different dates (or one starts months later), add <em>one calendar event per location</em> with the matching <strong>Location</strong> field. The registration form will show only the dates for the location the parent picks.
+                  </p>
                   <p className="text-sm font-medium text-primary">
-                    To manage dates → go to the <strong>Calendar</strong> tab and create/edit events with the correct program type.
+                    To manage dates → go to the <strong>Calendar</strong> tab and create/edit events with the correct program type <em>and</em> location.
                   </p>
                 </div>
               </div>

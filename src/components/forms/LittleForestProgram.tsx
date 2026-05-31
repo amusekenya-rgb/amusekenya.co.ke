@@ -29,6 +29,7 @@ import { leadsService } from '@/services/leadsService';
 import { invoiceService } from '@/services/invoiceService';
 import type { CampRegistration } from '@/types/campRegistration';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
+import { useCampDatesForLocation } from '@/hooks/useCampDatesForLocation';
 import DynamicMedia from '@/components/content/DynamicMedia';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 import { LocationSelector } from './LocationSelector';
@@ -68,6 +69,11 @@ const LittleForestProgram = () => {
   const [registrationResult, setRegistrationResult] = useState<CampRegistration | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [selectedLocation, setSelectedLocation] = useState('');
+  const { dates: locationScopedDates } = useCampDatesForLocation(
+    'little-forest',
+    selectedLocation,
+    config?.availableDates
+  );
 
   // Set default location
   useEffect(() => {
@@ -452,7 +458,10 @@ const LittleForestProgram = () => {
                 <LocationSelector
                   locations={config.locations}
                   value={selectedLocation}
-                  onChange={setSelectedLocation}
+                  onChange={(loc) => {
+                    setSelectedLocation(loc);
+                    watchChildren.forEach((_, idx) => handleDatesChange(idx, []));
+                  }}
                 />
               )}
 
@@ -534,13 +543,21 @@ const LittleForestProgram = () => {
 
                     {/* SimpleDateSelector Component */}
                     <div>
-                      <SimpleDateSelector
-                        availableDates={config.availableDates || []}
-                        selectedDates={watchChildren[index]?.selectedDates || []}
-                        onDatesChange={(dates) => handleDatesChange(index, dates)}
-                        sessionRate={config.pricing.sessionRate}
-                        currency={config.pricing.currency}
-                      />
+                      {locationScopedDates.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-4 text-sm text-muted-foreground">
+                          {selectedLocation
+                            ? `${selectedLocation} dates for Little Forest are not yet published. Please check back soon or pick another location.`
+                            : 'No upcoming Little Forest dates have been published yet.'}
+                        </div>
+                      ) : (
+                        <SimpleDateSelector
+                          availableDates={locationScopedDates}
+                          selectedDates={watchChildren[index]?.selectedDates || []}
+                          onDatesChange={(dates) => handleDatesChange(index, dates)}
+                          sessionRate={config.pricing.sessionRate}
+                          currency={config.pricing.currency}
+                        />
+                      )}
                       {errors.children?.[index]?.selectedDates && (
                         <p className="text-destructive text-sm mt-1">
                           {errors.children[index]?.selectedDates?.message}

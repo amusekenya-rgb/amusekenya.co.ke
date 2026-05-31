@@ -21,7 +21,7 @@ export interface CampRegistration {
   children: CampChild[];
   total_amount: number;
   payment_status: 'unpaid' | 'paid' | 'partial';
-  payment_method: 'pending' | 'card' | 'mpesa' | 'cash_ground';
+  payment_method: 'pending' | 'card' | 'mpesa' | 'cash_ground' | 'bank_transfer';
   payment_reference?: string;
   registration_type: 'online_only' | 'online_paid' | 'ground_registration';
   qr_code_data: string;

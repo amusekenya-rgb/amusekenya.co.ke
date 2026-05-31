@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import { QRScannerDialog } from '@/components/attendance/QRScannerDialog';
 import { QuickGroundRegistration } from './QuickGroundRegistration';
+import { promptForPaymentMethod } from '@/utils/promptPaymentMethod';
 
 const CAMP_TYPES = [
   { value: 'all', label: 'All Camps' },
@@ -189,8 +190,15 @@ export const DailyOperationsView: React.FC = () => {
   };
 
   const handleQuickPaymentUpdate = async (regId: string, newStatus: 'paid' | 'partial' | 'unpaid') => {
+    let method: 'mpesa' | 'card' | 'cash_ground' | 'bank_transfer' | undefined;
+    if (newStatus === 'paid') {
+      const picked = promptForPaymentMethod();
+      if (!picked) return; // cancelled or invalid
+      method = picked;
+    }
+
     try {
-      await campRegistrationService.updatePaymentStatus(regId, newStatus);
+      await campRegistrationService.updatePaymentStatus(regId, newStatus, method);
       
       // If marked as paid, auto-complete any pending accounts action items
       if (newStatus === 'paid' && user?.id) {
@@ -210,7 +218,7 @@ export const DailyOperationsView: React.FC = () => {
       
       // Update local state
       setRegistrations(prev => prev.map(r => 
-        r.id === regId ? { ...r, payment_status: newStatus } : r
+        r.id === regId ? { ...r, payment_status: newStatus, ...(method ? { payment_method: method } : {}) } : r
       ));
     } catch (error) {
       console.error('Error updating payment:', error);

@@ -215,7 +215,7 @@ export const PendingCollections: React.FC = () => {
         for (const item of family.items) {
           if (item.registration_id) {
             await campRegistrationService.updatePaymentStatus(
-              item.registration_id, 'paid', undefined, paymentRef
+              item.registration_id, 'paid', 'mpesa', paymentRef
             );
           }
           if (item.invoice_id) {
@@ -270,7 +270,7 @@ export const PendingCollections: React.FC = () => {
             await campRegistrationService.updatePaymentStatus(
               item.registration_id,
               isItemFullyPaid ? 'paid' : 'partial',
-              undefined,
+              isItemFullyPaid ? 'mpesa' : undefined,
               paymentRef
             );
           }

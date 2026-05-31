@@ -14,6 +14,7 @@ import { ConsentDialog } from './ConsentDialog';
 import { RefundPolicyDialog } from './RefundPolicyDialog';
 import { differenceInYears } from 'date-fns';
 import { useCampFormConfig } from '@/hooks/useCampFormConfig';
+import { useCampDatesForLocation } from '@/hooks/useCampDatesForLocation';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { qrCodeService } from '@/services/qrCodeService';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
@@ -61,6 +62,11 @@ const calculateAgeRange = (dateOfBirth: Date): '3-below' | '4-6' | '7-10' | '11-
 const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
   const { config, isLoading } = useCampFormConfig('day-camps');
   const [selectedLocation, setSelectedLocation] = useState('');
+  const { dates: locationScopedDates } = useCampDatesForLocation(
+    'day-camps',
+    selectedLocation,
+    config?.availableDates
+  );
 
   const calculatePrice = (selectedDates: string[], sessionTypes: Record<string, 'half' | 'full'>, activityType: 'camp' | 'archery' = 'camp', location?: string): number => {
     if (!config) return 0;
@@ -288,7 +294,13 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
           <LocationSelector
             locations={config.locations}
             value={selectedLocation}
-            onChange={setSelectedLocation}
+            onChange={(loc) => {
+              setSelectedLocation(loc);
+              watchedChildren.forEach((_, idx) => {
+                setValue(`children.${idx}.selectedDates`, [], { shouldValidate: false });
+                setValue(`children.${idx}.sessionTypes`, {}, { shouldValidate: false });
+              });
+            }}
           />
         )}
 
@@ -394,28 +406,36 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
                   />
                 )}
 
-                <DateSelector
-                  availableDates={config.availableDates || []}
-                  selectedDates={watchedChildren[index]?.selectedDates || []}
-                  sessionTypes={isNgongSanctuary && watchedChildren[index]?.activityType !== 'archery' ? {} : (watchedChildren[index]?.activityType === 'archery' ? {} : (watchedChildren[index]?.sessionTypes || {}))}
-                  onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
-                  onSessionTypeChange={(date, type) => {
-                    if (!isNgongSanctuary && watchedChildren[index]?.activityType !== 'archery') {
-                      const currentTypes = watchedChildren[index]?.sessionTypes || {};
-                      setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
+                {locationScopedDates.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-4 text-sm text-muted-foreground">
+                    {selectedLocation
+                      ? `${selectedLocation} dates for Day Camps are not yet published. Please check back soon or pick another location.`
+                      : 'No upcoming Day Camps dates have been published yet.'}
+                  </div>
+                ) : (
+                  <DateSelector
+                    availableDates={locationScopedDates}
+                    selectedDates={watchedChildren[index]?.selectedDates || []}
+                    sessionTypes={isNgongSanctuary && watchedChildren[index]?.activityType !== 'archery' ? {} : (watchedChildren[index]?.activityType === 'archery' ? {} : (watchedChildren[index]?.sessionTypes || {}))}
+                    onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
+                    onSessionTypeChange={(date, type) => {
+                      if (!isNgongSanctuary && watchedChildren[index]?.activityType !== 'archery') {
+                        const currentTypes = watchedChildren[index]?.sessionTypes || {};
+                        setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
+                      }
+                    }}
+                    halfDayRate={watchedChildren[index]?.activityType === 'archery' ? (config.archeryRate || 1000) : config.pricing.halfDayRate}
+                    fullDayRate={watchedChildren[index]?.activityType === 'archery' ? (config.archeryRate || 1000) : config.pricing.fullDayRate}
+                    currency={config.pricing.currency}
+                    flatRate={
+                      watchedChildren[index]?.activityType === 'archery'
+                        ? (config.archeryRate || 1000)
+                        : isNgongSanctuary
+                          ? (config.pricing.ngongDayRate || 2000)
+                          : undefined
                     }
-                  }}
-                  halfDayRate={watchedChildren[index]?.activityType === 'archery' ? (config.archeryRate || 1000) : config.pricing.halfDayRate}
-                  fullDayRate={watchedChildren[index]?.activityType === 'archery' ? (config.archeryRate || 1000) : config.pricing.fullDayRate}
-                  currency={config.pricing.currency}
-                  flatRate={
-                    watchedChildren[index]?.activityType === 'archery'
-                      ? (config.archeryRate || 1000)
-                      : isNgongSanctuary
-                        ? (config.pricing.ngongDayRate || 2000)
-                        : undefined
-                  }
-                />
+                  />
+                )}
                 {errors.children?.[index]?.selectedDates && (
                   <p className="text-destructive text-sm mt-1">{errors.children[index]?.selectedDates?.message}</p>
                 )}

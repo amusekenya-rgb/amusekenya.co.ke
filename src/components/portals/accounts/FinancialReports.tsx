@@ -6,7 +6,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { TrendingUp, PieChart, BarChart3, Calendar as CalendarIcon, FileText, Clock, Activity, Filter, X } from 'lucide-react';
+import { TrendingUp, PieChart, BarChart3, Calendar as CalendarIcon, FileText, Clock, Activity, Filter, X, ClipboardList } from 'lucide-react';
+import { CampRegistrationsManager } from '../admin/CampRegistrationsManager';
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from '@/services/financialReportService';
 import { ACTIVITY_CATEGORIES } from '@/lib/activityCategories';
@@ -219,7 +220,7 @@ const FinancialReports: React.FC = () => {
       )}
 
       <Tabs defaultValue="profit-loss" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className="grid grid-cols-7 w-full">
           <TabsTrigger value="profit-loss" className="flex items-center justify-center gap-1 px-1 sm:px-3">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline text-xs sm:text-sm">P&L</span>
@@ -243,6 +244,10 @@ const FinancialReports: React.FC = () => {
           <TabsTrigger value="expenses" className="flex items-center justify-center gap-1 px-1 sm:px-3">
             <PieChart className="h-4 w-4" />
             <span className="hidden sm:inline text-xs sm:text-sm">Expenses</span>
+          </TabsTrigger>
+          <TabsTrigger value="attendance" className="flex items-center justify-center gap-1 px-1 sm:px-3">
+            <ClipboardList className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs sm:text-sm">Attendance</span>
           </TabsTrigger>
         </TabsList>
 
@@ -268,6 +273,10 @@ const FinancialReports: React.FC = () => {
 
         <TabsContent value="expenses">
           <ExpenseReport dateRange={dateRange} activities={selectedActivities} />
+        </TabsContent>
+
+        <TabsContent value="attendance">
+          <CampRegistrationsManager visibleTabs={['daily', 'attendance', 'history']} />
         </TabsContent>
       </Tabs>
     </div>
