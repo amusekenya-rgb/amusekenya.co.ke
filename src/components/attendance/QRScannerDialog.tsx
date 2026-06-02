@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats, type Html5QrcodeCameraScanConfig } from 'html5-qrcode';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,49 @@ type ScanMode = 'camera' | 'upload';
 const LS_MODE = 'qrScan.mode';
 const LS_CAMERA = 'qrScan.cameraId';
 const READER_ID = 'qr-reader-live';
+
+const getErrorDetails = (err: unknown) => {
+  const maybeError = err as { name?: string; message?: string } | undefined;
+  const name = maybeError?.name || '';
+  const message = maybeError?.message || String(err || '');
+  const details = [name, message].filter(Boolean).join(': ');
+  return { name, message, details };
+};
+
+const isPolicyBlocked = (message: string) =>
+  /permissions policy|permission policy|feature policy|not allowed by the user agent|disallowed by permissions/i.test(message);
+
+const setStoredValue = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    return;
+  }
+};
+
+const removeStoredValue = (key: string) => {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    return;
+  }
+};
+
+const cameraAllowedByFramePolicy = () => {
+  const doc = document as Document & {
+    featurePolicy?: { allowsFeature?: (feature: string) => boolean };
+    permissionsPolicy?: { allowsFeature?: (feature: string) => boolean };
+  };
+
+  try {
+    if (doc.permissionsPolicy?.allowsFeature) return doc.permissionsPolicy.allowsFeature('camera');
+    if (doc.featurePolicy?.allowsFeature) return doc.featurePolicy.allowsFeature('camera');
+  } catch {
+    return true;
+  }
+
+  return true;
+};
 
 export const QRScannerDialog = ({ open, onClose, onScanSuccess }: QRScannerDialogProps) => {
   const html5QrRef = useRef<Html5Qrcode | null>(null);
@@ -94,18 +137,14 @@ export const QRScannerDialog = ({ open, onClose, onScanSuccess }: QRScannerDialo
       });
       html5QrRef.current = instance;
 
-      const config = {
+      const config: Html5QrcodeCameraScanConfig = {
         fps: 10,
         qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
       };
 
-      const source: MediaTrackConstraints | string =
-        cameraId || { facingMode: { ideal: 'environment' } } as MediaTrackConstraints;
-
-      try {
+      const startWithSource = async (source: MediaTrackConstraints | string) => {
         await instance.start(
-          source as any,
+          source,
           config,
           (decodedText) => {
             void handleDecoded(decodedText);
@@ -114,46 +153,83 @@ export const QRScannerDialog = ({ open, onClose, onScanSuccess }: QRScannerDialo
             // per-frame errors ignored
           },
         );
+      };
+
+      const applyCameraList = async (preferredId?: string | null) => {
+        const devices = await Html5Qrcode.getCameras();
+        if (!devices || !devices.length) return [];
+
+        setCameras(devices.map((d) => ({ id: d.id, label: d.label || 'Camera' })));
+        const selected = preferredId
+          ? devices.find((d) => d.id === preferredId)
+          : devices.find((d) => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+
+        if (selected) {
+          setActiveCameraId(selected.id);
+          setStoredValue(LS_CAMERA, selected.id);
+        }
+
+        return devices;
+      };
+
+      try {
+        if (!cameraAllowedByFramePolicy()) {
+          throw new Error('Camera access is blocked by the browser permissions policy for this page.');
+        }
+
+        await startWithSource(cameraId || ({ facingMode: 'environment' } as MediaTrackConstraints));
         startedRef.current = true;
         setStatus('running');
 
         // Populate camera list (after permission is granted device labels become available)
         try {
-          const devices = await Html5Qrcode.getCameras();
-          if (devices && devices.length) {
-            setCameras(devices.map((d) => ({ id: d.id, label: d.label || 'Camera' })));
-            // Track the camera actually in use when we used facingMode
-            if (!cameraId) {
-              const rear =
-                devices.find((d) => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
-              if (rear) {
-                setActiveCameraId(rear.id);
-                try { localStorage.setItem(LS_CAMERA, rear.id); } catch {}
-              }
-            } else {
-              setActiveCameraId(cameraId);
-            }
-          }
+          await applyCameraList(cameraId);
         } catch {
           // ignore - enumeration is best-effort
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
+        let cameraError: unknown = err;
+        const firstError = getErrorDetails(cameraError);
+        console.error('QR scanner camera start failed', cameraError);
+        removeStoredValue(LS_CAMERA);
+
+        if (!cameraId && !isPolicyBlocked(firstError.message)) {
+          try {
+            const devices = await applyCameraList(null);
+            const fallback =
+              devices.find((d) => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1] || devices[0];
+
+            if (fallback?.id) {
+              await startWithSource(fallback.id);
+              startedRef.current = true;
+              setActiveCameraId(fallback.id);
+              setStoredValue(LS_CAMERA, fallback.id);
+              setStatus('running');
+              return;
+            }
+          } catch (retryErr) {
+            console.error('QR scanner fallback camera start failed', retryErr);
+            cameraError = retryErr;
+          }
+        }
+
         startedRef.current = false;
         html5QrRef.current = null;
         setStatus('error');
-        const name = err?.name || '';
-        if (name === 'NotAllowedError' || /permission/i.test(String(err))) {
-          setErrorMsg('Camera blocked. Enable camera access in your browser settings, then try again.');
-        } else if (name === 'NotFoundError' || /no camera|requested device not found/i.test(String(err))) {
-          // Clear saved camera id and fall back to upload
-          try { localStorage.removeItem(LS_CAMERA); } catch {}
-          setErrorMsg('No camera found. Upload an image of the QR code instead.');
+        const { name, message, details } = getErrorDetails(cameraError);
+        const extra = details ? ` (${details})` : '';
+        if (isPolicyBlocked(message)) {
+          setErrorMsg(`Camera access is blocked in this preview or browser. Open the published site, use Safari/Chrome directly, or upload an image instead.${extra}`);
+        } else if (name === 'NotAllowedError' || /permission|denied|notallowed/i.test(message)) {
+          setErrorMsg(`Camera blocked. Enable camera access in your browser settings, then try again.${extra}`);
+        } else if (name === 'NotFoundError' || /no camera|requested device not found|notfound/i.test(message)) {
+          setErrorMsg(`No camera found. Upload an image of the QR code instead.${extra}`);
           setMode('upload');
-          try { localStorage.setItem(LS_MODE, 'upload'); } catch {}
+          setStoredValue(LS_MODE, 'upload');
         } else if (name === 'NotReadableError') {
-          setErrorMsg('Camera is in use by another app. Close it and try again.');
+          setErrorMsg(`Camera is in use by another app. Close it and try again.${extra}`);
         } else {
-          setErrorMsg(err?.message || 'Could not start the camera.');
+          setErrorMsg(`Could not start the camera. Upload an image instead or try a different browser.${extra}`);
         }
       }
     },
@@ -182,18 +258,18 @@ export const QRScannerDialog = ({ open, onClose, onScanSuccess }: QRScannerDialo
     setMode('upload');
     setErrorMsg('');
     setStatus('idle');
-    try { localStorage.setItem(LS_MODE, 'upload'); } catch {}
+    setStoredValue(LS_MODE, 'upload');
   };
 
   const switchToCamera = async () => {
     setMode('camera');
-    try { localStorage.setItem(LS_MODE, 'camera'); } catch {}
+    setStoredValue(LS_MODE, 'camera');
     await startCamera(activeCameraId);
   };
 
   const changeCamera = async (id: string) => {
     setActiveCameraId(id);
-    try { localStorage.setItem(LS_CAMERA, id); } catch {}
+    setStoredValue(LS_CAMERA, id);
     await startCamera(id);
   };
 
@@ -206,11 +282,15 @@ export const QRScannerDialog = ({ open, onClose, onScanSuccess }: QRScannerDialo
     try {
       const result = await instance.scanFile(file, false);
       void handleDecoded(result);
-    } catch (err: any) {
+    } catch {
       setStatus('error');
       setErrorMsg('Could not read a QR code from that image. Try another photo.');
     } finally {
-      try { await instance.clear(); } catch {}
+      try {
+        await instance.clear();
+      } catch (clearErr) {
+        console.warn('QR scanner image reader cleanup failed', clearErr);
+      }
       html5QrRef.current = null;
     }
   };
