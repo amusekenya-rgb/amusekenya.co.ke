@@ -24,6 +24,7 @@ import { DateSelector } from './DateSelector';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 import { LocationSelector } from './LocationSelector';
 import { ActivityTypeSelector } from './ActivityTypeSelector';
+import { scrollToFirstError } from '@/utils/scrollToError';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
@@ -282,7 +283,7 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
     <Card className="p-8 sticky top-8">
       <h3 className="text-2xl font-bold text-primary mb-6">{campTitle}</h3>
       
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit, scrollToFirstError)} className="space-y-6">
         <div>
           <Label htmlFor="parentName" className="text-base font-medium">{config.fields.parentName.label} *</Label>
           <Input id="parentName" {...register('parentName')} className="mt-2" placeholder={config.fields.parentName.placeholder} />
@@ -520,7 +521,7 @@ const DayCampsProgram = ({ campTitle }: DayCampsProgramProps) => {
             onClick={handleSubmit((data) => {
               setSubmitType('pay');
               onSubmit(data);
-            })}
+            }, scrollToFirstError)}
           >
             {isSubmitting && submitType === 'pay' ? 'Processing...' : 'Register & Pay Now'}
           </Button>

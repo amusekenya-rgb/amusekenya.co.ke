@@ -35,6 +35,9 @@ export const PendingCollections: React.FC = () => {
   const [selectedParentKey, setSelectedParentKey] = useState<string | null>(null);
   // Payment amount input for partial payment support
   const [paymentAmount, setPaymentAmount] = useState<string>('');
+  // Date range filter (filters by attendance/check-in date = created_at)
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
 
   const handleSendTestDigest = async () => {
     try {
@@ -334,6 +337,15 @@ export const PendingCollections: React.FC = () => {
   };
 
   const filteredItems = items.filter(item => {
+    // Date range filter (created_at ≈ check-in/attendance date)
+    if (dateFrom) {
+      const from = new Date(dateFrom); from.setHours(0, 0, 0, 0);
+      if (new Date(item.created_at) < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo); to.setHours(23, 59, 59, 999);
+      if (new Date(item.created_at) > to) return false;
+    }
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
@@ -344,7 +356,14 @@ export const PendingCollections: React.FC = () => {
     );
   });
 
-  const totalPending = items.filter(i => i.status === 'pending').reduce((sum, i) => sum + (i.amount_due - i.amount_paid), 0);
+  const hasActiveFilters = !!(dateFrom || dateTo || searchTerm || statusFilter !== 'all');
+  const statsSource = hasActiveFilters ? filteredItems : items;
+  const totalPending = statsSource.filter(i => i.status === 'pending').reduce((sum, i) => sum + (i.amount_due - i.amount_paid), 0);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const completedTodayCount = hasActiveFilters
+    ? statsSource.filter(i => i.status === 'completed').length
+    : items.filter(i => i.status === 'completed' && (i.completed_at || '').slice(0, 10) === todayStr).length;
+  const completedLabel = hasActiveFilters ? 'Completed (filtered)' : 'Completed Today';
 
   return (
     <div className="space-y-4">
@@ -392,25 +411,70 @@ export const PendingCollections: React.FC = () => {
             </Select>
           </div>
 
+          {/* Date range filter — by attendance/check-in date */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-4 items-start sm:items-end">
+            <div className="flex-1 w-full sm:w-auto">
+              <Label className="text-xs text-muted-foreground">Attended from</Label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                max={dateTo || undefined}
+              />
+            </div>
+            <div className="flex-1 w-full sm:w-auto">
+              <Label className="text-xs text-muted-foreground">Attended to</Label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                min={dateFrom || undefined}
+              />
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => {
+                const t = new Date().toISOString().slice(0, 10);
+                setDateFrom(t); setDateTo(t);
+              }}>Today</Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                const now = new Date();
+                const start = new Date(now); start.setDate(now.getDate() - now.getDay());
+                setDateFrom(start.toISOString().slice(0, 10));
+                setDateTo(now.toISOString().slice(0, 10));
+              }}>This Week</Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                const now = new Date();
+                const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                setDateFrom(start.toISOString().slice(0, 10));
+                setDateTo(now.toISOString().slice(0, 10));
+              }}>This Month</Button>
+              {(dateFrom || dateTo) && (
+                <Button variant="ghost" size="sm" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
+
           {/* Summary */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
             <Card className="p-3 bg-orange-50 dark:bg-orange-950/20">
               <div className="text-xl font-bold text-orange-600">
-                {items.filter(i => i.status === 'pending').length}
+                {statsSource.filter(i => i.status === 'pending').length}
               </div>
-              <div className="text-xs text-muted-foreground">Pending Items</div>
+              <div className="text-xs text-muted-foreground">Pending Items{hasActiveFilters ? ' (filtered)' : ''}</div>
             </Card>
             <Card className="p-3 bg-blue-50 dark:bg-blue-950/20">
               <div className="text-xl font-bold text-blue-600">
                 KES {totalPending.toLocaleString()}
               </div>
-              <div className="text-xs text-muted-foreground">Total Outstanding</div>
+              <div className="text-xs text-muted-foreground">Total Outstanding{hasActiveFilters ? ' (filtered)' : ''}</div>
             </Card>
             <Card className="p-3 bg-green-50 dark:bg-green-950/20 col-span-2 sm:col-span-1">
               <div className="text-xl font-bold text-green-600">
-                {items.filter(i => i.status === 'completed').length}
+                {completedTodayCount}
               </div>
-              <div className="text-xs text-muted-foreground">Completed Today</div>
+              <div className="text-xs text-muted-foreground">{completedLabel}</div>
             </Card>
           </div>
         </CardContent>

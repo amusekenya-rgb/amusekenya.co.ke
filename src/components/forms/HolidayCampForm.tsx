@@ -31,6 +31,7 @@ import { LocationSelector } from './LocationSelector';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { ActivityTypeSelector } from './ActivityTypeSelector';
 import AutoFilledBadge from '@/components/ui/AutoFilledBadge';
+import { scrollToFirstError } from '@/utils/scrollToError';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
@@ -154,9 +155,15 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
 
   // Track which fields were auto-filled
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
+  // Guard: only auto-fill ONCE per mount. Without this, any later refresh of the
+  // client profile (e.g. after the parent ticks the participation consent box,
+  // which calls refreshProfile()) would re-run this effect and wipe out dates
+  // the parent had already picked for earlier children.
+  const autoFilledOnceRef = React.useRef(false);
 
   // Auto-fill from client profile (Google sign-in)
   useEffect(() => {
+    if (autoFilledOnceRef.current) return;
     if (isSignedIn && clientProfile) {
       const filled = new Set<string>();
       if (clientProfile.full_name) { setValue('parentName', clientProfile.full_name); filled.add('parentName'); }
@@ -187,6 +194,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         }
       }
       if (filled.size > 0) setAutoFilledFields(filled);
+      autoFilledOnceRef.current = true;
     }
   }, [isSignedIn, clientProfile, setValue]);
 
@@ -529,7 +537,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit, scrollToFirstError)} className="space-y-6">
         <div>
           <Label htmlFor="parentName" className="text-base font-medium">{config.fields.parentName.label} *{autoFilledFields.has('parentName') && <AutoFilledBadge />}</Label>
           <Input id="parentName" {...register('parentName')} className="mt-2" placeholder={config.fields.parentName.placeholder} />

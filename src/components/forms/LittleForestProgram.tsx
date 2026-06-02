@@ -28,6 +28,7 @@ import { qrCodeService } from '@/services/qrCodeService';
 import { leadsService } from '@/services/leadsService';
 import { invoiceService } from '@/services/invoiceService';
 import type { CampRegistration } from '@/types/campRegistration';
+import { scrollToFirstError } from '@/utils/scrollToError';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
 import { useCampDatesForLocation } from '@/hooks/useCampDatesForLocation';
 import DynamicMedia from '@/components/content/DynamicMedia';
@@ -446,7 +447,7 @@ const LittleForestProgram = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit, scrollToFirstError)} className="space-y-6">
               <div>
                 <Label htmlFor="parentName" className="text-base font-medium">{config.fields.parentName.label}{autoFilledFields.has('parentName') && <AutoFilledBadge />}</Label>
                 <Input id="parentName" {...register('parentName')} className="mt-2" placeholder={config.fields.parentName.placeholder} />
