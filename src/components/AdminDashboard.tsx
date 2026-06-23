@@ -12,6 +12,7 @@ import AuditLogsViewer from './admin/AuditLogsViewer';
 import { CampReportsTab } from './portals/admin/camp/CampReportsTab';
 import SystemAdminPanel from './admin/SystemAdminPanel';
 import SystemSettingsPanel from './admin/SystemSettingsPanel';
+import LeadSourceAuditPanel from './admin/LeadSourceAuditPanel';
 import SecurityPanel from './admin/SecurityPanel';
 import CompanyConfigPanel from './admin/CompanyConfigPanel';
 import ProfileEditor from './profile/ProfileEditor';
@@ -50,6 +51,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab }) => {
         return <CampReportsTab />;
       case 'audit-logs':
         return <AuditLogsViewer />;
+      case 'lead-audit':
+        return <LeadSourceAuditPanel />;
       case 'coach-availability':
         return <CoachAvailabilityView />;
       case 'budget':

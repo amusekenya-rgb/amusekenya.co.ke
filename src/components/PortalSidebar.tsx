@@ -32,7 +32,8 @@ import {
   UserCircle,
   CalendarOff,
   MapPin,
-  Tag
+  Tag,
+  Zap
 } from "lucide-react";
 import { ROLES } from '@/services/roleService';
 import { coachAccessService } from '@/services/coachAccessService';
@@ -99,6 +100,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'content', label: 'Content (CMS)', icon: FileText, description: 'Create, edit, and publish website and marketing content' },
           { id: 'customers', label: 'Customers', icon: Users, description: 'View and manage your customer database and profiles' },
           { id: 'campaigns', label: 'Campaigns', icon: Megaphone, description: 'Plan, launch, and track marketing campaigns and promotions' },
+          { id: 'automations', label: 'Automations', icon: Zap, description: 'Trigger-based email sequences (welcome, drip, re-engagement) running on Resend' },
           { id: 'email-health', label: 'Email Health', icon: TrendingUp, description: 'Monitor email deliverability, open rates, and sender reputation' },
           { id: 'email-deliveries', label: 'Email Deliveries', icon: Mail, description: 'Track sent emails and their delivery status in real-time' },
           { id: 'email-segments', label: 'Email Segments', icon: Users, description: 'Create and manage audience segments for targeted email campaigns' },
@@ -183,6 +185,7 @@ const PortalSidebar: React.FC<PortalSidebarProps> = ({
           { id: 'system', label: 'System Admin', icon: Database, description: 'Database management, backups, and system maintenance tools' },
           { id: 'settings', label: 'System Settings', icon: Settings, description: 'Configure global system settings and feature toggles' },
           { id: 'audit-logs', label: 'Audit Logs', icon: FileText, description: 'View a chronological record of all system actions and changes' },
+          { id: 'lead-audit', label: 'Lead Source Audit', icon: FileText, description: 'Audit which public forms write the correct program_type into leads, and find missing/unknown values' },
           { id: 'company', label: 'Company Config', icon: Building, description: 'Set up company details, branding, and organisational structure' },
           { id: 'security', label: 'Security', icon: Shield, description: 'Manage authentication policies, permissions, and security rules' },
           { id: 'coach-availability', label: 'Coach Availability', icon: CalendarOff, description: 'View and manage coach availability schedules across programmes' },

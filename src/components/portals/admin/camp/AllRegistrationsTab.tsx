@@ -95,6 +95,15 @@ export const AllRegistrationsTab: React.FC = () => {
       }
 
       setRegistrations(data);
+
+      // Keep the open details dialog in sync with the freshly-loaded list,
+      // so edits to children/sessions/totals show up immediately after save
+      // instead of displaying the stale prop captured when the dialog opened.
+      setSelectedRegistration((prev) => {
+        if (!prev?.id) return prev;
+        const refreshed = data.find((r) => r.id === prev.id);
+        return refreshed || prev;
+      });
     } catch (error) {
       console.error('Error loading registrations:', error);
       toast.error('Failed to load registrations');

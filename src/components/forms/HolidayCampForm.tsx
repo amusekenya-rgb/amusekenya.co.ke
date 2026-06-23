@@ -354,9 +354,9 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         full_name: data.parentName,
         email: data.email,
         phone: data.phone,
-        program_type: 'holiday-camp',
+        program_type: campType, // seasonal slug: 'summer' | 'easter' | 'end-year' | 'mid-term-*'
         program_name: campTitle,
-        form_data: data,
+        form_data: { ...data, campType, season: campType },
         source: 'website_registration'
       });
 
@@ -448,7 +448,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
       supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
-          programType: 'holiday-camp',
+          programType: campType,
           registrationDetails: {
             parentName: data.parentName,
             campTitle: campTitle,

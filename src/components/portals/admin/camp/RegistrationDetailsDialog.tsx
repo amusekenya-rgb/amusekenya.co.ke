@@ -28,8 +28,9 @@ interface RegistrationDetailsDialogProps {
   onUpdate: () => void;
 }
 
-const derivePaymentStatus = (amountPaid: number, totalAmount: number): 'unpaid' | 'partial' | 'paid' => {
+const derivePaymentStatus = (amountPaid: number, totalAmount: number): 'unpaid' | 'partial' | 'paid' | 'overpaid' => {
   if (amountPaid <= 0) return 'unpaid';
+  if (amountPaid > totalAmount) return 'overpaid';
   if (amountPaid >= totalAmount) return 'paid';
   return 'partial';
 };
@@ -119,8 +120,13 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
 
   const derivedStatus = useMemo(() => derivePaymentStatus(amountPaid, netTotal), [amountPaid, netTotal]);
   const balanceDue = Math.max(0, netTotal - amountPaid);
+  const refundDue = Math.max(0, amountPaid - netTotal);
 
-  const statusBadgeVariant = derivedStatus === 'paid' ? 'default' : derivedStatus === 'partial' ? 'secondary' : 'destructive';
+  const statusBadgeVariant =
+    derivedStatus === 'paid' ? 'default'
+    : derivedStatus === 'overpaid' ? 'secondary'
+    : derivedStatus === 'partial' ? 'secondary'
+    : 'destructive';
 
   const handleSessionChange = (childIdx: number, dateKey: string, newSession: 'half' | 'full') => {
     setEditedChildren((prev) => {
@@ -190,6 +196,18 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
           registration.id!,
           `Discount set to KES ${Number(discountAmount) || 0}${reason}`
         );
+      }
+
+      // 4. Audit refund-due when sessions change drops net total below amount paid
+      if (childrenChanged) {
+        const newNet = Math.max(0, (editedTotal || totalAmount) - (Number(discountAmount) || 0));
+        const refund = Math.max(0, amountPaid - newNet);
+        if (refund > 0) {
+          await campRegistrationService.addAdminNote(
+            registration.id!,
+            `Sessions changed: new net total KES ${newNet.toFixed(2)}, previously paid KES ${amountPaid.toFixed(2)}. Refund due to client: KES ${refund.toFixed(2)}.`
+          );
+        }
       }
 
       toast.success('Registration updated');
@@ -448,6 +466,16 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
                     <span>Net total</span>
                     <span>KES {netTotal.toFixed(2)}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Previously paid</span>
+                    <span>KES {amountPaid.toFixed(2)}</span>
+                  </div>
+                  {refundDue > 0 && (
+                    <div className="flex justify-between font-semibold border-t pt-1 text-amber-700 dark:text-amber-400">
+                      <span>Refund due to client</span>
+                      <span>KES {refundDue.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -456,15 +484,20 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
                     <Input
                       type="number"
                       min={0}
-                      max={netTotal}
                       step={1}
                       value={amountPaid}
                       onChange={(e) => setAmountPaid(Math.max(0, Number(e.target.value)))}
                       placeholder="0"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Balance: KES {balanceDue.toFixed(2)}
-                    </p>
+                    {refundDue > 0 ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 font-medium">
+                        Refund due: KES {refundDue.toFixed(2)}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Balance: KES {balanceDue.toFixed(2)}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label>Auto Status</Label>
@@ -475,6 +508,11 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
                       {derivedStatus === 'partial' && (
                         <span className="text-sm text-muted-foreground">
                           Balance: KES {balanceDue.toFixed(2)}
+                        </span>
+                      )}
+                      {derivedStatus === 'overpaid' && (
+                        <span className="text-sm text-amber-700 dark:text-amber-400">
+                          Refund: KES {refundDue.toFixed(2)}
                         </span>
                       )}
                     </div>
@@ -544,6 +582,14 @@ export const RegistrationDetailsDialog: React.FC<RegistrationDetailsDialogProps>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Balance Due:</span>
                     <span className="font-semibold text-destructive">KES {balanceDue.toFixed(2)}</span>
+                  </div>
+                )}
+                {refundDue > 0 && !loadingPayment && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Refund Due to Client:</span>
+                    <span className="font-semibold text-amber-700 dark:text-amber-400">
+                      KES {refundDue.toFixed(2)}
+                    </span>
                   </div>
                 )}
                 <div className="flex justify-between">

@@ -16,7 +16,12 @@ export function printCampReceipt(opts: ReceiptOptions) {
   const netTotal = Math.max(0, totalAmount - (discountAmount || 0));
   const resolvedAmountPaid = resolveCampAmountPaid(registration, amountPaid, netTotal);
   const balance = Math.max(0, netTotal - resolvedAmountPaid);
-  const status = resolvedAmountPaid <= 0 ? 'UNPAID' : resolvedAmountPaid >= netTotal ? 'PAID' : 'PARTIAL';
+  const refundDue = Math.max(0, resolvedAmountPaid - netTotal);
+  const status = resolvedAmountPaid <= 0
+    ? 'UNPAID'
+    : resolvedAmountPaid > netTotal
+      ? 'OVERPAID'
+      : resolvedAmountPaid >= netTotal ? 'PAID' : 'PARTIAL';
   const receiptNo = `RCPT-${(registration.registration_number || '').replace(/\W+/g, '')}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
   const issuedAt = new Date().toLocaleString();
   const method = (paymentMethod || registration.payment_method || '').replace('_', ' ');
@@ -67,6 +72,7 @@ export function printCampReceipt(opts: ReceiptOptions) {
   .badge.PAID { background:#d8efdf; color:#1f7a3a; }
   .badge.PARTIAL { background:#fff2cf; color:#8a6500; }
   .badge.UNPAID { background:#fadcdc; color:#8a1f1f; }
+  .badge.OVERPAID { background:#ffe4b5; color:#8a4500; }
   .footer { margin-top: 28px; text-align:center; font-size: 11px; color:#666; border-top:1px dashed #ccc; padding-top: 10px; }
   .sign { margin-top: 36px; display:flex; justify-content: space-between; font-size: 12px; }
   .sign div { width: 45%; border-top: 1px solid #999; padding-top: 4px; text-align:center; color:#555; }
@@ -108,7 +114,9 @@ export function printCampReceipt(opts: ReceiptOptions) {
     ${discountAmount > 0 ? `<div><span>Discount</span><span>− KES ${discountAmount.toFixed(2)}</span></div>` : ''}
     <div><span>Net Total</span><span>KES ${netTotal.toFixed(2)}</span></div>
     <div><span>Amount Paid</span><span>KES ${resolvedAmountPaid.toFixed(2)}</span></div>
-    <div class="grand"><span>${balance > 0 ? 'Balance Due' : 'Settled'}</span><span>KES ${balance.toFixed(2)}</span></div>
+    ${refundDue > 0
+      ? `<div class="grand" style="color:#8a4500;border-top-color:#8a4500;"><span>Refund Due</span><span>KES ${refundDue.toFixed(2)}</span></div>`
+      : `<div class="grand"><span>${balance > 0 ? 'Balance Due' : 'Settled'}</span><span>KES ${balance.toFixed(2)}</span></div>`}
   </div>
 
   <div class="sign">
