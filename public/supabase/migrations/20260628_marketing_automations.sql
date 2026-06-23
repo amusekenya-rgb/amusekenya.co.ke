@@ -260,12 +260,27 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  _email text;
+  _name text;
 BEGIN
-  IF NEW.parent_email IS NOT NULL THEN
+  _email := COALESCE(
+    (NEW.form_data->>'parent_email'),
+    (NEW.form_data->>'parentEmail'),
+    (NEW.form_data->>'email')
+  );
+  _name := COALESCE(
+    (NEW.form_data->>'parent_name'),
+    (NEW.form_data->>'parentName'),
+    (NEW.form_data->>'fullName'),
+    (NEW.form_data->>'name')
+  );
+
+  IF _email IS NOT NULL AND _email <> '' THEN
     PERFORM public.enroll_in_automations(
       'registration_created',
-      NEW.parent_email,
-      NEW.parent_name,
+      _email,
+      _name,
       NULL,
       jsonb_build_object('camp_type', NEW.camp_type, 'registration_id', NEW.id, 'source', 'camp')
     );

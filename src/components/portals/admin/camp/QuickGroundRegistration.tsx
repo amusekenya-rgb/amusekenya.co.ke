@@ -68,7 +68,8 @@ const SESSIONS_KARURA = [
 ];
 
 const SESSIONS_NGONG = [
-  { value: 'full', label: 'Full Day', price: 2000 },
+  { value: 'full', label: 'Full Day', price: 2500 },
+  { value: 'half', label: 'Half Day', price: 1500 },
   { value: 'archery', label: 'Archery (45 min)', price: 1000 }
 ];
 
