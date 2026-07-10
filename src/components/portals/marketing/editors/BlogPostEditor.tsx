@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { cmsService, ContentItem } from '@/services/cmsService';
-import RichTextEditor from '@/components/content/RichTextEditor';
+import CreativeBlogEditor from './CreativeBlogEditor';
 import MediaUploader from './MediaUploader';
 
 interface BlogPostEditorProps {
@@ -116,7 +116,7 @@ export const BlogPostEditor: React.FC<BlogPostEditorProps> = ({ isOpen, onClose,
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{post ? 'Edit Blog Post' : 'New Blog Post'}</DialogTitle>
         </DialogHeader>
@@ -168,7 +168,7 @@ export const BlogPostEditor: React.FC<BlogPostEditorProps> = ({ isOpen, onClose,
 
             <div className="space-y-2">
               <Label>Content</Label>
-              <RichTextEditor value={content} onChange={setContent} />
+              <CreativeBlogEditor value={content} onChange={setContent} height={500} />
             </div>
 
             <div className="space-y-2">

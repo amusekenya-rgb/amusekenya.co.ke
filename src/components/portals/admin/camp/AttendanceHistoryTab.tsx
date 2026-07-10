@@ -218,9 +218,9 @@ export const AttendanceHistoryTab: React.FC = () => {
                   <SelectItem value="easter">Easter</SelectItem>
                   <SelectItem value="summer">Summer</SelectItem>
                   <SelectItem value="end-year">End Year</SelectItem>
-                  <SelectItem value="mid-term-1">Mid Term 1</SelectItem>
-                  <SelectItem value="mid-term-2">Mid Term 2</SelectItem>
-                  <SelectItem value="mid-term-3">Mid Term 3</SelectItem>
+                  <SelectItem value="mid-term-feb-march">Mid-Term Camp (Feb/March)</SelectItem>
+                  <SelectItem value="mid-term-may-june">Mid-Term Camp (May/June)</SelectItem>
+                  <SelectItem value="mid-term-october">Mid-Term Camp (October)</SelectItem>
                   <SelectItem value="day-camps">Day Camps</SelectItem>
                   <SelectItem value="little-forest">Little Forest</SelectItem>
                 </SelectContent>

@@ -17,20 +17,25 @@ export interface MyRegistrationRow {
   created_at: string | null;
   amount_paid?: number;
   amount_remaining?: number;
+  billing_doc_type?: 'quotation' | 'invoice' | 'paid';
+  quote_number?: string | null;
+  invoice_number?: string | null;
+  converted_to_invoice_at?: string | null;
+  discount_amount?: number;
 }
 
 export const myRegistrationsService = {
   /**
    * Fetch all camp registrations for the signed-in user, matched by email,
    * and enrich each with the total amount already paid (sum of completed
-   * payments) and the remaining balance.
+   * payments) and the remaining balance (net of any discount).
    */
   async listByEmail(email: string): Promise<MyRegistrationRow[]> {
     if (!email) return [];
     const { data, error } = await supabase
       .from('camp_registrations')
       .select(
-        'id, registration_number, camp_type, parent_name, email, phone, children, total_amount, payment_status, payment_method, payment_reference, registration_type, status, created_at'
+        'id, registration_number, camp_type, parent_name, email, phone, children, total_amount, payment_status, payment_method, payment_reference, registration_type, status, created_at, billing_doc_type, quote_number, invoice_number, converted_to_invoice_at, discount_amount'
       )
       .ilike('email', email)
       .order('created_at', { ascending: false });
@@ -51,11 +56,14 @@ export const myRegistrationsService = {
 
     if (payErr) {
       console.warn('Could not fetch payments for registrations:', payErr);
-      return rows.map((r) => ({
-        ...r,
-        amount_paid: 0,
-        amount_remaining: Number(r.total_amount) || 0,
-      }));
+      return rows.map((r) => {
+        const net = Math.max(0, (Number(r.total_amount) || 0) - (Number(r.discount_amount) || 0));
+        return {
+          ...r,
+          amount_paid: 0,
+          amount_remaining: net,
+        };
+      });
     }
 
     const paidByReg: Record<string, number> = {};
@@ -71,10 +79,12 @@ export const myRegistrationsService = {
     return rows.map((r) => {
       const paid = paidByReg[r.id] || 0;
       const total = Number(r.total_amount) || 0;
+      const discount = Number(r.discount_amount) || 0;
+      const net = Math.max(0, total - discount);
       return {
         ...r,
         amount_paid: paid,
-        amount_remaining: Math.max(0, total - paid),
+        amount_remaining: Math.max(0, net - paid),
       };
     });
   },

@@ -13,16 +13,15 @@ const SENDER = "Amuse Kenya <info@amusekenya.co.ke>";
 
 const formatDiscount = (d: any): string => {
   if (d.discount_type === "percentage") return `${d.discount_value}% off`;
-  if (d.discount_type === "fixed_amount")
-    return `KES ${Number(d.discount_value).toLocaleString()} off your booking`;
+  if (d.discount_type === "fixed_amount") return `KES ${Number(d.discount_value).toLocaleString()} off your booking`;
   return `KES ${Number(d.discount_value).toLocaleString()} per child / per day`;
 };
 
 const campLabel = (slug: string | null | undefined) => {
   if (!slug) return "any of our camps";
   const map: Record<string, string> = {
-    "easter": "Easter Camp",
-    "summer": "Summer Camp",
+    easter: "Easter Camp",
+    summer: "Summer Camp",
     "end-year": "End of Year Camp",
     "mid-term-feb-march": "Mid-Term Camp (Feb/March)",
     "mid-term-may-june": "Mid-Term Camp (May/June)",
@@ -56,11 +55,7 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, serviceKey);
-    const { data: d, error } = await supabase
-      .from("client_discounts")
-      .select("*")
-      .eq("id", discountId)
-      .maybeSingle();
+    const { data: d, error } = await supabase.from("client_discounts").select("*").eq("id", discountId).maybeSingle();
     if (error || !d) {
       return new Response(JSON.stringify({ error: "Discount not found" }), {
         status: 404,
@@ -69,17 +64,17 @@ serve(async (req) => {
     }
 
     if (!d.client_email) {
-      return new Response(
-        JSON.stringify({ error: "Discount has no client email — add one before sending" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Discount has no client email — add one before sending" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const validityLine = d.valid_to
       ? `Valid until <strong>${d.valid_to}</strong>${d.valid_from ? ` (from ${d.valid_from})` : ""}.`
       : d.valid_from
-      ? `Valid from <strong>${d.valid_from}</strong>.`
-      : `Valid until you book.`;
+        ? `Valid from <strong>${d.valid_from}</strong>.`
+        : `Valid until you book.`;
 
     const conditions: string[] = [];
     if (d.min_total) conditions.push(`Minimum booking total: KES ${Number(d.min_total).toLocaleString()}`);
@@ -92,7 +87,7 @@ serve(async (req) => {
   <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
     <div style="background:#2d5016;color:#fff;padding:24px 28px;">
       <h1 style="margin:0;font-size:22px;">A special discount for you</h1>
-      <p style="margin:8px 0 0;opacity:0.9;font-size:14px;">Amuse Bush Camp Kenya</p>
+      <p style="margin:8px 0 0;opacity:0.9;font-size:14px;">Amuse Kenya</p>
     </div>
     <div style="padding:28px;">
       <p style="font-size:16px;color:#333;">Hello${d.client_name ? ` ${d.client_name}` : ""},</p>
@@ -141,10 +136,10 @@ serve(async (req) => {
     });
 
     if ((result as any).error) {
-      return new Response(
-        JSON.stringify({ error: (result as any).error?.message || "Resend error" }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: (result as any).error?.message || "Resend error" }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ success: true }), {
@@ -152,9 +147,9 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

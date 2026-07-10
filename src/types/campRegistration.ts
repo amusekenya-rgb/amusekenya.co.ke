@@ -21,7 +21,7 @@ export interface CampRegistration {
   children: CampChild[];
   total_amount: number;
   payment_status: 'unpaid' | 'paid' | 'partial';
-  payment_method: 'pending' | 'card' | 'mpesa' | 'cash_ground';
+  payment_method: 'pending' | 'card' | 'mpesa' | 'cash_ground' | 'bank_transfer';
   payment_reference?: string;
   registration_type: 'online_only' | 'online_paid' | 'ground_registration';
   qr_code_data: string;
@@ -31,7 +31,14 @@ export interface CampRegistration {
   created_at?: string;
   created_by?: string;
   updated_at?: string;
+  /** 'quotation' = registered, not paid & not attended; 'invoice' = unpaid but attended; 'paid' = fully paid */
+  billing_doc_type?: 'quotation' | 'invoice' | 'paid';
+  quote_number?: string;
+  invoice_number?: string;
+  converted_to_invoice_at?: string;
   admin_notes?: string;
+  discount_amount?: number;
+  discount_id?: string;
 }
 
 export interface CampAttendance {

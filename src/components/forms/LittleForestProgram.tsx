@@ -28,7 +28,9 @@ import { qrCodeService } from '@/services/qrCodeService';
 import { leadsService } from '@/services/leadsService';
 import { invoiceService } from '@/services/invoiceService';
 import type { CampRegistration } from '@/types/campRegistration';
+import { scrollToFirstError } from '@/utils/scrollToError';
 import { useLittleForestConfig } from '@/hooks/useLittleForestConfig';
+import { useCampDatesForLocation } from '@/hooks/useCampDatesForLocation';
 import DynamicMedia from '@/components/content/DynamicMedia';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
 import { LocationSelector } from './LocationSelector';
@@ -62,10 +64,17 @@ const LittleForestProgram = () => {
   const { config, pageConfig, isLoading: configLoading } = useLittleForestConfig();
   
   const [submitType, setSubmitType] = useState<'register' | 'pay'>('register');
+  const submitActionRef = React.useRef<'register' | 'pay'>('register');
+  const [registrationType, setRegistrationType] = useState<'online_only' | 'online_paid'>('online_only');
   const [showQRModal, setShowQRModal] = useState(false);
   const [registrationResult, setRegistrationResult] = useState<CampRegistration | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [selectedLocation, setSelectedLocation] = useState('');
+  const { dates: locationScopedDates } = useCampDatesForLocation(
+    'little-forest',
+    selectedLocation,
+    config?.availableDates
+  );
 
   // Set default location
   useEffect(() => {
@@ -268,19 +277,62 @@ const LittleForestProgram = () => {
 
       setRegistrationResult(result);
       setQrCodeDataUrl(qrCodeUrl);
-      setShowQRModal(true);
 
       toast.success(config.messages.registrationSuccess);
-      
+
       // Record successful submission for duplicate prevention
       await recordSubmission(data, 'little-forest');
-      
+
       reset();
-      
-      if (submitType === 'pay') {
-        setTimeout(() => {
-          toast.info('Payment integration coming soon! You will receive an invoice with payment instructions via email.');
-        }, 500);
+
+      const buttonType = submitActionRef.current || submitType;
+      if (buttonType === 'pay') {
+        try {
+          const { supabase } = await import('@/integrations/supabase/client');
+          const { openPaystackCheckout, generatePaystackReference } = await import('@/lib/paystack');
+          const reference = generatePaystackReference('AMU');
+          await openPaystackCheckout({
+            email: data.email,
+            amountKES: totalAmount,
+            reference,
+            metadata: {
+              registrationId: result.id,
+              registrationNumber: result.registration_number,
+              parentName: data.parentName,
+              programName: 'Little Forest Explorers',
+            },
+            onSuccess: async (ref) => {
+              try {
+                const { data: verifyData, error: verifyErr } = await supabase.functions.invoke(
+                  'paystack-verify',
+                  { body: { reference: ref, registrationId: result.id } }
+                );
+                if (verifyErr) throw verifyErr;
+                if (!verifyData?.success) throw new Error(verifyData?.error || 'Verification failed');
+                toast.success('Payment received. Thank you!');
+                setRegistrationType('online_paid');
+              } catch (e) {
+                console.error('Verify error:', e);
+                toast.error(`Payment processed but verification failed. Reference: ${ref}`);
+              } finally {
+                setShowQRModal(true);
+              }
+            },
+            onClose: () => {
+              toast.info('Payment cancelled. You can complete it later from My Registrations.');
+              setRegistrationType('online_only');
+              setShowQRModal(true);
+            },
+          });
+        } catch (e) {
+          console.error('Paystack init error:', e);
+          toast.error('Could not start online payment. Please try again from My Registrations.');
+          setRegistrationType('online_only');
+          setShowQRModal(true);
+        }
+      } else {
+        setRegistrationType('online_only');
+        setShowQRModal(true);
       }
     } catch (error) {
       console.error('Registration error:', error);
@@ -395,7 +447,7 @@ const LittleForestProgram = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit, scrollToFirstError)} className="space-y-6">
               <div>
                 <Label htmlFor="parentName" className="text-base font-medium">{config.fields.parentName.label}{autoFilledFields.has('parentName') && <AutoFilledBadge />}</Label>
                 <Input id="parentName" {...register('parentName')} className="mt-2" placeholder={config.fields.parentName.placeholder} />
@@ -407,7 +459,10 @@ const LittleForestProgram = () => {
                 <LocationSelector
                   locations={config.locations}
                   value={selectedLocation}
-                  onChange={setSelectedLocation}
+                  onChange={(loc) => {
+                    setSelectedLocation(loc);
+                    watchChildren.forEach((_, idx) => handleDatesChange(idx, []));
+                  }}
                 />
               )}
 
@@ -489,13 +544,21 @@ const LittleForestProgram = () => {
 
                     {/* SimpleDateSelector Component */}
                     <div>
-                      <SimpleDateSelector
-                        availableDates={config.availableDates || []}
-                        selectedDates={watchChildren[index]?.selectedDates || []}
-                        onDatesChange={(dates) => handleDatesChange(index, dates)}
-                        sessionRate={config.pricing.sessionRate}
-                        currency={config.pricing.currency}
-                      />
+                      {locationScopedDates.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-4 text-sm text-muted-foreground">
+                          {selectedLocation
+                            ? `${selectedLocation} dates for Little Forest are not yet published. Please check back soon or pick another location.`
+                            : 'No upcoming Little Forest dates have been published yet.'}
+                        </div>
+                      ) : (
+                        <SimpleDateSelector
+                          availableDates={locationScopedDates}
+                          selectedDates={watchChildren[index]?.selectedDates || []}
+                          onDatesChange={(dates) => handleDatesChange(index, dates)}
+                          sessionRate={config.pricing.sessionRate}
+                          currency={config.pricing.currency}
+                        />
+                      )}
                       {errors.children?.[index]?.selectedDates && (
                         <p className="text-destructive text-sm mt-1">
                           {errors.children[index]?.selectedDates?.message}
@@ -591,17 +654,23 @@ const LittleForestProgram = () => {
                     type="submit"
                     variant="outline"
                     size="lg"
-                    onClick={() => setSubmitType('register')}
+                    onClick={() => {
+                      submitActionRef.current = 'register';
+                      setSubmitType('register');
+                    }}
                     disabled={isSubmitting}
                     className="w-full"
                   >
                     {config.buttons.registerOnly}
                   </Button>
-                  
+
                   <Button
                     type="submit"
                     size="lg"
-                    onClick={() => setSubmitType('pay')}
+                    onClick={() => {
+                      submitActionRef.current = 'pay';
+                      setSubmitType('pay');
+                    }}
                     disabled={isSubmitting}
                     className="w-full"
                   >
@@ -619,7 +688,7 @@ const LittleForestProgram = () => {
             onOpenChange={setShowQRModal}
             registration={registrationResult}
             qrCodeDataUrl={qrCodeDataUrl}
-            registrationType={submitType === 'register' ? 'online_only' : 'online_paid'}
+            registrationType={registrationType}
           />
         )}
       </div>

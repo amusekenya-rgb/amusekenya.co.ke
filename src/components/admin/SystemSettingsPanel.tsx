@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, Settings, Bell, Users, Wrench } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { auditLogService } from '@/services/auditLogService';
+import { invalidateSystemSettings } from '@/hooks/useSystemSettings';
 
 interface SettingValues {
   session_timeout_minutes: string;
@@ -110,6 +111,7 @@ const SystemSettingsPanel: React.FC = () => {
         severity: 'warning',
       });
 
+      invalidateSystemSettings();
       toast({ title: 'Settings Saved', description: 'System settings have been updated successfully.' });
     } catch (e: any) {
       console.error('Failed to save settings:', e);
@@ -152,19 +154,45 @@ const SystemSettingsPanel: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="session_timeout">Session Timeout</Label>
-              <Select value={settings.session_timeout_minutes} onValueChange={v => set('session_timeout_minutes', v)}>
+              <Label htmlFor="session_timeout">Auto-Logout After Inactivity</Label>
+              <Select
+                value={
+                  ['5','10','15','30','60','120','240','480'].includes(settings.session_timeout_minutes)
+                    ? settings.session_timeout_minutes
+                    : 'custom'
+                }
+                onValueChange={v => {
+                  if (v === 'custom') return;
+                  set('session_timeout_minutes', v);
+                }}
+              >
                 <SelectTrigger id="session_timeout">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="5">5 minutes</SelectItem>
+                  <SelectItem value="10">10 minutes</SelectItem>
+                  <SelectItem value="15">15 minutes</SelectItem>
                   <SelectItem value="30">30 minutes</SelectItem>
                   <SelectItem value="60">1 hour</SelectItem>
                   <SelectItem value="120">2 hours</SelectItem>
                   <SelectItem value="240">4 hours</SelectItem>
+                  <SelectItem value="480">8 hours</SelectItem>
+                  <SelectItem value="custom">Custom…</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Idle portal sessions will be terminated after this period</p>
+              <Input
+                type="number"
+                min="1"
+                max="1440"
+                value={settings.session_timeout_minutes}
+                onChange={e => set('session_timeout_minutes', e.target.value)}
+                placeholder="Minutes"
+              />
+              <p className="text-xs text-muted-foreground">
+                Admin and portal users are automatically signed out after this many minutes of inactivity.
+                A 30-second warning is shown beforehand. Takes effect on next page load.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="max_logins">Max Login Attempts</Label>

@@ -70,6 +70,7 @@ const PrivacyPolicy = () => {
       <SEOHead 
         title="Privacy Policy | Amuse Kenya"
         description="Privacy policy for Amuse Kenya - how we collect, use, and protect your personal information."
+        canonical="https://amusekenya.co.ke/privacy-policy"
       />
       <Navbar />
       <main className="min-h-screen bg-background pt-24 pb-16">

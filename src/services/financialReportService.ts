@@ -6,6 +6,7 @@ import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { matchesActivity, ACTIVITY_CATEGORIES } from '@/lib/activityCategories';
+import { getRegistrationEventDates, registrationInDateWindow } from '@/utils/registrationDate';
 
 const financialService = FinancialService.getInstance();
 
@@ -24,7 +25,12 @@ export interface ProfitLossData {
     invoices: number;
     payments: number;
     campRegistrations: number;
+    /** Total billed (collected + pending collection) — money owed for selected activity/camp */
     total: number;
+    /** Amount actually received */
+    collected: number;
+    /** Outstanding balance from unpaid invoices / unpaid camp registrations */
+    pendingCollection: number;
   };
   expenses: {
     byCategory: Record<string, number>;
@@ -52,6 +58,21 @@ export interface ARAgingItem {
   source: 'invoice' | 'collection';
 }
 
+export interface AROrphanItem {
+  id: string;
+  registrationId: string | null;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  childName: string;
+  activityName: string;
+  balanceDue: number;
+  createdAt: string;
+  daysOld: number;
+  reason: 'registration-missing' | 'registration-cancelled' | 'quote-stage' | 'no-registration-link';
+  reasonLabel: string;
+}
+
 export interface ARAgingSummary {
   current: number;
   days1to30: number;
@@ -66,6 +87,13 @@ export interface ARAgingSummary {
   // Invoice-only subtotal (formal AR)
   invoicedTotal: number;
   invoicedCount: number;
+  // Orphaned receivables — pending action items pointing at missing/cancelled
+  // registrations or quote-stage bookings. Excluded from aging buckets, but
+  // surfaced as an exemption section so totals reconcile with the Dashboard.
+  orphanedItems: AROrphanItem[];
+  orphanedTotal: number;
+  // total + orphanedTotal — reconciles to Dashboard "Total Outstanding"
+  grandTotal: number;
 }
 
 export interface RevenueReportData {
@@ -97,8 +125,94 @@ export interface DailySalesData {
   paymentsAmount: number;
   campRegistrations: number;
   campRevenue: number;
+  /** Total amount billed that day (manual invoices + system invoices/quotations raised that day) */
+  billedAmount: number;
+  /** Total amount collected that day (completed payments + paid-camp-reg without payment row) */
+  collectedAmount: number;
+  /** Back-compat: equals billedAmount */
   totalRevenue: number;
 }
+
+/**
+ * Resolve the date a registration was "billed" on. This is the date the invoice or
+ * quotation was actually raised — `converted_to_invoice_at` when the registration
+ * was converted to an invoice (e.g. via check-in), otherwise `created_at`.
+ *
+ * Using this everywhere ensures Camp Registrations, Sales, P&L, and AR Aging all
+ * agree on which day an invoice belongs to.
+ */
+export const billingEventDate = (reg: any): Date | null => {
+  const raw = reg?.converted_to_invoice_at || reg?.created_at;
+  if (!raw) return null;
+  try {
+    return parseISO(raw);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Internal helpers — single source of truth for "regs in window" + "collected".
+ * Every reconcilable card (P&L, Sales, AR Aging) routes through these so the
+ * cards tie out exactly: Collected + Pending == Billed, Billed - Collected == AR Total.
+ */
+const regsInWindow = (regs: any[], dateRange?: DateRange) => {
+  if (!dateRange) return regs;
+  return regs.filter(r =>
+    registrationInDateWindow(r, dateRange.startDate, dateRange.endDate)
+  );
+};
+
+const buildPaymentsByReg = (payments: any[]): Record<string, number> => {
+  const map: Record<string, number> = {};
+  payments.forEach(p => {
+    if (p.registration_id && p.status === 'completed') {
+      map[p.registration_id] = (map[p.registration_id] || 0) + Number(p.amount);
+    }
+  });
+  return map;
+};
+
+/** Paid against a registration: max(sum of completed payments, total if marked paid), capped at total. */
+const paidForReg = (reg: any, paymentsByReg: Record<string, number>): number => {
+  const total = Number(reg?.total_amount || 0);
+  const fromPayments = paymentsByReg[reg?.id] || 0;
+  const fromStatus = reg?.payment_status === 'paid' ? total : 0;
+  return Math.min(total, Math.max(fromPayments, fromStatus));
+};
+
+/**
+ * Normalize a date range so both ends span full local days. Without this, a
+ * single-day pick lands at 00:00…00:00 and `isWithinInterval` excludes every
+ * record created later in the day.
+ */
+const normalizeDateRange = (range: DateRange): DateRange => ({
+  startDate: startOfDay(range.startDate),
+  endDate: endOfDay(range.endDate),
+});
+
+/**
+ * Drop payments whose parent record has been deleted or cancelled, so reports
+ * never count orphaned amounts. A payment is kept when:
+ *   - it links to a still-active invoice, OR
+ *   - it links to a still-active camp registration, OR
+ *   - it has no parent link at all (truly manual / standalone payment).
+ * Camp-tagged payments (`source === 'camp_registration'`) with no matching
+ * registration are dropped — that registration was deleted.
+ */
+const dropOrphanedPayments = (
+  payments: Payment[],
+  activeInvoiceIds: Set<string>,
+  activeRegIds: Set<string>,
+): Payment[] => {
+  return payments.filter(p => {
+    if (p.invoice_id) return activeInvoiceIds.has(p.invoice_id);
+    if (p.registration_id) return activeRegIds.has(p.registration_id);
+    // Camp-tagged payment with no surviving registration → orphaned
+    if (p.source === 'camp_registration') return false;
+    return true;
+  });
+};
 
 export const financialReportService = {
   // Fetch all financial data for a date range with optional activity filter
@@ -108,10 +222,10 @@ export const financialReportService = {
       financialService.getPayments(),
       financialService.getExpenses(),
       financialService.getBudgets(),
-      campRegistrationService.getAllRegistrations({
-        startDate: dateRange.startDate.toISOString(),
-        endDate: dateRange.endDate.toISOString(),
-      }),
+      // Fetch ALL camp registrations (no date filter at the source). Downstream functions
+      // filter by the correct date field (billing event vs creation vs payment date) so
+      // registrations created earlier but billed/paid within the range are not lost.
+      campRegistrationService.getAllRegistrations({}),
     ]);
 
     // Apply activity filter if provided (alias-aware)
@@ -120,8 +234,24 @@ export const financialReportService = {
       ? campRegistrations.filter(r => matchesActivity((r as any).camp_type, activities!))
       : campRegistrations;
 
+    // Build "active" ID sets so we can drop payments / action items whose
+    // parent invoice or registration was deleted or cancelled.
+    const activeInvoiceIds = new Set(
+      invoices.filter(i => i.status !== 'cancelled').map(i => i.id),
+    );
+    const activeRegIds = new Set(
+      filteredCampRegistrations
+        .filter(r => (r as any).status !== 'cancelled')
+        .map(r => r.id!)
+        .filter(Boolean),
+    );
+
+    // First drop orphaned payments (deleted/cancelled parent), then apply
+    // the optional activity filter.
+    const nonOrphanPayments = dropOrphanedPayments(payments, activeInvoiceIds, activeRegIds);
+
     const filteredPayments = hasActivityFilter
-      ? payments.filter(p => {
+      ? nonOrphanPayments.filter(p => {
           // Include payments linked to filtered registrations, or matching program_name
           if (p.registration_id) {
             return filteredCampRegistrations.some(r => r.id === p.registration_id);
@@ -132,99 +262,135 @@ export const financialReportService = {
           // Include unlinked payments only when no activity filter
           return false;
         })
-      : payments;
+      : nonOrphanPayments;
 
     const filteredExpenses = hasActivityFilter
       ? expenses.filter(e => matchesActivity(e.category, activities!))
       : expenses;
 
-    return { invoices, payments: filteredPayments, expenses: filteredExpenses, budgets, campRegistrations: filteredCampRegistrations };
+    return {
+      invoices,
+      payments: filteredPayments,
+      expenses: filteredExpenses,
+      budgets,
+      campRegistrations: filteredCampRegistrations,
+      activeInvoiceIds,
+      activeRegIds,
+    };
   },
 
-  // Generate Profit & Loss Statement — uses payments table as source of truth for revenue
+  // Generate Profit & Loss Statement
+  // Registration-anchored rule: a reg counts in window iff any of its event dates
+  // (getRegistrationEventDates) fall in the window. Collected & Pending are derived
+  // from those regs, so the figures tie out exactly with Sales and AR Aging.
   async generateProfitLoss(dateRange: DateRange, activities?: string[]): Promise<ProfitLossData> {
+    dateRange = normalizeDateRange(dateRange);
     const { invoices, payments, expenses, campRegistrations } = await this.fetchFinancialData(dateRange, activities);
 
-    // Filter by date range
+    // Manual (non-camp) invoices — bucket by created_at as before
     const filteredInvoices = invoices.filter(inv => {
       const date = parseISO(inv.created_at);
       return isWithinInterval(date, { start: dateRange.startDate, end: dateRange.endDate });
     });
 
-    // Payments table = source of truth for revenue (matches dashboard)
-    const filteredPayments = payments.filter(p => {
-      const date = parseISO(p.payment_date);
-      return isWithinInterval(date, { start: dateRange.startDate, end: dateRange.endDate }) && p.status === 'completed';
-    });
-
     const filteredExpenses = expenses.filter(e => {
       const date = parseISO(e.expense_date);
-      return isWithinInterval(date, { start: dateRange.startDate, end: dateRange.endDate }) && 
+      return isWithinInterval(date, { start: dateRange.startDate, end: dateRange.endDate }) &&
              (e.status === 'approved' || e.status === 'paid');
     });
 
-    // Revenue from payments table
-    const paymentRevenue = filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-
-    // For breakdown: split payments linked to camp registrations vs other
+    // --- Camp Collected (payment-date anchored — matches Sales exactly) ---
     const campRegIds = new Set(campRegistrations.map(r => r.id));
-    const paymentLinkedRegIds = new Set(
-      filteredPayments
-        .filter(p => p.registration_id && campRegIds.has(p.registration_id))
-        .map(p => p.registration_id as string)
-    );
-    const campPaymentRevenue = filteredPayments
-      .filter(p => (p.registration_id && campRegIds.has(p.registration_id)) || p.source === 'camp_registration')
-      .reduce((sum, p) => sum + Number(p.amount), 0);
-    const otherPaymentRevenue = paymentRevenue - campPaymentRevenue;
+    const paymentLinkedRegIds = new Set<string>();
+    let campCollected = 0;
+    payments.forEach(p => {
+      if (p.status !== 'completed') return;
+      const inWin = isWithinInterval(parseISO(p.payment_date), { start: dateRange.startDate, end: dateRange.endDate });
+      if (!inWin) return;
+      const isCamp = (p.registration_id && campRegIds.has(p.registration_id)) || p.source === 'camp_registration';
+      if (!isCamp) return;
+      campCollected += Number(p.amount || 0);
+      if (p.registration_id) paymentLinkedRegIds.add(p.registration_id);
+    });
+    // Fallback: paid camp regs with no payments row — bucket by billing date in window
+    campRegistrations.forEach(reg => {
+      if ((reg as any).status === 'cancelled') return;
+      if ((reg as any).payment_status !== 'paid') return;
+      if (paymentLinkedRegIds.has(reg.id!)) return;
+      const billDate = billingEventDate(reg);
+      if (!billDate) return;
+      if (!isWithinInterval(billDate, { start: dateRange.startDate, end: dateRange.endDate })) return;
+      campCollected += Number((reg as any).total_amount || 0);
+    });
 
-    // Add camp registrations marked payment_status='paid' that DO NOT have a corresponding payment row
-    // (avoid double-counting). This matches the Dashboard's source of truth.
-    const paidCampRegRevenue = campRegistrations
-      .filter(r => {
-        if ((r as any).payment_status !== 'paid') return false;
-        if (paymentLinkedRegIds.has(r.id!)) return false; // already counted via payments
-        // Filter by created_at within range
-        const createdAt = r.created_at ? parseISO(r.created_at) : null;
-        return createdAt ? isWithinInterval(createdAt, { start: dateRange.startDate, end: dateRange.endDate }) : false;
-      })
-      .reduce((sum, r) => sum + Number((r as any).total_amount || 0), 0);
-
-    // Combined camp revenue = payments-linked camp + paid registrations not yet in payments
-    const combinedCampRevenue = campPaymentRevenue + paidCampRegRevenue;
-
-    // Invoice revenue for reference only (not counted in total to avoid double-counting)
+    // Manual invoices revenue (reference) + collected
     const invoiceRevenue = filteredInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
+    const manualInvoiceCollected = filteredInvoices.reduce(
+      (sum, i) => sum + Number((i as any).amount_paid || 0), 0,
+    );
 
-    // Calculate expenses by category
+    // Pending Collection = Total Billed in window − Collected in window
+    // (computed after campBilled below)
+
+
+    // Other (non-camp) payments in window — breakdown only
+    const otherPaymentRevenue = payments
+      .filter(p => {
+        if (p.status !== 'completed') return false;
+        const inWin = isWithinInterval(parseISO(p.payment_date), { start: dateRange.startDate, end: dateRange.endDate });
+        if (!inWin) return false;
+        const isCamp = (p.registration_id && campRegIds.has(p.registration_id)) || p.source === 'camp_registration';
+        return !isCamp;
+      })
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    // Expenses
     const expensesByCategory: Record<string, number> = {};
     filteredExpenses.forEach(exp => {
       const category = exp.category || 'Uncategorized';
       expensesByCategory[category] = (expensesByCategory[category] || 0) + Number(exp.amount);
     });
-
     const totalExpenses = Object.values(expensesByCategory).reduce((sum, val) => sum + val, 0);
-    const totalRevenue = paymentRevenue + paidCampRegRevenue;
+
+    const collected = campCollected + manualInvoiceCollected;
+    // Total Revenue = Total Billed in window (matches Sales "Total Billed"):
+    // manual invoices created in window + camp regs (invoice/paid) whose billing
+    // event date falls in window.
+    let campBilled = 0;
+    campRegistrations.forEach(reg => {
+      const docType = (reg as any).billing_doc_type;
+      if (docType !== 'invoice' && docType !== 'paid') return;
+      if ((reg as any).status === 'cancelled') return;
+      const billDate = billingEventDate(reg);
+      if (!billDate) return;
+      if (!isWithinInterval(billDate, { start: dateRange.startDate, end: dateRange.endDate })) return;
+      campBilled += Number((reg as any).total_amount || 0);
+    });
+    const totalRevenue = invoiceRevenue + campBilled;
+    const pendingCollection = Math.max(0, totalRevenue - collected);
 
     return {
       revenue: {
         invoices: invoiceRevenue,
         payments: otherPaymentRevenue,
-        campRegistrations: combinedCampRevenue,
+        campRegistrations: campCollected,
         total: totalRevenue,
+        collected,
+        pendingCollection,
       },
       expenses: {
         byCategory: expensesByCategory,
         total: totalExpenses,
       },
-      netProfit: totalRevenue - totalExpenses,
+      netProfit: collected - totalExpenses,
       period: dateRange,
     };
   },
 
   // Generate AR Aging Report — combines invoice-based AR + attended-but-unpaid collections,
   // each aged into proper buckets so 90+ days reflects real overdue items
-  async generateARAgingReport(activities?: string[]): Promise<ARAgingSummary> {
+  async generateARAgingReport(activities?: string[], dateRange?: DateRange): Promise<ARAgingSummary> {
+    if (dateRange) dateRange = normalizeDateRange(dateRange);
     const bucketize = (daysOverdue: number): ARAgingItem['agingBucket'] => {
       if (daysOverdue <= 0) return 'current';
       if (daysOverdue <= 30) return '1-30';
@@ -285,22 +451,126 @@ export const financialReportService = {
       };
     }).filter(item => item.balanceDue > 0);
 
-    // ---- 2) Build attended-but-unpaid collection items (aged by created_at)
+    // ---- 2) Build attended-but-unpaid collection items from camp_registrations
+    //        (single source of truth — `accounts_action_items` is NOT used as an
+    //        independent row source anymore, it was double-counting vs P&L).
+    //        Aging is anchored to getRegistrationEventDates() so it matches
+    //        Sales / P&L windows exactly.
     const collectionItems: ARAgingItem[] = [];
+    const orphanedItems: AROrphanItem[] = [];
+    const seenRegIds = new Set<string>();
     let attendedUnpaidTotal = 0;
     let attendedUnpaidCount = 0;
     if (isSupabaseAvailable() && supabase) {
-      const { data: collections } = await supabase
-        .from('accounts_action_items' as any)
+      const { data: sysInvoices } = await (supabase as any)
+        .from('camp_registrations')
+        .select('id, registration_number, invoice_number, parent_name, email, phone, camp_type, children, total_amount, created_at, converted_to_invoice_at, payment_date, payment_status, billing_doc_type, status')
+        .eq('billing_doc_type', 'invoice')
+        .neq('status', 'cancelled');
+
+      const paymentsByReg = buildPaymentsByReg(payments);
+
+      ((sysInvoices || []) as any[]).forEach((r: any) => {
+        if (r.payment_status === 'paid') return;
+        const total = Number(r.total_amount || 0);
+        if (total <= 0) return;
+        const paid = paidForReg(r, paymentsByReg);
+        const balance = Math.max(0, total - paid);
+        if (balance <= 0) return;
+        // Anchor date = first event date from the registration-anchored helper,
+        // falling back to converted_to_invoice_at, then created_at.
+        const eventDates = getRegistrationEventDates(r);
+        const refDate = eventDates[0]
+          || (r.converted_to_invoice_at ? parseISO(r.converted_to_invoice_at) : null)
+          || (r.created_at ? parseISO(r.created_at) : today);
+        const daysOverdue = differenceInDays(today, refDate);
+        const bucket = bucketize(daysOverdue);
+        const childName = Array.isArray(r.children) && r.children[0]?.childName ? r.children[0].childName : '';
+        collectionItems.push({
+          invoiceId: r.id,
+          invoiceNumber: r.invoice_number || r.registration_number || `REG-${String(r.id).slice(0, 8)}`,
+          customerName: r.parent_name || 'Unknown',
+          customerEmail: r.email || '',
+          customerPhone: r.phone || '',
+          childName,
+          activityName: r.camp_type || '',
+          referenceId: r.id,
+          totalAmount: total,
+          paidAmount: paid,
+          balanceDue: balance,
+          dueDate: refDate.toISOString(),
+          daysOverdue: Math.max(0, daysOverdue),
+          agingBucket: bucket,
+          source: 'collection' as const,
+          _eventDates: eventDates,
+        } as any);
+        seenRegIds.add(r.id);
+      });
+
+      // Build active reg-id set so legacy action items whose source registration
+      // was deleted/cancelled feed the ORPHAN list instead of inflating aging.
+      const activeRegIdSet = new Set(((sysInvoices || []) as any[]).map(r => r.id));
+
+      // Also load cancelled registrations so we can label orphans precisely.
+      const { data: cancelledRegs } = await (supabase as any)
+        .from('camp_registrations')
+        .select('id, billing_doc_type, status')
+        .or('status.eq.cancelled,billing_doc_type.neq.invoice');
+      const cancelledRegMap = new Map<string, { status: string; billing_doc_type: string }>();
+      ((cancelledRegs || []) as any[]).forEach((r: any) => {
+        cancelledRegMap.set(r.id, { status: r.status, billing_doc_type: r.billing_doc_type });
+      });
+
+      // Legacy / manual action items not already covered above
+      const { data: collections } = await (supabase as any)
+        .from('accounts_action_items')
         .select('id, registration_id, parent_name, child_name, email, phone, amount_due, amount_paid, created_at, camp_type')
         .eq('status', 'pending');
-      const rows = (collections || []) as any[];
-      rows.forEach((c: any) => {
+      ((collections || []) as any[]).forEach((c: any) => {
+        if (c.registration_id && seenRegIds.has(c.registration_id)) return;
         const balance = Number(c.amount_due || 0) - Number(c.amount_paid || 0);
         if (balance <= 0) return;
         const created = c.created_at ? parseISO(c.created_at) : today;
-        const daysOverdue = differenceInDays(today, created);
-        const bucket = bucketize(daysOverdue);
+        const daysOld = differenceInDays(today, created);
+
+        // Diagnostic-only orphan classification — these items are STILL aged
+        // into buckets below so AR Aging matches Pending Collections exactly.
+        // The orphan list is informational (review/triage), not exclusionary.
+        const linkedActive = c.registration_id && activeRegIdSet.has(c.registration_id);
+        if (!linkedActive) {
+          let reason: AROrphanItem['reason'] = 'no-registration-link';
+          let reasonLabel = 'No registration link';
+          if (c.registration_id) {
+            const meta = cancelledRegMap.get(c.registration_id);
+            if (!meta) {
+              reason = 'registration-missing';
+              reasonLabel = 'Registration deleted';
+            } else if (meta.status === 'cancelled') {
+              reason = 'registration-cancelled';
+              reasonLabel = 'Registration cancelled';
+            } else if (meta.billing_doc_type !== 'invoice') {
+              reason = 'quote-stage';
+              reasonLabel = 'Quote — not invoiced';
+            }
+          }
+          orphanedItems.push({
+            id: c.id,
+            registrationId: c.registration_id || null,
+            customerName: c.parent_name || c.child_name || 'Unknown',
+            customerEmail: c.email || '',
+            customerPhone: c.phone || '',
+            childName: c.child_name || '',
+            activityName: c.camp_type || '',
+            balanceDue: balance,
+            createdAt: c.created_at || today.toISOString(),
+            daysOld: Math.max(0, daysOld),
+            reason,
+            reasonLabel,
+          });
+          // fall through — also include in aging
+        }
+
+        const bucket = bucketize(daysOld);
         collectionItems.push({
           invoiceId: c.id,
           invoiceNumber: `COLL-${String(c.id).slice(0, 8)}`,
@@ -314,19 +584,46 @@ export const financialReportService = {
           paidAmount: Number(c.amount_paid || 0),
           balanceDue: balance,
           dueDate: c.created_at || today.toISOString(),
-          daysOverdue: Math.max(0, daysOverdue),
+          daysOverdue: Math.max(0, daysOld),
           agingBucket: bucket,
           source: 'collection' as const,
         });
       });
     }
 
+
+
     // ---- 3) Combine + apply activity filter
     let items = [...invoiceItems, ...collectionItems];
     if (hasActivityFilter) {
       items = items.filter(it => itemMatchesActivity(it.activityName));
     }
+    // Always restrict AR Aging to the selected date window when one is provided.
+    // For camp-reg collection items, use any of the registration event dates;
+    // for manual invoice items, fall back to dueDate.
+    if (dateRange) {
+      items = items.filter((it: any) => {
+        if (it.source === 'collection' && Array.isArray(it._eventDates) && it._eventDates.length > 0) {
+          return it._eventDates.some((d: Date) =>
+            isWithinInterval(d, { start: dateRange.startDate, end: dateRange.endDate })
+          );
+        }
+        if (!it.dueDate) return false;
+        try {
+          const d = parseISO(it.dueDate);
+          return isWithinInterval(d, { start: dateRange.startDate, end: dateRange.endDate });
+        } catch {
+          return false;
+        }
+      });
+    }
+    // Drop the internal _eventDates field before returning
+    items = items.map((it: any) => {
+      const { _eventDates, ...rest } = it;
+      return rest as ARAgingItem;
+    });
     items.sort((a, b) => b.daysOverdue - a.daysOverdue);
+
 
     // Recompute attended-unpaid totals respecting the filter
     items.filter(i => i.source === 'collection').forEach(i => {
@@ -336,6 +633,12 @@ export const financialReportService = {
 
     const filteredInvoiceItems = items.filter(i => i.source === 'invoice');
     const invoicedTotal = filteredInvoiceItems.reduce((s, i) => s + i.balanceDue, 0);
+
+    // Apply activity filter to orphans too, so totals make sense per-activity
+    const filteredOrphans = hasActivityFilter
+      ? orphanedItems.filter(o => itemMatchesActivity(o.activityName))
+      : orphanedItems;
+    const orphanedTotal = filteredOrphans.reduce((s, o) => s + o.balanceDue, 0);
 
     const summary: ARAgingSummary = {
       current: 0,
@@ -349,6 +652,9 @@ export const financialReportService = {
       attendedUnpaidCount,
       invoicedTotal,
       invoicedCount: filteredInvoiceItems.length,
+      orphanedItems: filteredOrphans,
+      orphanedTotal,
+      grandTotal: 0,
     };
 
     items.forEach(item => {
@@ -361,6 +667,9 @@ export const financialReportService = {
         case '90+': summary.days90plus += item.balanceDue; break;
       }
     });
+    // Orphans are already included in `items` (aged into buckets); the orphan
+    // list is informational only, so grandTotal == aging total — no double-count.
+    summary.grandTotal = summary.total;
 
     return summary;
   },
@@ -420,6 +729,7 @@ export const financialReportService = {
 
   // Generate Daily Sales Summary
   async generateDailySalesSummary(dateRange: DateRange, activities?: string[]): Promise<DailySalesData[]> {
+    dateRange = normalizeDateRange(dateRange);
     const { invoices, payments, campRegistrations } = await this.fetchFinancialData(dateRange, activities);
 
     // Create a map for each day in range
@@ -436,12 +746,14 @@ export const financialReportService = {
         paymentsAmount: 0,
         campRegistrations: 0,
         campRevenue: 0,
+        billedAmount: 0,
+        collectedAmount: 0,
         totalRevenue: 0,
       };
       currentDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
     }
 
-    // Populate with invoice data
+    // 1) Manual invoices (from invoices table) — bucket by created_at
     invoices.forEach(inv => {
       const dateKey = format(parseISO(inv.created_at), 'yyyy-MM-dd');
       if (dailyData[dateKey]) {
@@ -450,44 +762,140 @@ export const financialReportService = {
       }
     });
 
-    // Populate with payment data — payments table is one source of revenue
+    // 2) System invoices/quotations from camp_registrations — bucket by BILLING EVENT date.
+    //    This matches the InvoiceManagement page and the "today's invoices" count in Camp
+    //    Registrations, so a registration created earlier but converted to an invoice today
+    //    (via check-in) lands in today, not its creation day.
     const campRegIds = new Set(campRegistrations.map(r => r.id));
+    campRegistrations.forEach(reg => {
+      const docType = (reg as any).billing_doc_type;
+      // Count invoices + paid (system-issued docs). Quotations are tracked separately below.
+      if (docType !== 'invoice' && docType !== 'paid') return;
+      const billDate = billingEventDate(reg);
+      if (!billDate) return;
+      const dateKey = format(billDate, 'yyyy-MM-dd');
+      if (!dailyData[dateKey]) return;
+      dailyData[dateKey].invoicesCreated++;
+      dailyData[dateKey].invoicesAmount += Number((reg as any).total_amount || 0);
+    });
+
+    // 3) Payments — collected revenue, bucket by payment_date.
+    // IMPORTANT: only count a reg as "payment-linked" when its payment falls in the
+    // selected window. Otherwise a paid reg whose payment is outside the window is
+    // both excluded here AND from the paid-reg fallback below, under-counting Sales
+    // Collected vs P&L Collected (the bug behind "109,350 vs 89,350").
     const paymentLinkedRegIds = new Set<string>();
     payments.filter(p => p.status === 'completed').forEach(p => {
       const dateKey = format(parseISO(p.payment_date), 'yyyy-MM-dd');
-      if (p.registration_id && campRegIds.has(p.registration_id)) {
+      const inWindow = !!dailyData[dateKey];
+      if (inWindow && p.registration_id && campRegIds.has(p.registration_id)) {
         paymentLinkedRegIds.add(p.registration_id);
       }
-      if (dailyData[dateKey]) {
+      if (inWindow) {
         dailyData[dateKey].paymentsReceived++;
         dailyData[dateKey].paymentsAmount += Number(p.amount);
-        // Track camp-linked payments separately for breakdown
         if ((p.registration_id && campRegIds.has(p.registration_id)) || p.source === 'camp_registration') {
           dailyData[dateKey].campRevenue += Number(p.amount);
         }
       }
     });
 
-    // Track registration count, plus add paid-camp-registration revenue (matches Dashboard)
+    // 4) New registrations created that day (per-creation-date count) + paid-camp-reg
+    //    revenue without a payments row (matches Dashboard cash collected).
     campRegistrations.forEach(reg => {
-      const dateKey = format(parseISO(reg.created_at!), 'yyyy-MM-dd');
-      if (!dailyData[dateKey]) return;
-      dailyData[dateKey].campRegistrations++;
-      // Add paid registration revenue if not already represented in payments
+      if (!reg.created_at) return;
+      const createdKey = format(parseISO(reg.created_at), 'yyyy-MM-dd');
+      if (dailyData[createdKey]) {
+        dailyData[createdKey].campRegistrations++;
+      }
+      // Paid revenue collected via the registration itself (no payments row) — bucket by
+      // BILLING EVENT date so payment day matches what users see in Accounts.
       if ((reg as any).payment_status === 'paid' && !paymentLinkedRegIds.has(reg.id!)) {
+        const billDate = billingEventDate(reg);
+        if (!billDate) return;
+        const billKey = format(billDate, 'yyyy-MM-dd');
+        if (!dailyData[billKey]) return;
         const amt = Number((reg as any).total_amount || 0);
-        dailyData[dateKey].campRevenue += amt;
-        dailyData[dateKey].paymentsAmount += amt;
+        dailyData[billKey].campRevenue += amt;
+        dailyData[billKey].paymentsAmount += amt;
       }
     });
 
-    // Total revenue = payments amount + paid camp registrations (matches Dashboard)
+    // 5) Derived totals — billed vs collected. totalRevenue is now BILLED (matches card label).
     Object.values(dailyData).forEach(day => {
-      day.totalRevenue = day.paymentsAmount;
+      day.billedAmount = day.invoicesAmount;
+      day.collectedAmount = day.paymentsAmount;
+      day.totalRevenue = day.billedAmount;
     });
 
     return Object.values(dailyData).sort((a, b) => a.date.localeCompare(b.date));
   },
+
+  /**
+   * Camp-only KPI totals for the period — mirrors the admin Camp Analytics tab so
+   * the Sales tab can show camp-scoped Total / Paid / Outstanding side by side
+   * with the whole-business figures.
+   *
+   *  - registrations / revenue / paid: bucketed by registration billing event
+   *    (`registrationInDateWindow` — same as P&L and AR Aging).
+   *  - childrenExpected: counts every child whose `selectedDates` falls in the
+   *    window, regardless of when the registration was billed — matches
+   *    AttendanceMarkingTab's "Expected" count.
+   */
+  async getCampPeriodTotals(dateRange: DateRange, activities?: string[]) {
+    dateRange = normalizeDateRange(dateRange);
+    const { payments, campRegistrations } = await this.fetchFinancialData(dateRange, activities);
+
+    // Same rule as P&L / AR Aging.
+    const regsInRange = campRegistrations.filter(r =>
+      (r as any).status !== 'cancelled' &&
+      registrationInDateWindow(r, dateRange.startDate, dateRange.endDate)
+    );
+
+    const paymentsByReg = buildPaymentsByReg(payments as any[]);
+
+    let totalRevenue = 0;
+    let paidRevenue = 0;
+    regsInRange.forEach(reg => {
+      const total = Number((reg as any).total_amount || 0);
+      totalRevenue += total;
+      paidRevenue += paidForReg(reg, paymentsByReg);
+    });
+    const outstandingRevenue = Math.max(0, totalRevenue - paidRevenue);
+
+    // Children expected — across ALL active registrations regardless of bill date.
+    const fromMs = startOfDay(dateRange.startDate).getTime();
+    const toMs = endOfDay(dateRange.endDate).getTime();
+    let childrenExpected = 0;
+    campRegistrations.forEach(reg => {
+      if ((reg as any).status === 'cancelled') return;
+      const kids = Array.isArray((reg as any).children) ? (reg as any).children : [];
+      for (const c of kids) {
+        const selected: string[] = Array.isArray(c?.selectedDates) ? c.selectedDates : [];
+        if (selected.length === 0) continue;
+        const hit = selected.some(d => {
+          if (typeof d !== 'string') return false;
+          // Parse YYYY-MM-DD as local date to avoid EAT tz drift.
+          const [y, m, day] = d.split('-').map(Number);
+          if (!y || !m || !day) return false;
+          const t = new Date(y, m - 1, day).getTime();
+          return t >= fromMs && t <= toMs;
+        });
+        if (hit) childrenExpected += 1;
+      }
+    });
+
+    return {
+      totalRevenue,
+      paidRevenue,
+      outstandingRevenue,
+      registrations: regsInRange.length,
+      childrenExpected,
+      period: dateRange,
+    };
+  },
+
+
 
   // Export functions
   exportProfitLossToCSV(data: ProfitLossData, filename?: string) {
@@ -496,15 +904,17 @@ export const financialReportService = {
       [`Period: ${format(data.period.startDate, 'dd MMM yyyy')} - ${format(data.period.endDate, 'dd MMM yyyy')}`],
       [''],
       ['REVENUE'],
+      ['Total Revenue (Billed)', data.revenue.total.toFixed(2)],
+      ['  Collected', data.revenue.collected.toFixed(2)],
+      ['  Pending Collection', data.revenue.pendingCollection.toFixed(2)],
       ['Payments Received', data.revenue.payments.toFixed(2)],
-      ['Camp Registrations', data.revenue.campRegistrations.toFixed(2)],
-      ['Total Revenue', data.revenue.total.toFixed(2)],
+      ['Camp Registrations (Collected)', data.revenue.campRegistrations.toFixed(2)],
       [''],
       ['EXPENSES'],
       ...Object.entries(data.expenses.byCategory).map(([cat, amt]) => [cat, (amt as number).toFixed(2)]),
       ['Total Expenses', data.expenses.total.toFixed(2)],
       [''],
-      ['NET PROFIT', data.netProfit.toFixed(2)],
+      ['NET PROFIT (Cash Basis: Collected - Expenses)', data.netProfit.toFixed(2)],
     ];
 
     const csvContent = rows.map(row => row.join(',')).join('\n');
@@ -526,9 +936,11 @@ export const financialReportService = {
     autoTable(doc, {
       head: [['Revenue', 'Amount (KES)']],
       body: [
+        ['Total Revenue (Billed)', data.revenue.total.toLocaleString()],
+        ['  Collected', data.revenue.collected.toLocaleString()],
+        ['  Pending Collection', data.revenue.pendingCollection.toLocaleString()],
         ['Payments Received', data.revenue.payments.toLocaleString()],
-        ['Camp Registrations', data.revenue.campRegistrations.toLocaleString()],
-        ['Total Revenue', data.revenue.total.toLocaleString()],
+        ['Camp Registrations (Collected)', data.revenue.campRegistrations.toLocaleString()],
       ],
       startY: 42,
       headStyles: { fillColor: [34, 139, 34] },
@@ -548,7 +960,7 @@ export const financialReportService = {
     // Net profit
     autoTable(doc, {
       head: [['Summary', 'Amount (KES)']],
-      body: [['Net Profit', data.netProfit.toLocaleString()]],
+      body: [['Net Profit (Collected - Expenses)', data.netProfit.toLocaleString()]],
       startY: (doc as any).lastAutoTable.finalY + 10,
       headStyles: { fillColor: [0, 123, 255] },
     });
@@ -632,7 +1044,7 @@ export const financialReportService = {
   },
 
   exportDailySalesToCSV(data: DailySalesData[], filename?: string) {
-    const headers = ['Date', 'Invoices Created', 'Invoice Amount', 'Payments', 'Payment Amount', 'Camp Registrations', 'Camp Revenue', 'Total Revenue'];
+    const headers = ['Date', 'Invoices Raised', 'Invoice Amount (Billed)', 'Payments Received', 'Collected Amount', 'New Registrations', 'Camp Collected', 'Total Billed', 'Total Collected'];
     const rows = data.map(day => [
       day.date,
       day.invoicesCreated.toString(),
@@ -641,7 +1053,8 @@ export const financialReportService = {
       day.paymentsAmount.toFixed(2),
       day.campRegistrations.toString(),
       day.campRevenue.toFixed(2),
-      day.totalRevenue.toFixed(2),
+      day.billedAmount.toFixed(2),
+      day.collectedAmount.toFixed(2),
     ]);
 
     // Add totals
@@ -653,9 +1066,10 @@ export const financialReportService = {
         paymentsAmount: acc.paymentsAmount + day.paymentsAmount,
         campRegistrations: acc.campRegistrations + day.campRegistrations,
         campRevenue: acc.campRevenue + day.campRevenue,
-        totalRevenue: acc.totalRevenue + day.totalRevenue,
+        billedAmount: acc.billedAmount + day.billedAmount,
+        collectedAmount: acc.collectedAmount + day.collectedAmount,
       }),
-      { invoicesCreated: 0, invoicesAmount: 0, paymentsReceived: 0, paymentsAmount: 0, campRegistrations: 0, campRevenue: 0, totalRevenue: 0 }
+      { invoicesCreated: 0, invoicesAmount: 0, paymentsReceived: 0, paymentsAmount: 0, campRegistrations: 0, campRevenue: 0, billedAmount: 0, collectedAmount: 0 }
     );
 
     rows.push([
@@ -666,7 +1080,8 @@ export const financialReportService = {
       totals.paymentsAmount.toFixed(2),
       totals.campRegistrations.toString(),
       totals.campRevenue.toFixed(2),
-      totals.totalRevenue.toFixed(2),
+      totals.billedAmount.toFixed(2),
+      totals.collectedAmount.toFixed(2),
     ]);
 
     const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => `"${cell}"`).join(','))].join('\n');
@@ -691,16 +1106,22 @@ export const financialReportService = {
     netProfit: number;        // actual - expenses
     potentialNetProfit: number; // potential - expenses
   }>> {
-    const { payments, expenses, campRegistrations } = await this.fetchFinancialData(dateRange, activities);
+    dateRange = normalizeDateRange(dateRange);
+    const { payments, expenses, campRegistrations, activeRegIds } = await this.fetchFinancialData(dateRange, activities);
 
-    // Pull pending collections (attended-but-unpaid) for outstanding by activity
-    let pendingCollections: Array<{ camp_type: string | null; amount_due: number; amount_paid: number }> = [];
+    // Pull pending collections (attended-but-unpaid) for outstanding by activity.
+    // Exclude rows whose registration_id no longer exists in active camp_registrations
+    // (i.e. the source registration was deleted/cancelled) — those amounts must not
+    // contribute to report totals.
+    let pendingCollections: Array<{ camp_type: string | null; amount_due: number; amount_paid: number; registration_id?: string | null }> = [];
     if (isSupabaseAvailable() && supabase) {
       const { data } = await supabase
         .from('accounts_action_items' as any)
-        .select('camp_type, amount_due, amount_paid')
+        .select('camp_type, amount_due, amount_paid, registration_id')
         .eq('status', 'pending');
-      pendingCollections = (data || []) as any[];
+      pendingCollections = ((data || []) as any[]).filter(
+        c => !c.registration_id || activeRegIds.has(c.registration_id),
+      );
     }
 
     // Resolve a raw activity value (e.g. "mid-term-feb-march") to the friendly
@@ -747,12 +1168,16 @@ export const financialReportService = {
       ensure(byActivity, label).actualRevenue += Number(p.amount);
     });
 
-    // Add paid camp registrations not yet linked to a payment row (matches Dashboard logic)
+    // Add paid camp registrations not yet linked to a payment row.
+    // Bucket by BILLING EVENT date (converted_to_invoice_at ?? created_at) — NOT
+    // created_at — so this matches P&L's "Collected" exactly. Previously this
+    // ignored the date window and summed every paid reg in the activity set,
+    // producing Activity P&L Actual = 111,350 vs P&L Collected = 89,350.
     campRegistrations.forEach(r => {
       if ((r as any).payment_status !== 'paid') return;
       if (paymentLinkedRegIds.has(r.id!)) return;
-      const created = r.created_at ? parseISO(r.created_at) : null;
-      if (!created || !isWithinInterval(created, { start: dateRange.startDate, end: dateRange.endDate })) return;
+      const billDate = billingEventDate(r);
+      if (!billDate || !isWithinInterval(billDate, { start: dateRange.startDate, end: dateRange.endDate })) return;
       const label = regActivityMap[r.id!] || 'Other';
       ensure(byActivity, label).actualRevenue += Number((r as any).total_amount || 0);
     });
@@ -803,7 +1228,8 @@ export const financialReportService = {
   // Generate Potential vs Actual revenue analysis
   // Outstanding now uses accounts_action_items (matches Dashboard "Total Outstanding")
   async generatePotentialVsActual(dateRange: DateRange, activities?: string[]): Promise<{ potentialRevenue: number; actualRevenue: number; outstanding: number; collectionRate: number }> {
-    const { payments, campRegistrations } = await this.fetchFinancialData(dateRange, activities);
+    dateRange = normalizeDateRange(dateRange);
+    const { payments, campRegistrations, activeRegIds } = await this.fetchFinancialData(dateRange, activities);
 
     // Potential = total_amount of ALL registrations in period
     const potentialRevenue = campRegistrations.reduce((sum, r) => sum + r.total_amount, 0);
@@ -817,22 +1243,47 @@ export const financialReportService = {
       linkedPayments.filter(p => p.registration_id).map(p => p.registration_id as string)
     );
     const paymentRevenue = linkedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+    // Paid regs whose payment isn't in the payments table: bucket by BILLING EVENT date
+    // (matches P&L). Previously this used no date filter at all → over-counted.
     const paidRegRevenue = campRegistrations
-      .filter(r => (r as any).payment_status === 'paid' && !paymentLinkedRegIds.has(r.id!))
+      .filter(r => {
+        if ((r as any).payment_status !== 'paid') return false;
+        if (paymentLinkedRegIds.has(r.id!)) return false;
+        const billDate = billingEventDate(r);
+        return billDate ? isWithinInterval(billDate, { start: dateRange.startDate, end: dateRange.endDate }) : false;
+      })
       .reduce((sum, r) => sum + Number(r.total_amount || 0), 0);
     const actualRevenue = paymentRevenue + paidRegRevenue;
 
-    // Outstanding = attended-but-unpaid from accounts_action_items (Dashboard source of truth)
+    // Outstanding = attended-but-unpaid from accounts_action_items.
+    // CRITICAL: restrict to the registrations matching the selected activity label
+    // (exact, e.g. "Mid-Term Camp (May/June)"). Previously this summed every
+    // pending action item across the org, ignoring the activity filter.
     let outstanding = 0;
     if (isSupabaseAvailable() && supabase) {
-      const { data: collections } = await supabase
-        .from('accounts_action_items' as any)
-        .select('amount_due, amount_paid')
-        .eq('status', 'pending');
-      outstanding = ((collections || []) as any[]).reduce(
-        (sum: number, c: any) => sum + (Number(c.amount_due || 0) - Number(c.amount_paid || 0)),
-        0
-      );
+      const hasFilter = !!(activities && activities.length > 0);
+      const filteredRegIds = campRegistrations.map(r => r.id).filter(Boolean) as string[];
+
+      if (hasFilter && filteredRegIds.length === 0) {
+        outstanding = 0;
+      } else {
+        let query: any = supabase
+          .from('accounts_action_items' as any)
+          .select('amount_due, amount_paid, registration_id')
+          .eq('status', 'pending');
+        if (hasFilter) {
+          query = query.in('registration_id', filteredRegIds);
+        }
+        const { data: collections } = await query;
+        // Exclude rows whose source registration was deleted/cancelled.
+        outstanding = ((collections || []) as any[])
+          .filter((c: any) => !c.registration_id || activeRegIds.has(c.registration_id))
+          .reduce(
+            (sum: number, c: any) =>
+              sum + Math.max(0, Number(c.amount_due || 0) - Number(c.amount_paid || 0)),
+            0
+          );
+      }
     }
 
     const collectionRate = potentialRevenue > 0 ? (actualRevenue / potentialRevenue) * 100 : 0;
@@ -842,6 +1293,7 @@ export const financialReportService = {
 
   // Generate Revenue Report — detailed breakdown of all revenue sources
   async generateRevenueReport(dateRange: DateRange, activities?: string[]): Promise<RevenueReportData> {
+    dateRange = normalizeDateRange(dateRange);
     const { payments, campRegistrations } = await this.fetchFinancialData(dateRange, activities);
 
     const inRange = (d: Date) => isWithinInterval(d, { start: dateRange.startDate, end: dateRange.endDate });
@@ -959,6 +1411,7 @@ export const financialReportService = {
 
   // Generate Expense Report — detailed breakdown of all expenses
   async generateExpenseReport(dateRange: DateRange, activities?: string[]): Promise<ExpenseReportData> {
+    dateRange = normalizeDateRange(dateRange);
     const { expenses } = await this.fetchFinancialData(dateRange, activities);
     const inRange = (d: Date) => isWithinInterval(d, { start: dateRange.startDate, end: dateRange.endDate });
 
@@ -1174,7 +1627,7 @@ export const financialReportService = {
     doc.text(`Generated: ${format(new Date(), 'dd MMM yyyy HH:mm')}`, 14, 28);
 
     autoTable(doc, {
-      head: [['Date', 'Invoices', 'Inv. Amt', 'Payments', 'Pmt Amt', 'Camp Regs', 'Camp Rev', 'Total Rev']],
+      head: [['Date', 'Inv. Raised', 'Billed', 'Payments', 'Collected', 'New Regs', 'Camp Coll.', 'Total Billed', 'Total Coll.']],
       body: data.map(day => [
         day.date,
         day.invoicesCreated.toString(),
@@ -1183,7 +1636,8 @@ export const financialReportService = {
         day.paymentsAmount.toLocaleString(),
         day.campRegistrations.toString(),
         day.campRevenue.toLocaleString(),
-        day.totalRevenue.toLocaleString(),
+        day.billedAmount.toLocaleString(),
+        day.collectedAmount.toLocaleString(),
       ]),
       startY: 35,
       styles: { fontSize: 8 },

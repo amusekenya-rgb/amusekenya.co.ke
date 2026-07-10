@@ -18,8 +18,8 @@ interface SEOHeadProps {
 const DOMAIN = 'https://amusekenya.co.ke';
 
 const SEOHead: React.FC<SEOHeadProps> = ({
-  title = "Amuse Kenya | Kids Outdoor Camps & Holiday Programs in Nairobi",
-  description = "Forest adventures and outdoor education for children aged 3-17 at Karura Forest, Nairobi. Daily activities, holiday camps, birthday parties, school programs and team building. Book now!",
+  title = "Amuse Kenya | Kids Camps & Programs in Nairobi",
+  description = "Forest adventures for kids aged 3-17 at Karura Forest, Nairobi. Camps, parties, school programs & team building. Book your outdoor experience!",
   keywords = "kids camps Nairobi, outdoor activities for children Kenya, holiday camps Karura Forest, birthday parties Nairobi, school programs Kenya, team building kids, nature education, forest adventures",
   canonical = `${DOMAIN}/`,
   ogTitle,

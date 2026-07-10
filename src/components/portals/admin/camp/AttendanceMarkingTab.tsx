@@ -7,6 +7,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Search, CheckCircle, XCircle, Clock, QrCode, Calendar, Users, CalendarDays, Mail, Download, FileText } from 'lucide-react';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { attendanceService } from '@/services/attendanceService';
@@ -36,28 +46,37 @@ export const AttendanceMarkingTab: React.FC = () => {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [sendEmailNotifications, setSendEmailNotifications] = useState(false);
+  const [confirmCheckoutOpen, setConfirmCheckoutOpen] = useState(false);
+  const [pendingCheckout, setPendingCheckout] = useState<{ attendanceId: string; childName: string; registrationId: string } | null>(null);
 
-  // Batch load attendance for all registrations on a date - eliminates N+1 queries
+  // Batch load attendance for all registrations on a date - eliminates N+1 queries.
+  // Chunk the .in(...) lookup so that very large registration lists don't blow
+  // URL/query limits or fail intermittently under concurrent staff usage.
   const loadAttendanceBatch = useCallback(async (regs: CampRegistration[], date: string) => {
     if (regs.length === 0) return {};
 
     const regIds = regs.map(r => r.id).filter(Boolean) as string[];
-    
-    const { data, error } = await supabase
-      .from('camp_attendance')
-      .select('*')
-      .in('registration_id', regIds)
-      .eq('attendance_date', date);
-
-    if (error) {
-      console.error('Error batch loading attendance:', error);
-      return {};
-    }
-
+    const CHUNK = 200;
     const statusMap: Record<string, any> = {};
-    for (const record of (data || [])) {
-      const key = `${record.registration_id}-${record.child_name}-${date}`;
-      statusMap[key] = record;
+
+    for (let i = 0; i < regIds.length; i += CHUNK) {
+      const slice = regIds.slice(i, i + CHUNK);
+      const { data, error } = await supabase
+        .from('camp_attendance')
+        .select('*')
+        .in('registration_id', slice)
+        .eq('attendance_date', date);
+
+      if (error) {
+        console.error('Error batch loading attendance (chunk', i, '):', error);
+        // Don't abort the whole batch — keep partial data
+        continue;
+      }
+
+      for (const record of (data || [])) {
+        const key = `${record.registration_id}-${record.child_name}-${date}`;
+        statusMap[key] = record;
+      }
     }
     return statusMap;
   }, []);
@@ -68,16 +87,34 @@ export const AttendanceMarkingTab: React.FC = () => {
       const filters: any = {};
       if (campTypeFilter !== 'all') filters.campType = campTypeFilter;
 
-      const allRegs = await campRegistrationService.getAllRegistrations(filters);
+      // Retry once on transient failure (network/concurrent load spikes)
+      let allRegs: CampRegistration[] = [];
+      let lastErr: any = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          allRegs = await campRegistrationService.getAllRegistrations(filters);
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+      if (lastErr) throw lastErr;
+
       const activeRegs = allRegs.filter(r => r.status === 'active');
       setRegistrations(activeRegs);
 
       // Batch load attendance instead of N+1 queries
       const statusMap = await loadAttendanceBatch(activeRegs, selectedDate);
       setAttendanceStatus(statusMap);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading registrations:', error);
-      toast.error('Failed to load registrations');
+      toast.error(
+        error?.message
+          ? `Failed to load registrations: ${error.message}`
+          : 'Failed to load registrations. Please refresh the page.'
+      );
     } finally {
       setLoading(false);
       setInitialLoaded(true);
@@ -150,6 +187,10 @@ export const AttendanceMarkingTab: React.FC = () => {
     const attendance = attendanceStatus[key];
     return attendance && !attendance.check_out_time;
   }).length;
+  const totalAbsent = allExpected.filter(item => {
+    const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
+    return !attendanceStatus[key];
+  }).length;
   const paidExpectedCount = allExpected.filter(e => e.registration.payment_status === 'paid').length;
   const unpaidExpectedCount = allExpected.filter(e => e.registration.payment_status !== 'paid').length;
 
@@ -184,7 +225,9 @@ export const AttendanceMarkingTab: React.FC = () => {
     }
   };
 
-  const handleCheckOut = async (attendanceId: string, childName: string, registrationId: string) => {
+  const handleCheckOut = async () => {
+    if (!pendingCheckout) return;
+    const { attendanceId, childName, registrationId } = pendingCheckout;
     try {
       const key = `${registrationId}-${childName}-${selectedDate}`;
       setAttendanceStatus(prev => ({
@@ -203,7 +246,15 @@ export const AttendanceMarkingTab: React.FC = () => {
       console.error('Error checking out:', error);
       toast.error('Failed to check out');
       loadRegistrations();
+    } finally {
+      setPendingCheckout(null);
+      setConfirmCheckoutOpen(false);
     }
+  };
+
+  const promptCheckOut = (attendanceId: string, childName: string, registrationId: string) => {
+    setPendingCheckout({ attendanceId, childName, registrationId });
+    setConfirmCheckoutOpen(true);
   };
 
   const handleQRScan = async (qrCodeData: string) => {
@@ -265,13 +316,14 @@ export const AttendanceMarkingTab: React.FC = () => {
       toast.error('No data to export');
       return;
     }
-    const headers = ['Reg #', 'Parent Name', 'Phone', 'Child Name', 'Age', 'Session', 'Payment', 'Status', 'Check-In Time', 'Check-Out Time'];
+    const headers = ['Reg #', 'Camp Type', 'Parent Name', 'Phone', 'Child Name', 'Age', 'Session', 'Payment', 'Status', 'Check-In Time', 'Check-Out Time'];
     const rows = items.map(item => {
       const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
       const att = attendanceStatus[key];
       const status = att?.check_out_time ? 'Checked Out' : att ? 'Present' : 'Not Arrived';
       return [
         item.registration.registration_number || '',
+        item.registration.camp_type || '',
         item.registration.parent_name,
         item.registration.phone ? item.registration.phone.slice(0, 4) + '****' + item.registration.phone.slice(-2) : '-',
         item.child.childName,
@@ -309,7 +361,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       doc.setFontSize(16);
       doc.text(`Attendance - ${format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}`, 14, 20);
       doc.setFontSize(10);
-      doc.text(`Expected: ${totalExpected} | Present: ${totalPresent} | Paid: ${paidExpectedCount} | Unpaid: ${unpaidExpectedCount}`, 14, 28);
+      doc.text(`Expected: ${totalExpected} | Present: ${totalPresent} | Absent: ${totalAbsent} | Paid: ${paidExpectedCount} | Unpaid: ${unpaidExpectedCount}`, 14, 28);
 
       const tableData = items.map(item => {
         const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
@@ -317,6 +369,7 @@ export const AttendanceMarkingTab: React.FC = () => {
         const status = att?.check_out_time ? 'Checked Out' : att ? 'Present' : 'Not Arrived';
         return [
           item.registration.registration_number || '',
+          item.registration.camp_type || '',
           item.registration.parent_name,
           item.registration.phone ? item.registration.phone.slice(0, 4) + '****' + item.registration.phone.slice(-2) : '-',
           item.child.childName,
@@ -330,7 +383,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       });
 
       autoTable(doc, {
-        head: [['Reg #', 'Parent', 'Phone', 'Child', 'Age', 'Session', 'Payment', 'Status', 'In', 'Out']],
+        head: [['Reg #', 'Camp', 'Parent', 'Phone', 'Child', 'Age', 'Session', 'Payment', 'Status', 'In', 'Out']],
         body: tableData,
         startY: 34,
         styles: { fontSize: 8 },
@@ -343,7 +396,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       console.error('PDF export error:', error);
       toast.error('Failed to generate PDF');
     }
-  }, [filteredExpectedChildren, attendanceStatus, selectedDate, totalExpected, totalPresent, paidExpectedCount, unpaidExpectedCount]);
+  }, [filteredExpectedChildren, attendanceStatus, selectedDate, totalExpected, totalPresent, totalAbsent, paidExpectedCount, unpaidExpectedCount]);
 
   const formatChildDates = (child: CampChild): string => {
     const dates = child.selectedDates || [];
@@ -367,6 +420,11 @@ export const AttendanceMarkingTab: React.FC = () => {
               {title}
             </span>
             <div className="flex items-center gap-2">
+              {!isPaid && (
+                <Badge variant="outline" className="border-amber-500 text-amber-700" title="Check-in converts a quotation into an invoice">
+                  Check-in raises invoice
+                </Badge>
+              )}
               <Badge variant="outline">{presentCount}/{items.length} Present</Badge>
               <Badge variant={isPaid ? 'default' : 'secondary'}>{items.length} Expected</Badge>
             </div>
@@ -409,7 +467,28 @@ export const AttendanceMarkingTab: React.FC = () => {
                           <div className="text-xs text-muted-foreground">{item.registration.phone ? item.registration.phone.slice(0, 4) + '****' + item.registration.phone.slice(-2) : '-'}</div>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">{item.child.childName}</TableCell>
+                      <TableCell className="font-medium">
+                        <div>{item.child.childName}</div>
+                        {(() => {
+                          const siblings = (item.registration.children || []).filter(
+                            c => c.childName !== item.child.childName
+                          );
+                          const otherToday = siblings.filter(c => (c.selectedDates || []).includes(selectedDate));
+                          const otherOtherDays = siblings.filter(c => !(c.selectedDates || []).includes(selectedDate));
+                          if (siblings.length === 0) return null;
+                          const parts: string[] = [];
+                          if (otherToday.length) parts.push(`${otherToday.length} sibling${otherToday.length > 1 ? 's' : ''} today`);
+                          if (otherOtherDays.length) {
+                            const names = otherOtherDays.map(c => c.childName).join(', ');
+                            parts.push(`${otherOtherDays.length} on other date(s): ${names}`);
+                          }
+                          return (
+                            <div className="text-[10px] text-muted-foreground mt-0.5" title={siblings.map(s => `${s.childName}: ${(s.selectedDates || []).join(', ')}`).join('\n')}>
+                              {parts.join(' · ')}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>{item.child.ageRange}</TableCell>
                       <TableCell>
                         <Badge variant={item.session === 'full' ? 'default' : 'outline'}>
@@ -428,19 +507,32 @@ export const AttendanceMarkingTab: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {checkedOut ? (
-                          <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                            <CheckCircle className="h-3 w-3" /> Checked Out
-                          </Badge>
-                        ) : checkedIn ? (
-                          <Badge variant="default" className="flex items-center gap-1 w-fit">
-                            <Clock className="h-3 w-3" /> Present
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                            <XCircle className="h-3 w-3" /> Not Arrived
-                          </Badge>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          {checkedOut ? (
+                            <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                              <CheckCircle className="h-3 w-3" /> Checked Out
+                            </Badge>
+                          ) : checkedIn ? (
+                            <Badge variant="default" className="flex items-center gap-1 w-fit">
+                              <Clock className="h-3 w-3" /> Present
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                              <XCircle className="h-3 w-3" /> Not Arrived
+                            </Badge>
+                          )}
+                          {item.registration.payment_status !== 'paid' && (
+                            checkedIn ? (
+                              <Badge className="bg-amber-500 hover:bg-amber-600 text-white w-fit text-[10px]" title="Attended unpaid — invoice raised">
+                                INVOICE
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="w-fit text-[10px]" title="Registered but not paid — quotation">
+                                QUOTE
+                              </Badge>
+                            )
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm">
                         {attendance && (
@@ -458,7 +550,7 @@ export const AttendanceMarkingTab: React.FC = () => {
                             Check In
                           </Button>
                         ) : !checkedOut ? (
-                          <Button size="sm" variant="outline" onClick={() => handleCheckOut(attendance.id, item.child.childName, item.registration.id!)}>
+                          <Button size="sm" variant="outline" onClick={() => promptCheckOut(attendance.id, item.child.childName, item.registration.id!)}>
                             Check Out
                           </Button>
                         ) : (
@@ -479,7 +571,7 @@ export const AttendanceMarkingTab: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header with stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-3xl font-bold text-primary">{totalExpected}</div>
@@ -490,6 +582,12 @@ export const AttendanceMarkingTab: React.FC = () => {
           <CardContent className="pt-6">
             <div className="text-3xl font-bold text-green-600">{totalPresent}</div>
             <div className="text-sm text-muted-foreground">Present Now</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-orange-600">{totalAbsent}</div>
+            <div className="text-sm text-muted-foreground">Absent Today</div>
           </CardContent>
         </Card>
         <Card>
@@ -584,6 +682,21 @@ export const AttendanceMarkingTab: React.FC = () => {
       </Card>
 
       <QRScannerDialog open={scannerOpen} onClose={() => setScannerOpen(false)} onScanSuccess={handleQRScan} />
+
+      <AlertDialog open={confirmCheckoutOpen} onOpenChange={setConfirmCheckoutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Check-Out</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to check out <strong>{pendingCheckout?.childName}</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setPendingCheckout(null); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCheckOut}>Check Out</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {loading ? (
         <div className="text-center py-8 text-muted-foreground">Loading attendance data...</div>

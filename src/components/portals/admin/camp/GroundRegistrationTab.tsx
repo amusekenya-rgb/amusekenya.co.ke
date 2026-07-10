@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,8 +43,12 @@ const groundRegistrationSchema = z.object({
   campType: z.string().min(1, 'Please select a camp type'),
   children: z.array(childSchema).min(1, 'Add at least one child'),
   amountPaid: z.number().min(0, 'Amount must be positive'),
+  paymentMethod: z.enum(['cash_ground', 'mpesa', 'card', 'bank_transfer']).default('cash_ground'),
   paymentNotes: z.string().max(500, 'Notes too long').optional()
-});
+}).refine(
+  (data) => data.amountPaid === 0 || !!data.paymentMethod,
+  { message: 'Select a payment method when recording a payment', path: ['paymentMethod'] }
+);
 
 type GroundRegistrationForm = z.infer<typeof groundRegistrationSchema>;
 
@@ -67,7 +71,8 @@ const SESSIONS_KARURA = [
 ];
 
 const SESSIONS_NGONG = [
-  { value: 'full', label: 'Full Day (9 AM-1 PM)', price: 2000 },
+  { value: 'full', label: 'Full Day (9 AM-3 PM)', price: 2500 },
+  { value: 'half', label: 'Half Day (9 AM-1 PM)', price: 1500 },
   { value: 'archery', label: 'Archery Only (45 mins)', price: 1000 }
 ];
 
@@ -110,7 +115,8 @@ export const GroundRegistrationTab: React.FC = () => {
         selectedSessions: [],
         price: 0
       }],
-      amountPaid: 0
+      amountPaid: 0,
+      paymentMethod: 'cash_ground'
     }
   });
 
@@ -147,16 +153,16 @@ export const GroundRegistrationTab: React.FC = () => {
       return total;
     }
 
-    // Single date: use selected sessions as before
-    const datesCount = 1;
-    const sessionPrices = child.selectedSessions?.map(s =>
-      sessions.find(session => session.value === s)?.price || 0
-    ) || [];
-    const avgSessionPrice = sessionPrices.length > 0
-      ? sessionPrices.reduce((a, b) => a + b, 0) / sessionPrices.length
-      : 0;
+    // Single date: price = first VALID selected session (matches what onSubmit persists at [0]).
+    // Filter out stale values that don't belong to the current sessions catalog
+    // (prevents 0-priced ghosts like 'half' on Little Explorers from being averaged in).
+    const validSelections = (child.selectedSessions || []).filter(s =>
+      sessions.some(session => session.value === s)
+    );
+    const firstValid = validSelections[0] ?? sessions[0]?.value;
+    const sessionPrice = sessions.find(session => session.value === firstValid)?.price || 0;
 
-    return datesCount * avgSessionPrice;
+    return sessionPrice;
   };
 
   const calculateTotalAmount = () => {
@@ -177,10 +183,10 @@ export const GroundRegistrationTab: React.FC = () => {
   };
 
   const toggleSession = (childIndex: number, session: string) => {
+    // Single-select: clicking a session replaces the selection. onSubmit only persists
+    // selectedSessions[0], so keeping a single value here prevents stale/ambiguous state.
     const currentSessions = children[childIndex].selectedSessions || [];
-    const newSessions = currentSessions.includes(session)
-      ? currentSessions.filter(s => s !== session)
-      : [...currentSessions, session];
+    const newSessions = currentSessions[0] === session ? [] : [session];
     setValue(`children.${childIndex}.selectedSessions`, newSessions);
     updateChildPrice(childIndex);
   };
@@ -189,6 +195,20 @@ export const GroundRegistrationTab: React.FC = () => {
     const price = calculateChildPrice(childIndex);
     setValue(`children.${childIndex}.price`, price);
   };
+
+  // When camp type or location changes, drop any session selections that no longer
+  // belong to the active catalog (e.g. 'half' lingering after switching to Little Explorers).
+  useEffect(() => {
+    const validValues = getSessionsForLocation().map(s => s.value);
+    (children || []).forEach((child, idx) => {
+      const filtered = (child?.selectedSessions || []).filter(s => validValues.includes(s));
+      if (filtered.length !== (child?.selectedSessions || []).length) {
+        setValue(`children.${idx}.selectedSessions`, filtered);
+      }
+      updateChildPrice(idx);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campType, selectedLocation]);
 
   // Client lookup
   const handleClientLookup = async () => {
@@ -317,8 +337,8 @@ export const GroundRegistrationTab: React.FC = () => {
         }),
         total_amount: totalAmount,
         payment_status: paymentStatus,
-        payment_method: 'cash_ground',
-        payment_reference: `GROUND-${Date.now()}`,
+        payment_method: data.paymentMethod,
+        payment_reference: `${data.paymentMethod.toUpperCase()}-${Date.now()}`,
         registration_type: 'ground_registration',
         qr_code_data: JSON.stringify({
           type: 'camp_registration',
@@ -347,8 +367,8 @@ export const GroundRegistrationTab: React.FC = () => {
               customerName: data.parentName,
               programName: `${data.campType} (Ground)`,
               amount: amountPaid,
-              paymentMethod: 'cash_ground',
-              paymentReference: `GROUND-${Date.now()}`,
+              paymentMethod: data.paymentMethod,
+              paymentReference: `${data.paymentMethod.toUpperCase()}-${Date.now()}`,
               notes: `Ground registration. Paid: KES ${amountPaid}/${totalAmount}`,
               createdBy: user?.id
             });
@@ -428,7 +448,7 @@ export const GroundRegistrationTab: React.FC = () => {
                 },
                 invoiceDetails: {
                   totalAmount,
-                  paymentMethod: 'cash_ground',
+                  paymentMethod: data.paymentMethod,
                 },
               },
             });
@@ -784,7 +804,7 @@ export const GroundRegistrationTab: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="amountPaid">Amount Paid (Cash) *</Label>
+                  <Label htmlFor="amountPaid">Amount Paid *</Label>
                   <Input
                     id="amountPaid"
                     type="number"
@@ -794,8 +814,26 @@ export const GroundRegistrationTab: React.FC = () => {
                   {errors.amountPaid && <p className="text-sm text-destructive mt-1">{errors.amountPaid.message}</p>}
                 </div>
                 <div>
+                  <Label htmlFor="paymentMethod">Payment Method *</Label>
+                  <Select
+                    value={watch('paymentMethod') || 'cash_ground'}
+                    onValueChange={(v) => setValue('paymentMethod', v as any, { shouldValidate: true })}
+                  >
+                    <SelectTrigger id="paymentMethod">
+                      <SelectValue placeholder="Select method..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash_ground">Cash (at gate)</SelectItem>
+                      <SelectItem value="mpesa">M-Pesa (Paybill / Till)</SelectItem>
+                      <SelectItem value="card">Card (Paystack / POS)</SelectItem>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.paymentMethod && <p className="text-sm text-destructive mt-1">{(errors.paymentMethod as any).message}</p>}
+                </div>
+                <div className="md:col-span-2">
                   <Label htmlFor="paymentNotes">Payment Notes</Label>
-                  <Textarea id="paymentNotes" {...register('paymentNotes')} placeholder="Any additional payment notes" rows={2} />
+                  <Textarea id="paymentNotes" {...register('paymentNotes')} placeholder="Any additional payment notes (e.g. M-Pesa transaction code)" rows={2} />
                 </div>
               </div>
 

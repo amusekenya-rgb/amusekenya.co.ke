@@ -17,6 +17,7 @@ import { RefundPolicyDialog } from './RefundPolicyDialog';
 import { ParticipationConsentDialog } from './ParticipationConsentDialog';
 import { differenceInYears } from 'date-fns';
 import { useCampFormConfig } from '@/hooks/useCampFormConfig';
+import { useCampDatesForLocation } from '@/hooks/useCampDatesForLocation';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { qrCodeService } from '@/services/qrCodeService';
 import { QRCodeDownloadModal } from '@/components/camp/QRCodeDownloadModal';
@@ -25,11 +26,12 @@ import { leadsService } from '@/services/leadsService';
 import { DateSelector } from './DateSelector';
 import { invoiceService } from '@/services/invoiceService';
 import { performSecurityChecks, recordSubmission } from '@/services/formSecurityService';
-import { discountService } from '@/services/discountService';
+import { discountService, DiscountApplication } from '@/services/discountService';
 import { LocationSelector } from './LocationSelector';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { ActivityTypeSelector } from './ActivityTypeSelector';
 import AutoFilledBadge from '@/components/ui/AutoFilledBadge';
+import { scrollToFirstError } from '@/utils/scrollToError';
 
 const childSchema = z.object({
   childName: z.string().min(1, 'Child name is required').max(100),
@@ -73,6 +75,11 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
   // (e.g., 'mid-term-february' only gets mid-term-feb dates, not all mid-term dates)
   const { config, isLoading } = useCampFormConfig(campType);
   const [selectedLocation, setSelectedLocation] = useState('');
+  const { dates: locationScopedDates } = useCampDatesForLocation(
+    campType,
+    selectedLocation,
+    config?.availableDates
+  );
   const [showBenefitsDialog, setShowBenefitsDialog] = useState(false);
   
   // Client auth for auto-fill
@@ -93,10 +100,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
     if (activityType === 'archery') {
       return selectedDates.length * (config.archeryRate || 1000);
     }
-    // Ngong Sanctuary uses flat day rate (no half/full day)
-    if (location === 'Ngong Sanctuary') {
-      return selectedDates.length * (config.pricing.ngongDayRate || 2000);
-    }
+    // Ngong Sanctuary now mirrors Karura's Half/Full Day pricing
     return selectedDates.reduce((sum, date) => {
       const sessionType = sessionTypes[date] || 'full';
       return sum + (sessionType === 'half' ? config.pricing.halfDayRate : config.pricing.fullDayRate);
@@ -148,9 +152,15 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
 
   // Track which fields were auto-filled
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
+  // Guard: only auto-fill ONCE per mount. Without this, any later refresh of the
+  // client profile (e.g. after the parent ticks the participation consent box,
+  // which calls refreshProfile()) would re-run this effect and wipe out dates
+  // the parent had already picked for earlier children.
+  const autoFilledOnceRef = React.useRef(false);
 
   // Auto-fill from client profile (Google sign-in)
   useEffect(() => {
+    if (autoFilledOnceRef.current) return;
     if (isSignedIn && clientProfile) {
       const filled = new Set<string>();
       if (clientProfile.full_name) { setValue('parentName', clientProfile.full_name); filled.add('parentName'); }
@@ -181,6 +191,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         }
       }
       if (filled.size > 0) setAutoFilledFields(filled);
+      autoFilledOnceRef.current = true;
     }
   }, [isSignedIn, clientProfile, setValue]);
 
@@ -219,9 +230,44 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [registrationType, setRegistrationType] = useState<'online_only' | 'online_paid'>('online_only');
   const [submitType, setSubmitType] = useState<'register' | 'pay'>('register');
+  // Ref mirrors the latest submit action so onSubmit reads it synchronously,
+  // even if React batches the setSubmitType update.
+  const submitActionRef = React.useRef<'register' | 'pay'>('register');
+  const [previewDiscount, setPreviewDiscount] = useState<DiscountApplication | null>(null);
+
+  const watchedEmail = watch('email');
+  const watchedPhone = watch('phone');
+  const subtotal = watchedChildren.reduce((sum, child) => sum + (child.totalPrice || 0), 0);
+  const numChildren = watchedChildren.length;
+
+  // Live preview of any pre-issued discount for this client
+  useEffect(() => {
+    const email = (watchedEmail || '').trim();
+    const phone = (watchedPhone || '').trim();
+    if ((!email && !phone) || subtotal <= 0) {
+      setPreviewDiscount(null);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      try {
+        const result = await discountService.findApplicable({
+          email,
+          phone,
+          campType: campType as string,
+          totalBeforeDiscount: subtotal,
+          numChildren,
+        });
+        setPreviewDiscount(result);
+      } catch {
+        setPreviewDiscount(null);
+      }
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [watchedEmail, watchedPhone, campType, subtotal, numChildren]);
 
   const onSubmit = async (data: HolidayCampFormData) => {
-    const buttonType = submitType;
+    // Read from ref first; falls back to state if ref is unset.
+    const buttonType = submitActionRef.current || submitType;
     if (!config) return;
     
     const securityCheck = await performSecurityChecks(data, 'holiday-camp');
@@ -243,6 +289,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
           campType: campType as string,
           totalBeforeDiscount: subtotalAmount,
           numChildren: data.children.length,
+          audit: true,
         });
         if (appliedDiscount) {
           totalAmount = appliedDiscount.finalTotal;
@@ -307,9 +354,9 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         full_name: data.parentName,
         email: data.email,
         phone: data.phone,
-        program_type: 'holiday-camp',
+        program_type: campType, // seasonal slug: 'summer' | 'easter' | 'end-year' | 'mid-term-*'
         program_name: campTitle,
-        form_data: data,
+        form_data: { ...data, campType, season: campType },
         source: 'website_registration'
       });
 
@@ -401,7 +448,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
       supabase.functions.invoke('send-confirmation-email', {
         body: {
           email: data.email,
-          programType: 'holiday-camp',
+          programType: campType,
           registrationDetails: {
             parentName: data.parentName,
             campTitle: campTitle,
@@ -487,7 +534,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit, scrollToFirstError)} className="space-y-6">
         <div>
           <Label htmlFor="parentName" className="text-base font-medium">{config.fields.parentName.label} *{autoFilledFields.has('parentName') && <AutoFilledBadge />}</Label>
           <Input id="parentName" {...register('parentName')} className="mt-2" placeholder={config.fields.parentName.placeholder} />
@@ -499,7 +546,14 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
           <LocationSelector
             locations={config.locations}
             value={selectedLocation}
-            onChange={setSelectedLocation}
+            onChange={(loc) => {
+              setSelectedLocation(loc);
+              // Clear any dates already picked — they may not belong to the new location
+              watchedChildren.forEach((_, index) => {
+                setValue(`children.${index}.selectedDates`, [], { shouldValidate: false });
+                setValue(`children.${index}.sessionTypes`, {}, { shouldValidate: false });
+              });
+            }}
           />
         )}
 
@@ -606,26 +660,29 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
                 )}
 
                 {/* Date & Session selection — hide session picker for archery */}
-                {watchedChildren[index]?.activityType !== 'archery' ? (
+                {locationScopedDates.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 p-4 text-sm text-muted-foreground">
+                    {selectedLocation
+                      ? `${selectedLocation} dates for ${campTitle} are not yet published. Please check back soon or pick another location.`
+                      : `No upcoming dates for ${campTitle} have been published yet.`}
+                  </div>
+                ) : watchedChildren[index]?.activityType !== 'archery' ? (
                   <DateSelector
-                    availableDates={config.availableDates || []}
+                    availableDates={locationScopedDates}
                     selectedDates={watchedChildren[index]?.selectedDates || []}
-                    sessionTypes={isNgongSanctuary ? {} : (watchedChildren[index]?.sessionTypes || {})}
+                    sessionTypes={watchedChildren[index]?.sessionTypes || {}}
                     onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
                     onSessionTypeChange={(date, type) => {
-                      if (!isNgongSanctuary) {
-                        const currentTypes = watchedChildren[index]?.sessionTypes || {};
-                        setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
-                      }
+                      const currentTypes = watchedChildren[index]?.sessionTypes || {};
+                      setValue(`children.${index}.sessionTypes`, { ...currentTypes, [date]: type }, { shouldValidate: true });
                     }}
                     halfDayRate={config.pricing.halfDayRate}
                     fullDayRate={config.pricing.fullDayRate}
                     currency={config.pricing.currency}
-                    flatRate={isNgongSanctuary ? (config.pricing.ngongDayRate || 2000) : undefined}
                   />
                 ) : (
                   <DateSelector
-                    availableDates={config.availableDates || []}
+                    availableDates={locationScopedDates}
                     selectedDates={watchedChildren[index]?.selectedDates || []}
                     sessionTypes={{}}
                     onDatesChange={(dates) => setValue(`children.${index}.selectedDates`, dates, { shouldValidate: true })}
@@ -709,13 +766,42 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
 
         <RefundPolicyDialog />
 
-        <div className="bg-primary/10 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-base font-semibold">Total Amount:</span>
-            <span className="text-2xl font-bold text-primary">
-              {config.pricing.currency} {watchedChildren.reduce((sum, child) => sum + (child.totalPrice || 0), 0).toLocaleString()}
-            </span>
-          </div>
+        <div className="bg-primary/10 rounded-lg p-4 space-y-2">
+          {previewDiscount ? (
+            <>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal:</span>
+                <span className="font-medium">
+                  {config.pricing.currency} {previewDiscount.originalTotal.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-emerald-700 font-medium">
+                  Discount applied ({previewDiscount.description})
+                  {previewDiscount.discount.reason ? ` — ${previewDiscount.discount.reason}` : ''}:
+                </span>
+                <span className="font-medium text-emerald-700">
+                  − {config.pricing.currency} {previewDiscount.discountAmount.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-2">
+                <span className="text-base font-semibold">Total Amount:</span>
+                <span className="text-2xl font-bold text-primary">
+                  {config.pricing.currency} {previewDiscount.finalTotal.toLocaleString()}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A discount issued to this client has been automatically applied.
+              </p>
+            </>
+          ) : (
+            <div className="flex items-center justify-between">
+              <span className="text-base font-semibold">Total Amount:</span>
+              <span className="text-2xl font-bold text-primary">
+                {config.pricing.currency} {subtotal.toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
 
         <PaymentGatewayPlaceholder />
@@ -728,6 +814,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
             size="lg"
             disabled={isSubmitting}
             onClick={() => {
+              submitActionRef.current = 'register';
               setSubmitType('register');
               handleSubmit(onSubmit)();
             }}
@@ -740,6 +827,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
             size="lg"
             disabled={isSubmitting}
             onClick={() => {
+              submitActionRef.current = 'pay';
               setSubmitType('pay');
               handleSubmit(onSubmit)();
             }}

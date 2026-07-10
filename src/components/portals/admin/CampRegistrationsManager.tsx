@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ClipboardList, Users, UserPlus, BarChart3, CalendarCheck, History } from 'lucide-react';
+import { ClipboardList, Users, UserPlus, BarChart3, CalendarCheck, History, Receipt } from 'lucide-react';
 import { AllRegistrationsTab } from './camp/AllRegistrationsTab';
 import { AttendanceMarkingTab } from './camp/AttendanceMarkingTab';
 import { GroundRegistrationTab } from './camp/GroundRegistrationTab';
 import { CampReportsTab } from './camp/CampReportsTab';
 import { DailyOperationsView } from './camp/DailyOperationsView';
 import { AttendanceHistoryTab } from './camp/AttendanceHistoryTab';
+import { PaymentHistoryTab } from './camp/PaymentHistoryTab';
 import { CampTabId } from '@/services/coachAccessService';
 
 interface CampRegistrationsManagerProps {
@@ -20,6 +21,7 @@ const ALL_TABS = [
   { id: 'attendance' as CampTabId, label: 'Attendance', shortLabel: 'Mark', icon: Users },
   { id: 'history' as CampTabId, label: 'History', shortLabel: 'Hist', icon: History },
   { id: 'reports' as CampTabId, label: 'Reports', shortLabel: 'Reports', icon: BarChart3 },
+  { id: 'payments' as CampTabId, label: 'Payments', shortLabel: 'Pay', icon: Receipt },
 ];
 
 export const CampRegistrationsManager: React.FC<CampRegistrationsManagerProps> = ({ visibleTabs }) => {
@@ -40,7 +42,7 @@ export const CampRegistrationsManager: React.FC<CampRegistrationsManagerProps> =
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className={`grid w-full h-auto gap-1`} style={{ gridTemplateColumns: `repeat(${Math.min(tabs.length, 6)}, 1fr)` }}>
+        <TabsList className={`grid w-full h-auto gap-1`} style={{ gridTemplateColumns: `repeat(${Math.min(tabs.length, 7)}, 1fr)` }}>
           {tabs.map(tab => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 py-2">
               <tab.icon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -67,6 +69,9 @@ export const CampRegistrationsManager: React.FC<CampRegistrationsManagerProps> =
         </TabsContent>
         <TabsContent value="reports">
           <CampReportsTab />
+        </TabsContent>
+        <TabsContent value="payments">
+          <PaymentHistoryTab />
         </TabsContent>
       </Tabs>
     </div>

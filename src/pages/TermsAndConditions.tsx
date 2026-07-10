@@ -69,6 +69,7 @@ const TermsAndConditions = () => {
       <SEOHead 
         title="Terms and Conditions | Amuse Kenya"
         description="Terms and conditions for using Amuse Kenya services and website."
+        canonical="https://amusekenya.co.ke/terms-and-conditions"
       />
       <Navbar />
       <main className="min-h-screen bg-background pt-24 pb-16">

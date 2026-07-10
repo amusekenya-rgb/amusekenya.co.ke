@@ -20,6 +20,16 @@ import { RegistrationDetailsDialog } from './RegistrationDetailsDialog';
 import { exportService } from '@/services/exportService';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { registrationInDateWindow } from '@/utils/registrationDate';
+import { promptForPaymentMethod } from '@/utils/promptPaymentMethod';
+
+type DocType = 'quotation' | 'invoice' | 'paid';
+const deriveDocType = (reg: CampRegistration): DocType => {
+  if (reg.billing_doc_type) return reg.billing_doc_type;
+  if (reg.payment_status === 'paid') return 'paid';
+  return 'quotation';
+};
+
 
 export const AllRegistrationsTab: React.FC = () => {
   const [registrations, setRegistrations] = useState<CampRegistration[]>([]);
@@ -29,6 +39,7 @@ export const AllRegistrationsTab: React.FC = () => {
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [registrationTypeFilter, setRegistrationTypeFilter] = useState<string>('all');
   const [locationFilter, setLocationFilter] = useState<string>('all');
+  const [docTypeFilter, setDocTypeFilter] = useState<string>('all');
   const [selectedRegistration, setSelectedRegistration] = useState<CampRegistration | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   
@@ -49,29 +60,50 @@ export const AllRegistrationsTab: React.FC = () => {
       const filters: any = {};
       if (campTypeFilter !== 'all') filters.campType = campTypeFilter;
       if (paymentFilter !== 'all') filters.paymentStatus = paymentFilter;
-      if (dateFrom) filters.startDate = format(dateFrom, 'yyyy-MM-dd');
-      if (dateTo) filters.endDate = format(dateTo, 'yyyy-MM-dd');
+
+      // IMPORTANT: We always do the date filter client-side using
+      // `registrationInDateWindow` because the "event date" depends on doc type:
+      //   - quotations bucket by `children[*].selectedDates` (expected attendance day)
+      //   - invoices/paid bucket by `converted_to_invoice_at`
+      // This is what makes "today" on the All page match the Attendance page.
 
       let data = await campRegistrationService.getAllRegistrations(filters);
-      
+
       // Apply client-side filters
       if (registrationTypeFilter !== 'all') {
         data = data.filter(reg => reg.registration_type === registrationTypeFilter);
       }
-      
+
       if (locationFilter !== 'all') {
         data = data.filter(reg => (reg.location || 'Kurura Gate F') === locationFilter);
       }
-      
+
+      if (docTypeFilter !== 'all') {
+        data = data.filter(reg => deriveDocType(reg) === docTypeFilter);
+      }
+
+      if (dateFrom || dateTo) {
+        data = data.filter(reg => registrationInDateWindow(reg, dateFrom, dateTo));
+      }
+
       if (minAmount) {
         data = data.filter(reg => reg.total_amount >= parseFloat(minAmount));
       }
-      
+
       if (maxAmount) {
         data = data.filter(reg => reg.total_amount <= parseFloat(maxAmount));
       }
 
       setRegistrations(data);
+
+      // Keep the open details dialog in sync with the freshly-loaded list,
+      // so edits to children/sessions/totals show up immediately after save
+      // instead of displaying the stale prop captured when the dialog opened.
+      setSelectedRegistration((prev) => {
+        if (!prev?.id) return prev;
+        const refreshed = data.find((r) => r.id === prev.id);
+        return refreshed || prev;
+      });
     } catch (error) {
       console.error('Error loading registrations:', error);
       toast.error('Failed to load registrations');
@@ -82,7 +114,7 @@ export const AllRegistrationsTab: React.FC = () => {
 
   useEffect(() => {
     loadRegistrations();
-  }, [campTypeFilter, paymentFilter, registrationTypeFilter, locationFilter, dateFrom, dateTo]);
+  }, [campTypeFilter, paymentFilter, registrationTypeFilter, locationFilter, docTypeFilter, dateFrom, dateTo]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
@@ -115,6 +147,18 @@ export const AllRegistrationsTab: React.FC = () => {
     };
     return <Badge variant={variants[status] || 'default'}>{status.toUpperCase()}</Badge>;
   };
+
+  const getDocTypeBadge = (reg: CampRegistration) => {
+    const t = deriveDocType(reg);
+    if (t === 'paid') {
+      return <Badge className="bg-green-600 hover:bg-green-700 text-white" title="Fully paid">PAID</Badge>;
+    }
+    if (t === 'invoice') {
+      return <Badge className="bg-amber-500 hover:bg-amber-600 text-white" title="Attended but not paid — invoice issued">INVOICE</Badge>;
+    }
+    return <Badge variant="outline" title="Registered but not paid and not yet attended">QUOTATION</Badge>;
+  };
+
 
   // Bulk selection handlers
   const handleSelectAll = () => {
@@ -151,9 +195,16 @@ export const AllRegistrationsTab: React.FC = () => {
       return;
     }
 
+    let method: 'mpesa' | 'card' | 'cash_ground' | 'bank_transfer' | undefined;
+    if (status === 'paid') {
+      const picked = promptForPaymentMethod();
+      if (!picked) return; // cancelled or invalid
+      method = picked;
+    }
+
     try {
       for (const reg of selected) {
-        await campRegistrationService.updatePaymentStatus(reg.id!, status);
+        await campRegistrationService.updatePaymentStatus(reg.id!, status, method);
       }
       toast.success(`Updated ${selected.length} registration(s) to ${status}`);
       setSelectedIds(new Set());
@@ -254,6 +305,7 @@ export const AllRegistrationsTab: React.FC = () => {
     setPaymentFilter('all');
     setRegistrationTypeFilter('all');
     setLocationFilter('all');
+    setDocTypeFilter('all');
     setDateFrom(undefined);
     setDateTo(undefined);
     setMinAmount('');
@@ -261,8 +313,9 @@ export const AllRegistrationsTab: React.FC = () => {
     setSearchTerm('');
   };
 
-  const hasActiveFilters = campTypeFilter !== 'all' || paymentFilter !== 'all' || 
-    registrationTypeFilter !== 'all' || locationFilter !== 'all' || dateFrom || dateTo || minAmount || maxAmount || searchTerm;
+  const hasActiveFilters = campTypeFilter !== 'all' || paymentFilter !== 'all' ||
+    registrationTypeFilter !== 'all' || locationFilter !== 'all' || docTypeFilter !== 'all' ||
+    dateFrom || dateTo || minAmount || maxAmount || searchTerm;
 
   return (
     <>
@@ -314,9 +367,9 @@ export const AllRegistrationsTab: React.FC = () => {
                   <SelectItem value="easter">Easter</SelectItem>
                   <SelectItem value="summer">Summer</SelectItem>
                   <SelectItem value="end-year">End Year</SelectItem>
-                  <SelectItem value="mid-term-1">Mid Term 1</SelectItem>
-                  <SelectItem value="mid-term-2">Mid Term 2</SelectItem>
-                  <SelectItem value="mid-term-3">Mid Term 3</SelectItem>
+                  <SelectItem value="mid-term-feb-march">Mid-Term Camp (Feb/March)</SelectItem>
+                  <SelectItem value="mid-term-may-june">Mid-Term Camp (May/June)</SelectItem>
+                  <SelectItem value="mid-term-october">Mid-Term Camp (October)</SelectItem>
                   <SelectItem value="day-camps">Day Camps</SelectItem>
                   <SelectItem value="little-forest">Little Forest</SelectItem>
                 </SelectContent>
@@ -330,6 +383,17 @@ export const AllRegistrationsTab: React.FC = () => {
                   <SelectItem value="paid">Paid</SelectItem>
                   <SelectItem value="unpaid">Unpaid</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={docTypeFilter} onValueChange={setDocTypeFilter}>
+                <SelectTrigger className="w-full sm:w-[140px]">
+                  <SelectValue placeholder="Doc Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Documents</SelectItem>
+                  <SelectItem value="quotation">Quotation (no-show)</SelectItem>
+                  <SelectItem value="invoice">Invoice (attended unpaid)</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={locationFilter} onValueChange={setLocationFilter}>
@@ -502,6 +566,7 @@ export const AllRegistrationsTab: React.FC = () => {
                     <TableHead className="text-xs sm:text-sm">Kids</TableHead>
                     <TableHead className="text-xs sm:text-sm">Amount</TableHead>
                     <TableHead className="text-xs sm:text-sm">Status</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Doc Type</TableHead>
                     <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Type</TableHead>
                     <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Date</TableHead>
                     <TableHead>Actions</TableHead>
@@ -521,8 +586,16 @@ export const AllRegistrationsTab: React.FC = () => {
                       <TableCell className="capitalize text-xs sm:text-sm hidden md:table-cell">{reg.camp_type.replace('-', ' ')}</TableCell>
                       <TableCell className="text-xs sm:text-sm hidden lg:table-cell">{reg.location || 'Kurura Gate F'}</TableCell>
                       <TableCell className="text-xs sm:text-sm">{reg.children.length}</TableCell>
-                      <TableCell className="text-xs sm:text-sm">KES {reg.total_amount.toFixed(0)}</TableCell>
+                      <TableCell className="text-xs sm:text-sm">
+                        KES {Math.max(0, (reg.total_amount || 0) - (Number((reg as any).discount_amount) || 0)).toFixed(0)}
+                        {Number((reg as any).discount_amount) > 0 && (
+                          <span className="ml-1 text-[10px] text-muted-foreground line-through">
+                            {reg.total_amount.toFixed(0)}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{getPaymentBadge(reg.payment_status)}</TableCell>
+                      <TableCell>{getDocTypeBadge(reg)}</TableCell>
                       <TableCell className="capitalize text-xs hidden lg:table-cell">{reg.registration_type.replace('_', ' ')}</TableCell>
                       <TableCell className="text-xs sm:text-sm hidden sm:table-cell">
                         {new Date(reg.created_at!).toLocaleDateString()}

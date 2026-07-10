@@ -9,7 +9,7 @@ const Programs = () => {
     <>
       <SEOHead
         title="Our Programs | Amuse Kenya Forest Adventures"
-        description="Explore our range of programs including daily activities, holiday camps, homeschooling support, birthday parties, team building, and school experiences at Karura Forest."
+        description="Explore daily activities, holiday camps, homeschooling, parties, team building & school experiences at Karura Forest, Nairobi."
         keywords="programs, forest activities, outdoor programs Kenya, children programs, nature education, adventure programs, Karura Forest programs"
         canonical="https://amusekenya.co.ke/programs"
       />

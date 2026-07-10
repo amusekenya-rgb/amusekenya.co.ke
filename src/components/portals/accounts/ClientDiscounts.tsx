@@ -29,7 +29,9 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Mail, XCircle, BadgePercent, Loader2 } from 'lucide-react';
+import { Plus, Mail, XCircle, BadgePercent, Loader2, CheckCircle2, AlertTriangle, Clock, History } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import {
   discountService,
@@ -37,6 +39,8 @@ import {
   DiscountType,
   NewClientDiscount,
   describeDiscount,
+  validateDiscountDates,
+  DiscountAuditEntry,
 } from '@/services/discountService';
 
 const CAMP_TYPES: { value: string; label: string }[] = [
@@ -72,6 +76,31 @@ const ClientDiscounts: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'revoked'>('all');
+  const [view, setView] = useState<'discounts' | 'audit'>('discounts');
+  const [audit, setAudit] = useState<DiscountAuditEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  const formDateCheck = useMemo(
+    () => validateDiscountDates(form.valid_from || null, form.valid_to || null),
+    [form.valid_from, form.valid_to]
+  );
+
+  const loadAudit = async () => {
+    setAuditLoading(true);
+    try {
+      const list = await discountService.listAudit(300);
+      setAudit(list);
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to load audit trail');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (view === 'audit') loadAudit();
+  }, [view]);
 
   const load = async () => {
     setLoading(true);
@@ -108,6 +137,10 @@ const ClientDiscounts: React.FC = () => {
     }
     if (form.discount_type === 'percentage' && form.discount_value > 100) {
       toast.error('Percentage cannot exceed 100');
+      return;
+    }
+    if (formDateCheck.errors.length > 0) {
+      toast.error(formDateCheck.errors[0]);
       return;
     }
     setSaving(true);
@@ -300,6 +333,23 @@ const ClientDiscounts: React.FC = () => {
                 />
               </div>
 
+              {(formDateCheck.errors.length > 0 || formDateCheck.warnings.length > 0) && (
+                <div className="md:col-span-2 space-y-2">
+                  {formDateCheck.errors.map((e, i) => (
+                    <Alert key={`e-${i}`} variant="destructive">
+                      <AlertTriangle className="w-4 h-4" />
+                      <AlertDescription>{e}</AlertDescription>
+                    </Alert>
+                  ))}
+                  {formDateCheck.warnings.map((w, i) => (
+                    <Alert key={`w-${i}`} className="border-amber-300 bg-amber-50 text-amber-900">
+                      <Clock className="w-4 h-4" />
+                      <AlertDescription>{w}</AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              )}
+
               <div>
                 <Label>Min total (KES)</Label>
                 <Input
@@ -346,80 +396,225 @@ const ClientDiscounts: React.FC = () => {
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Redeemed</CardTitle></CardHeader><CardContent className="text-2xl font-bold text-blue-600">{stats.used}</CardContent></Card>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>All Discounts</CardTitle></CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-muted-foreground text-sm">Loading...</p>
-          ) : discounts.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No discounts yet. Click "New Discount" to issue one.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Discount</TableHead>
-                    <TableHead>Camp</TableHead>
-                    <TableHead>Validity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {discounts.map((d) => (
-                    <TableRow key={d.id}>
-                      <TableCell>
-                        <div className="font-medium">{d.client_name || '—'}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {d.client_email}{d.client_email && d.client_phone ? ' · ' : ''}{d.client_phone}
-                        </div>
-                      </TableCell>
-                      <TableCell>{describeDiscount(d)}</TableCell>
-                      <TableCell>{d.camp_type || 'Any'}</TableCell>
-                      <TableCell className="text-xs">
-                        {d.valid_from || '—'} → {d.valid_to || '—'}
-                      </TableCell>
-                      <TableCell>{statusBadge(d.status)}</TableCell>
-                      <TableCell className="text-xs">
-                        {d.email_sent ? (
-                          <span className="text-emerald-600">Sent</span>
-                        ) : (
-                          <span className="text-muted-foreground">Not sent</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={!d.client_email || sendingId === d.id || d.status !== 'active'}
-                          onClick={() => handleSendEmail(d)}
-                        >
-                          {sendingId === d.id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Mail className="w-3 h-3" />
-                          )}
-                        </Button>
-                        {d.status === 'active' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleRevoke(d)}
-                          >
-                            <XCircle className="w-3 h-3 text-rose-600" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs value={view} onValueChange={(v) => setView(v as any)}>
+        <TabsList>
+          <TabsTrigger value="discounts">Discounts</TabsTrigger>
+          <TabsTrigger value="audit" className="gap-1">
+            <History className="w-3.5 h-3.5" /> Audit Trail
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="discounts">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Discounts</CardTitle>
+              <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
+                <TabsList>
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  <TabsTrigger value="active">Active</TabsTrigger>
+                  <TabsTrigger value="used">Used</TabsTrigger>
+                  <TabsTrigger value="revoked">Revoked</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <p className="text-muted-foreground text-sm">Loading...</p>
+              ) : discounts.filter((d) => filter === 'all' || d.status === filter).length === 0 ? (
+                <p className="text-muted-foreground text-sm">No discounts to show.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Client</TableHead>
+                        <TableHead>Discount</TableHead>
+                        <TableHead>Camp</TableHead>
+                        <TableHead>Validity</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Used / History</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {discounts
+                        .filter((d) => filter === 'all' || d.status === filter)
+                        .map((d) => {
+                          const dateCheck = validateDiscountDates(d.valid_from, d.valid_to);
+                          const showWarn = d.status === 'active' && (dateCheck.errors.length > 0 || dateCheck.warnings.length > 0);
+                          return (
+                          <TableRow key={d.id}>
+                            <TableCell>
+                              <div className="font-medium">{d.client_name || '—'}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {d.client_email}{d.client_email && d.client_phone ? ' · ' : ''}{d.client_phone}
+                              </div>
+                            </TableCell>
+                            <TableCell>{describeDiscount(d)}</TableCell>
+                            <TableCell>{d.camp_type || 'Any'}</TableCell>
+                            <TableCell className="text-xs">
+                              <div>{d.valid_from || '—'} → {d.valid_to || '—'}</div>
+                              {showWarn && (
+                                <div className="mt-1 space-y-0.5">
+                                  {dateCheck.errors.map((e, i) => (
+                                    <div key={`re-${i}`} className="flex items-center gap-1 text-rose-700">
+                                      <AlertTriangle className="w-3 h-3" /> {e}
+                                    </div>
+                                  ))}
+                                  {dateCheck.warnings.map((w, i) => (
+                                    <div key={`rw-${i}`} className="flex items-center gap-1 text-amber-700">
+                                      <Clock className="w-3 h-3" /> {w}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>{statusBadge(d.status)}</TableCell>
+                            <TableCell className="text-xs">
+                              {d.used_at ? (
+                                <div className="flex items-start gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 mt-0.5" />
+                                  <div>
+                                    <div className="font-medium text-emerald-700">
+                                      {new Date(d.used_at).toLocaleDateString()}
+                                    </div>
+                                    {d.used_amount != null && (
+                                      <div className="text-muted-foreground">
+                                        Saved KES {Number(d.used_amount).toLocaleString()}
+                                      </div>
+                                    )}
+                                    {d.used_registration_id && (
+                                      <div className="text-muted-foreground truncate max-w-[140px]" title={d.used_registration_id}>
+                                        Reg: {d.used_registration_id.slice(0, 8)}…
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {d.email_sent ? (
+                                <span className="text-emerald-600">Sent</span>
+                              ) : (
+                                <span className="text-muted-foreground">Not sent</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right space-x-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!d.client_email || sendingId === d.id || d.status !== 'active'}
+                                onClick={() => handleSendEmail(d)}
+                              >
+                                {sendingId === d.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Mail className="w-3 h-3" />
+                                )}
+                              </Button>
+                              {d.status === 'active' && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleRevoke(d)}
+                                >
+                                  <XCircle className="w-3 h-3 text-rose-600" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="audit">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <History className="w-5 h-5 text-primary" />
+                Discount Audit Trail
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={loadAudit} disabled={auditLoading}>
+                {auditLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Refresh'}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                Append-only log of every discount preview, application, rejection, revocation
+                and notification. Used for compliance and dispute resolution.
+              </p>
+              {auditLoading ? (
+                <p className="text-muted-foreground text-sm">Loading...</p>
+              ) : audit.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No audit events yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>When</TableHead>
+                        <TableHead>Event</TableHead>
+                        <TableHead>Client</TableHead>
+                        <TableHead>Camp</TableHead>
+                        <TableHead>Amounts</TableHead>
+                        <TableHead>Reason / Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {audit.map((a) => {
+                        const color: Record<string, string> = {
+                          previewed: 'bg-sky-100 text-sky-800',
+                          applied: 'bg-emerald-100 text-emerald-800',
+                          rejected: 'bg-rose-100 text-rose-800',
+                          revoked: 'bg-rose-100 text-rose-800',
+                          created: 'bg-violet-100 text-violet-800',
+                          email_sent: 'bg-blue-100 text-blue-800',
+                        };
+                        return (
+                          <TableRow key={a.id}>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {new Date(a.created_at).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={color[a.event_type] || ''}>{a.event_type}</Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {a.client_email || a.client_phone || '—'}
+                            </TableCell>
+                            <TableCell className="text-xs">{a.camp_type || '—'}</TableCell>
+                            <TableCell className="text-xs">
+                              {a.total_before != null && <>Before: KES {Number(a.total_before).toLocaleString()}<br /></>}
+                              {a.discount_amount != null && <>Saved: KES {Number(a.discount_amount).toLocaleString()}<br /></>}
+                              {a.total_after != null && <>After: KES {Number(a.total_after).toLocaleString()}</>}
+                            </TableCell>
+                            <TableCell className="text-xs max-w-xs">
+                              {a.reason || '—'}
+                              {a.registration_id && (
+                                <div className="text-muted-foreground truncate" title={a.registration_id}>
+                                  Reg: {a.registration_id.slice(0, 8)}…
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

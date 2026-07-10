@@ -17,6 +17,72 @@ const toDb = (data: Partial<CampRegistration>): any => ({
   children: data.children ? (data.children as any) : undefined,
 });
 
+const isCompletedPayment = (payment: any) => {
+  const status = String(payment?.status || '').toLowerCase();
+  const source = String(payment?.source || '');
+  return source !== 'camp_registration_attempt' && (status === 'completed' || status === 'paid' || status === '');
+};
+
+const withResolvedPaymentStatuses = async (registrations: CampRegistration[]): Promise<CampRegistration[]> => {
+  const ids = registrations.map((reg) => reg.id).filter(Boolean) as string[];
+  if (!ids.length) return registrations;
+
+  const { data, error } = await (supabase as any)
+    .from('payments')
+    .select('registration_id, amount, status, source, payment_method, payment_reference, created_at')
+    .in('registration_id', ids)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error resolving registration payments:', error);
+    return registrations;
+  }
+
+  const totals = new Map<string, number>();
+  const latest = new Map<string, { method?: string; reference?: string }>();
+  (data || []).filter(isCompletedPayment).forEach((payment: any) => {
+    const registrationId = payment.registration_id;
+    if (!registrationId) return;
+    totals.set(registrationId, (totals.get(registrationId) || 0) + (Number(payment.amount) || 0));
+    if (!latest.has(registrationId)) {
+      latest.set(registrationId, {
+        method: payment.payment_method || undefined,
+        reference: payment.payment_reference || undefined,
+      });
+    }
+  });
+
+  return registrations.map((registration): CampRegistration => {
+    const paidAmount = totals.get(registration.id || '') || 0;
+    if (paidAmount <= 0) return registration;
+
+    const discount = Number((registration as any).discount_amount) || 0;
+    const netTotal = Math.max(0, (Number(registration.total_amount) || 0) - discount);
+    const payment = latest.get(registration.id || '');
+
+    if (paidAmount >= netTotal) {
+      return {
+        ...registration,
+        payment_status: 'paid' as const,
+        billing_doc_type: 'paid' as const,
+        payment_method: (payment?.method as CampRegistration['payment_method']) || registration.payment_method,
+        payment_reference: payment?.reference || registration.payment_reference,
+      };
+    }
+
+    if (registration.payment_status !== 'paid') {
+      return {
+        ...registration,
+        payment_status: 'partial' as const,
+        payment_method: (payment?.method as CampRegistration['payment_method']) || registration.payment_method,
+        payment_reference: payment?.reference || registration.payment_reference,
+      };
+    }
+
+    return registration;
+  });
+};
+
 export const campRegistrationService = {
   async createRegistration(
     data: Omit<CampRegistration, 'id' | 'registration_number' | 'created_at' | 'updated_at'>
@@ -48,11 +114,23 @@ export const campRegistrationService = {
     const time = Date.now().toString(36).toUpperCase();
     const registrationNumber = `${prefix}-${time}-${rand}`;
 
+    // Derive billing doc type + quote/invoice number from initial payment status.
+    // Unpaid/partial registrations begin life as a QUOTATION; paying converts it to an
+    // INVOICE (handled by DB trigger). Attendance also converts quote -> invoice.
+    const initialPaymentStatus = (data as any).payment_status as string | undefined;
+    const isPaid = initialPaymentStatus === 'paid';
+    const billingDocType: 'quotation' | 'invoice' | 'paid' = isPaid ? 'paid' : 'quotation';
+    const quoteNumber = `QUO-${time}-${rand}`;
+    const invoiceNumber = isPaid ? `INV-${time}-${rand}` : undefined;
+
     const insertData = {
       ...toDb(data),
       id: tempId,
       // Override/bypass DB auto-generation if it is misbehaving
       registration_number: registrationNumber,
+      billing_doc_type: billingDocType,
+      quote_number: quoteNumber,
+      ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
     };
 
     const { error } = await supabase.from('camp_registrations').insert(insertData);
@@ -66,6 +144,9 @@ export const campRegistrationService = {
       id: tempId,
       ...data,
       registration_number: registrationNumber,
+      billing_doc_type: billingDocType,
+      quote_number: quoteNumber,
+      invoice_number: invoiceNumber,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     } as CampRegistration;
@@ -79,7 +160,8 @@ export const campRegistrationService = {
       .single();
 
     if (error) throw error;
-    return fromDb(data);
+    const [registration] = await withResolvedPaymentStatuses([fromDb(data)]);
+    return registration;
   },
 
   async getRegistrationByQRCode(qrCode: string) {
@@ -90,7 +172,8 @@ export const campRegistrationService = {
       .single();
 
     if (error) throw error;
-    return fromDb(data);
+    const [registration] = await withResolvedPaymentStatuses([fromDb(data)]);
+    return registration;
   },
 
   async getRegistrationByNumber(registrationNumber: string) {
@@ -101,7 +184,8 @@ export const campRegistrationService = {
       .single();
 
     if (error) throw error;
-    return fromDb(data);
+    const [registration] = await withResolvedPaymentStatuses([fromDb(data)]);
+    return registration;
   },
 
   async getAllRegistrations(filters?: {
@@ -118,9 +202,6 @@ export const campRegistrationService = {
     if (filters?.campType) {
       query = query.eq('camp_type', filters.campType);
     }
-    if (filters?.paymentStatus) {
-      query = query.eq('payment_status', filters.paymentStatus);
-    }
     if (filters?.startDate) {
       query = query.gte('created_at', filters.startDate);
     }
@@ -131,7 +212,11 @@ export const campRegistrationService = {
     const { data, error } = await query;
 
     if (error) throw error;
-    return data.map(fromDb);
+    let registrations = await withResolvedPaymentStatuses(data.map(fromDb));
+    if (filters?.paymentStatus) {
+      registrations = registrations.filter((reg) => reg.payment_status === filters.paymentStatus);
+    }
+    return registrations;
   },
 
   async updateRegistration(id: string, updates: Partial<CampRegistration>) {
@@ -164,7 +249,7 @@ export const campRegistrationService = {
   async updatePaymentStatus(
     id: string,
     status: 'unpaid' | 'paid' | 'partial',
-    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground',
+    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground' | 'bank_transfer',
     reference?: string,
     options?: {
       createPaymentRecord?: boolean;
@@ -174,6 +259,12 @@ export const campRegistrationService = {
       createdBy?: string;
     }
   ) {
+    // Guard: a paid registration must record a real payment method.
+    // Reject 'pending' or missing method so the row never ends up as paid|pending.
+    if (status === 'paid' && (!method || method === 'pending')) {
+      throw new Error('Payment method is required when marking a registration as paid. Choose mpesa, card, cash_ground, or bank_transfer.');
+    }
+
     const updates: Partial<CampRegistration> = { payment_status: status };
     if (method) updates.payment_method = method;
     if (reference) updates.payment_reference = reference;
@@ -197,7 +288,6 @@ export const campRegistrationService = {
         });
       } catch (error) {
         console.error('Error creating unified payment record:', error);
-        // Don't throw - the registration update succeeded
       }
     }
 
@@ -210,7 +300,7 @@ export const campRegistrationService = {
   async getAmountPaidForRegistration(registrationId: string): Promise<number> {
     const { data, error } = await (supabase as any)
       .from('payments')
-      .select('amount')
+      .select('amount, status, source')
       .eq('registration_id', registrationId);
 
     if (error) {
@@ -218,7 +308,9 @@ export const campRegistrationService = {
       return 0;
     }
 
-    return (data || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+    return (data || [])
+      .filter(isCompletedPayment)
+      .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   },
 
   /**
@@ -228,28 +320,42 @@ export const campRegistrationService = {
     id: string,
     amountPaid: number,
     totalAmount: number,
-    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground',
+    method?: 'pending' | 'card' | 'mpesa' | 'cash_ground' | 'bank_transfer',
     reference?: string,
     context?: {
       parentName?: string;
       campType?: string;
       children?: { childName: string; price: number }[];
+      discountAmount?: number;
     }
   ) {
-    // Derive status
+    const discount = Math.max(0, Number(context?.discountAmount) || 0);
+    const effectiveTotal = Math.max(0, totalAmount - discount);
+
+    // Derive status against the discounted (net) total
     let status: 'unpaid' | 'paid' | 'partial' = 'unpaid';
-    if (amountPaid >= totalAmount) status = 'paid';
+    if (amountPaid >= effectiveTotal && effectiveTotal > 0) status = 'paid';
+    else if (amountPaid >= effectiveTotal && effectiveTotal === 0 && discount > 0) status = 'paid';
     else if (amountPaid > 0) status = 'partial';
 
-    // 1. Update registration record
-    const updates: Partial<CampRegistration> = { payment_status: status };
+    // Guard: paid/partial registrations must record a real payment method
+    // (skip when amountPaid is 0 but discount makes it paid — still require method for paid).
+    if ((status === 'paid' || status === 'partial') && (!method || method === 'pending')) {
+      throw new Error('Payment method is required for paid/partial registrations. Choose mpesa, card, cash_ground, or bank_transfer.');
+    }
+
+    // 1. Update registration record (include discount_amount and possibly billing_doc_type)
+    const updates: Partial<CampRegistration> & Record<string, any> = { payment_status: status };
     if (method) updates.payment_method = method;
     if (reference) updates.payment_reference = reference;
-    await this.updateRegistration(id, updates);
+    if (context?.discountAmount !== undefined) updates.discount_amount = discount;
+    if (status === 'paid') {
+      updates.billing_doc_type = 'paid';
+    }
+    await this.updateRegistration(id, updates as Partial<CampRegistration>);
 
     // 2. Upsert payment record (delete old + insert new to avoid duplicate constraint)
     try {
-      // Remove existing payments for this registration
       await (supabase as any).from('payments').delete().eq('registration_id', id).eq('source', 'camp_registration');
 
       if (amountPaid > 0) {
@@ -262,23 +368,27 @@ export const campRegistrationService = {
           amount: amountPaid,
           paymentMethod: (method === 'pending' ? 'other' : method) || 'mpesa',
           paymentReference: reference,
-          notes: `Admin payment update – KES ${amountPaid} of ${totalAmount}`,
+          notes: `Admin payment update – KES ${amountPaid} of ${effectiveTotal} (gross ${totalAmount}, discount ${discount})`,
         });
       }
     } catch (err) {
       console.error('Error upserting payment record:', err);
     }
 
-    // 3. Update accounts_action_items for each child
+    // 3. Update accounts_action_items for each child (pro-rate discount)
     try {
-      const childCount = context?.children?.length || 1;
+      const children = context?.children || [];
+      const childCount = children.length || 1;
       const perChildPaid = Math.round((amountPaid / childCount) * 100) / 100;
+      const perChildDiscount = Math.round((discount / childCount) * 100) / 100;
       const newItemStatus = status === 'paid' ? 'completed' : 'pending';
 
-      for (const child of context?.children || []) {
+      for (const child of children) {
+        const childDue = Math.max(0, (Number(child.price) || 0) - perChildDiscount);
         await (supabase as any)
           .from('accounts_action_items')
           .update({
+            amount_due: childDue,
             amount_paid: perChildPaid,
             status: newItemStatus,
           })
@@ -289,7 +399,18 @@ export const campRegistrationService = {
       console.error('Error updating action items:', err);
     }
 
-    return { status, amountPaid };
+    return { status, amountPaid, effectiveTotal, discount };
+  },
+
+  /**
+   * Update children array + recomputed total_amount for a registration.
+   * Used when an operator adjusts a child's session (half/full) after registration.
+   */
+  async updateChildrenAndTotal(id: string, children: CampChild[], newTotal: number) {
+    return this.updateRegistration(id, {
+      children,
+      total_amount: newTotal,
+    } as Partial<CampRegistration>);
   },
 
   async searchRegistrations(searchTerm: string) {
@@ -300,7 +421,7 @@ export const campRegistrationService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data.map(fromDb);
+    return withResolvedPaymentStatuses(data.map(fromDb));
   },
 
   async deleteRegistration(id: string) {

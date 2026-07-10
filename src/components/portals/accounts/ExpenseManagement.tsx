@@ -8,12 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Receipt, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { Plus, Receipt, Clock, CheckCircle, XCircle, Trash2, Upload, Paperclip, ExternalLink } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { financialService, Expense, Budget } from '@/services/financialService';
+import { receiptService } from '@/services/receiptService';
 import { toast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { ACTIVITY_CATEGORIES, DEPARTMENT_LIST, smartCapitalize } from '@/lib/activityCategories';
 import { useActivityCategories } from '@/hooks/useActivityCategories';
+import ReceiptsInbox from './ReceiptsInbox';
 
 const ExpenseManagement = () => {
   useActivityCategories();
@@ -32,8 +35,11 @@ const ExpenseManagement = () => {
     expense_date: new Date().toISOString().split('T')[0],
     vendor: '',
     budget_id: '',
-    notes: ''
+    notes: '',
+    receipt_url: '',
   });
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [rowUploadingId, setRowUploadingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -99,6 +105,7 @@ const ExpenseManagement = () => {
         expense_date: formData.expense_date,
         vendor: formData.vendor,
         budget_id: formData.budget_id || undefined,
+        receipt_url: formData.receipt_url || undefined,
         status: 'pending' as const,
         notes: formData.notes,
         created_by: user?.id
@@ -115,7 +122,8 @@ const ExpenseManagement = () => {
         expense_date: new Date().toISOString().split('T')[0],
         vendor: '',
         budget_id: '',
-        notes: ''
+        notes: '',
+        receipt_url: '',
       });
       setCustomCategory('');
       setCustomDepartment('');
@@ -352,6 +360,45 @@ const ExpenseManagement = () => {
                   rows={2}
                 />
               </div>
+              <div>
+                <Label>Receipt (optional)</Label>
+                {formData.receipt_url ? (
+                  <div className="flex items-center gap-2 p-2 border rounded mt-1">
+                    <Paperclip className="h-4 w-4 text-muted-foreground" />
+                    <a href={formData.receipt_url} target="_blank" rel="noreferrer" className="text-sm hover:underline truncate flex-1">
+                      View attached receipt
+                    </a>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormData({ ...formData, receipt_url: '' })}>
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 p-2 border border-dashed rounded mt-1 cursor-pointer hover:bg-muted/40">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">{uploadingReceipt ? 'Uploading…' : 'Click to upload receipt (JPG/PNG/PDF)'}</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      disabled={uploadingReceipt}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setUploadingReceipt(true);
+                        try {
+                          const { url } = await receiptService.uploadFile(f);
+                          setFormData(prev => ({ ...prev, receipt_url: url }));
+                        } catch (err: any) {
+                          toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+                        } finally {
+                          setUploadingReceipt(false);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} className="w-full sm:w-auto">
@@ -369,137 +416,211 @@ const ExpenseManagement = () => {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Approved</CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">KES {totalExpenses.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{pendingExpenses.length}</div>
-            <p className="text-xs text-muted-foreground">KES {pendingTotal.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{expenses.length}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="expenses">
+        <TabsList>
+          <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="receipts">Receipts Inbox</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">All Expenses</CardTitle>
-          <CardDescription className="hidden sm:block">Review and approve submissions</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0 sm:p-6">
-          {expenses.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No expenses submitted yet.
-            </div>
-          ) : (
-            <>
-              {/* Mobile Card View */}
-              <div className="sm:hidden divide-y divide-border">
-                {expenses.map((expense) => (
-                  <div key={expense.id} className="p-4 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-medium">{expense.description}</div>
-                        <div className="text-sm text-muted-foreground">{expense.category}</div>
-                      </div>
-                      <Badge className={getStatusColor(expense.status)}>
-                        {expense.status.toUpperCase()}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">KES {Number(expense.amount).toLocaleString()}</span>
-                      <span className="text-muted-foreground">{new Date(expense.expense_date).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      {expense.status === 'pending' && (
-                        <>
-                          <Button variant="outline" size="sm" onClick={() => handleApproveExpense(expense)}>
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleRejectExpense(expense)}>
-                            <XCircle className="h-4 w-4 text-red-600" />
-                          </Button>
-                        </>
-                      )}
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteExpense(expense)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {/* Desktop Table */}
-              <div className="hidden sm:block overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="hidden md:table-cell">Vendor</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+        <TabsContent value="expenses" className="space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Approved</CardTitle>
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl sm:text-2xl font-bold">KES {totalExpenses.toLocaleString()}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl sm:text-2xl font-bold">{pendingExpenses.length}</div>
+                <p className="text-xs text-muted-foreground">KES {pendingTotal.toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total</CardTitle>
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl sm:text-2xl font-bold">{expenses.length}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">All Expenses</CardTitle>
+              <CardDescription className="hidden sm:block">Review and approve submissions</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 sm:p-6">
+              {expenses.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No expenses submitted yet.
+                </div>
+              ) : (
+                <>
+                  {/* Mobile Card View */}
+                  <div className="sm:hidden divide-y divide-border">
                     {expenses.map((expense) => (
-                      <TableRow key={expense.id}>
-                        <TableCell>{new Date(expense.expense_date).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-medium">{expense.description}</TableCell>
-                        <TableCell>{expense.category}</TableCell>
-                        <TableCell className="hidden md:table-cell">{expense.vendor || '-'}</TableCell>
-                        <TableCell>KES {Number(expense.amount).toLocaleString()}</TableCell>
-                        <TableCell>
+                      <div key={expense.id} className="p-4 space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium">{expense.description}</div>
+                            <div className="text-sm text-muted-foreground">{expense.category}</div>
+                          </div>
                           <Badge className={getStatusColor(expense.status)}>
                             {expense.status.toUpperCase()}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {expense.status === 'pending' && (
-                              <>
-                                <Button variant="outline" size="sm" onClick={() => handleApproveExpense(expense)}>
-                                  <CheckCircle className="h-4 w-4 text-green-600" />
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={() => handleRejectExpense(expense)}>
-                                  <XCircle className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </>
-                            )}
-                            <Button variant="outline" size="sm" onClick={() => handleDeleteExpense(expense)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="font-medium">KES {Number(expense.amount).toLocaleString()}</span>
+                          <span className="text-muted-foreground">{new Date(expense.expense_date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex gap-2 pt-2 items-center">
+                          {expense.receipt_url ? (
+                            <a href={expense.receipt_url} target="_blank" rel="noreferrer" className="text-xs flex items-center gap-1 text-primary hover:underline">
+                              <Paperclip className="h-3 w-3" /> Receipt
+                            </a>
+                          ) : (
+                            <label className="text-xs flex items-center gap-1 text-muted-foreground cursor-pointer">
+                              <Upload className="h-3 w-3" /> {rowUploadingId === expense.id ? 'Uploading…' : 'Attach'}
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept="image/jpeg,image/png,image/webp,application/pdf"
+                                onChange={async (e) => {
+                                  const f = e.target.files?.[0];
+                                  if (!f) return;
+                                  setRowUploadingId(expense.id);
+                                  try {
+                                    const { url } = await receiptService.uploadFile(f);
+                                    await financialService.updateExpense(expense.id, { receipt_url: url });
+                                    await loadData();
+                                  } catch (err: any) {
+                                    toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+                                  } finally {
+                                    setRowUploadingId(null);
+                                    e.target.value = '';
+                                  }
+                                }}
+                              />
+                            </label>
+                          )}
+                          {expense.status === 'pending' && (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => handleApproveExpense(expense)}>
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => handleRejectExpense(expense)}>
+                                <XCircle className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => handleDeleteExpense(expense)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  </div>
+                  {/* Desktop Table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead className="hidden md:table-cell">Vendor</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Receipt</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {expenses.map((expense) => (
+                          <TableRow key={expense.id}>
+                            <TableCell>{new Date(expense.expense_date).toLocaleDateString()}</TableCell>
+                            <TableCell className="font-medium">{expense.description}</TableCell>
+                            <TableCell>{expense.category}</TableCell>
+                            <TableCell className="hidden md:table-cell">{expense.vendor || '-'}</TableCell>
+                            <TableCell>KES {Number(expense.amount).toLocaleString()}</TableCell>
+                            <TableCell>
+                              {expense.receipt_url ? (
+                                <a href={expense.receipt_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                                  <ExternalLink className="h-3 w-3" /> View
+                                </a>
+                              ) : (
+                                <label className="inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                                  <Upload className="h-3 w-3" /> {rowUploadingId === expense.id ? 'Uploading…' : 'Attach'}
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                                    onChange={async (e) => {
+                                      const f = e.target.files?.[0];
+                                      if (!f) return;
+                                      setRowUploadingId(expense.id);
+                                      try {
+                                        const { url } = await receiptService.uploadFile(f);
+                                        await financialService.updateExpense(expense.id, { receipt_url: url });
+                                        await loadData();
+                                      } catch (err: any) {
+                                        toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+                                      } finally {
+                                        setRowUploadingId(null);
+                                        e.target.value = '';
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getStatusColor(expense.status)}>
+                                {expense.status.toUpperCase()}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                {expense.status === 'pending' && (
+                                  <>
+                                    <Button variant="outline" size="sm" onClick={() => handleApproveExpense(expense)}>
+                                      <CheckCircle className="h-4 w-4 text-green-600" />
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={() => handleRejectExpense(expense)}>
+                                      <XCircle className="h-4 w-4 text-red-600" />
+                                    </Button>
+                                  </>
+                                )}
+                                <Button variant="outline" size="sm" onClick={() => handleDeleteExpense(expense)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="receipts">
+          <ReceiptsInbox onMatched={loadData} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

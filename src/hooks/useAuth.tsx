@@ -9,8 +9,9 @@ interface AuthContextType {
   user: any | null;
   session: Session | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signInWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
   isSuperAdmin: boolean;
@@ -121,10 +122,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       console.log('Login attempt for:', email);
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -132,7 +133,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error('Login error:', error);
-        return false;
+        const msg = error.message?.toLowerCase() || '';
+        if (msg.includes('email not confirmed') || msg.includes('not confirmed')) {
+          return { success: false, error: 'Please confirm your email first. Check your inbox (and spam folder) for the confirmation link.' };
+        }
+        if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
+          return { success: false, error: 'Invalid email or password. If you previously had an account that was removed, ask an administrator to pre-authorize your email so you can sign in with Google.' };
+        }
+        return { success: false, error: error.message };
       }
 
       if (data.user) {
@@ -181,13 +189,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await auditLogService.logLogin(userObject.username || email);
         
         console.log('Login successful:', userObject);
-        return true;
+        return { success: true };
       }
 
-      return false;
-    } catch (error) {
+      return { success: false, error: 'Login failed' };
+    } catch (error: any) {
       console.error('Login failed:', error);
-      return false;
+      return { success: false, error: error?.message || 'An unexpected error occurred' };
+    }
+  };
+
+  const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/admin`,
+        },
+      });
+      if (error) {
+        console.error('Google sign-in error:', error);
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (error: any) {
+      console.error('Google sign-in failed:', error);
+      return { success: false, error: error?.message || 'Google sign-in failed' };
     }
   };
 
@@ -239,6 +266,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isLoading,
     login,
     signup,
+    signInWithGoogle,
     logout,
     isAuthenticated: !!user && !!session,
     isSuperAdmin

@@ -7,6 +7,7 @@ export const CAMP_TABS = [
   { id: 'attendance', label: 'Attendance' },
   { id: 'history', label: 'History' },
   { id: 'reports', label: 'Reports' },
+  { id: 'payments', label: 'Payment History' },
 ] as const;
 
 export type CampTabId = typeof CAMP_TABS[number]['id'];

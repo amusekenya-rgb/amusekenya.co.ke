@@ -4,6 +4,7 @@ import { DollarSign, FileText, Receipt, TrendingUp, TrendingDown, AlertTriangle,
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 
+
 interface DashboardData {
   totalRevenue: number;
   revenueChange: number;
@@ -77,8 +78,14 @@ const AccountsDashboard: React.FC = () => {
       const lastMonthExpenseTotal = (lastMonthExpensesRes.data || []).reduce((sum: number, e: any) => sum + Number(e.amount), 0);
       const expenseChange = lastMonthExpenseTotal > 0 ? ((monthlyExpenses - lastMonthExpenseTotal) / lastMonthExpenseTotal) * 100 : 0;
 
-      // Total outstanding from pending collections (attended but unpaid)
-      const totalOutstanding = collections.reduce((sum: number, c: any) => sum + Number(c.amount_due || 0) - Number(c.amount_paid || 0), 0);
+      // Total outstanding = raw pending balance from accounts_action_items.
+      // Unpaid is unpaid — we do NOT filter to "active registrations only" here.
+      // The AR Aging report breaks this down into active AR vs orphaned items.
+      const totalOutstanding = collections.reduce(
+        (sum: number, c: any) => sum + (Number(c.amount_due || 0) - Number(c.amount_paid || 0)),
+        0,
+      );
+      const totalOutstandingCount = collections.length;
 
       // Potential vs Actual revenue
       const allCampRegs = (campAllRes.data || []) as any[];
@@ -133,7 +140,7 @@ const AccountsDashboard: React.FC = () => {
         monthlyExpenses,
         expenseChange: Math.round(expenseChange * 10) / 10,
         totalOutstanding,
-        totalOutstandingCount: collections.length,
+        totalOutstandingCount,
         potentialRevenue,
         collectionRate: Math.round(collectionRate * 10) / 10,
         recentTransactions: recentTransactions.slice(0, 5),

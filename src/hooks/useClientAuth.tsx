@@ -10,7 +10,7 @@ interface ClientAuthContextType {
   isLoading: boolean;
   isSignedIn: boolean;
   signInWithGoogle: () => Promise<void>;
-  signInWithIdToken: (token: string) => Promise<void>;
+  signInWithIdToken: (token: string, nonce?: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
@@ -85,10 +85,11 @@ export const ClientAuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signInWithIdToken = async (token: string) => {
+  const signInWithIdToken = async (token: string, nonce?: string) => {
     const { error } = await supabase.auth.signInWithIdToken({
       provider: 'google',
       token,
+      ...(nonce ? { nonce } : {}),
     });
     if (error) {
       console.error('ID token sign-in error:', error);

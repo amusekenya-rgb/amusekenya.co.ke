@@ -11,7 +11,7 @@ const GalleryPage = () => {
     <>
       <SEOHead
         title="Photo Gallery | Amuse Kenya Adventures"
-        description="Browse our photo gallery showcasing children's outdoor adventures, camp activities, nature exploration, and memorable moments at Karura Forest. See the magic of learning through nature."
+        description="Browse photos of children's outdoor adventures, camp activities & nature exploration at Karura Forest. See the magic of learning through nature."
         keywords="Amuse Kenya gallery, camp photos, outdoor activities photos, nature adventures, children activities Kenya, forest activities gallery"
         canonical="https://amusekenya.co.ke/gallery"
       />

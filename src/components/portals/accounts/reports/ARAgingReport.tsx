@@ -31,9 +31,10 @@ type BucketKey = ARAgingItem['agingBucket'];
 
 interface ARAgingReportProps {
   activities?: string[];
+  dateRange?: { startDate: Date; endDate: Date };
 }
 
-const ARAgingReport: React.FC<ARAgingReportProps> = ({ activities = [] }) => {
+const ARAgingReport: React.FC<ARAgingReportProps> = ({ activities = [], dateRange }) => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ARAgingSummary | null>(null);
   const [openBucket, setOpenBucket] = useState<BucketKey | null>(null);
@@ -41,12 +42,17 @@ const ARAgingReport: React.FC<ARAgingReportProps> = ({ activities = [] }) => {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(activities)]);
+  }, [JSON.stringify(activities), dateRange?.startDate?.toISOString(), dateRange?.endDate?.toISOString()]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const agingData = await financialReportService.generateARAgingReport(activities);
+      // AR Aging is "as of today, what's outstanding for this activity".
+      // Honor the activity filter, but don't restrict by the narrow date window
+      // (P&L/Sales own the window — AR is a point-in-time view).
+      const agingData = await financialReportService.generateARAgingReport(
+        activities,
+      );
       setData(agingData);
     } catch (error) {
       console.error('Error loading AR aging data:', error);
@@ -265,17 +271,39 @@ const ARAgingReport: React.FC<ARAgingReportProps> = ({ activities = [] }) => {
         </Card>
       </div>
 
-      {/* Total Outstanding (matches Dashboard) + invoice/collection breakdown */}
+      {/* Reconciliation row: Aging total + Orphan exemption + Grand total */}
       <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
-        <Card className="bg-muted/30 border-destructive/50 md:col-span-1">
+        <Card className="bg-muted/30 border-destructive/50">
           <CardContent className="py-4">
-            <p className="text-sm font-medium text-muted-foreground">Total Outstanding</p>
+            <p className="text-sm font-medium text-muted-foreground">AR Aging Total</p>
             <p className="text-3xl font-bold text-destructive">{formatCurrency(data.total)}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              All overdue items combined (matches Dashboard)
+              Sum of all aging buckets above. Matches the Pending Collections total and Dashboard "Total Outstanding".
             </p>
           </CardContent>
         </Card>
+        <Card className="bg-muted/30 border-yellow-500/40">
+          <CardContent className="py-4">
+            <p className="text-sm font-medium text-muted-foreground">Flagged for Review</p>
+            <p className="text-3xl font-bold text-yellow-600">{formatCurrency(data.orphanedTotal)}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {data.orphanedItems.length} item{data.orphanedItems.length === 1 ? '' : 's'} linked to cancelled, deleted, or quote-stage registrations. Already included in aging above — listed below for triage.
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/30 border-primary/50">
+          <CardContent className="py-4">
+            <p className="text-sm font-medium text-muted-foreground">Grand Total Outstanding</p>
+            <p className="text-3xl font-bold text-primary">{formatCurrency(data.grandTotal)}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Equals AR Aging Total. Reconciles to the Accounts Dashboard "Total Outstanding".
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Invoice/collection composition of the active aging total */}
+      <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
         <Card className="bg-muted/30">
           <CardContent className="py-4">
             <p className="text-sm font-medium text-muted-foreground">Invoiced AR</p>
@@ -296,7 +324,7 @@ const ARAgingReport: React.FC<ARAgingReportProps> = ({ activities = [] }) => {
         </Card>
       </div>
       <p className="text-xs text-muted-foreground -mt-2 px-1">
-        Aging buckets above include both invoiced AR and attended-unpaid collections, aged from invoice due date or collection creation date.
+        Aging buckets include both invoiced AR and attended-unpaid collections, aged from invoice due date or collection creation date. Orphaned items are listed separately so unpaid balances are never hidden.
       </p>
 
       {/* Chart and Details */}
@@ -383,6 +411,54 @@ const ARAgingReport: React.FC<ARAgingReportProps> = ({ activities = [] }) => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Orphaned / exempt receivables — unpaid balances that don't fit an active aging bucket */}
+      {data.orphanedItems.length > 0 && (
+        <Card className="border-yellow-500/40">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              Orphaned / Exempt Receivables
+            </CardTitle>
+            <CardDescription>
+              Pending balances linked to cancelled, deleted, or quote-stage registrations.
+              Excluded from aging buckets but still owed — review and either re-link, write off, or convert to invoice.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[300px]">
+              <div className="divide-y divide-border">
+                {data.orphanedItems.map((item) => (
+                  <div key={item.id} className="p-4 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-foreground">{item.customerName}</span>
+                          <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 border-yellow-500/30">
+                            {item.reasonLabel}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {item.childName ? `${item.childName} • ` : ''}{item.activityName || 'No activity'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Created: {format(parseISO(item.createdAt), 'dd MMM yyyy')} • {item.daysOld} day{item.daysOld === 1 ? '' : 's'} old
+                          {item.customerPhone ? ` • ${item.customerPhone}` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-bold text-yellow-700">{formatCurrency(item.balanceDue)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+
 
       <AgingBucketDialog
         open={openBucket !== null}

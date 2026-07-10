@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const PAYSTACK_SECRET_KEY = Deno.env.get('PAYSTACK_SECRET_KEY')
+    const PAYSTACK_SECRET_KEY = Deno.env.get('PAYSTACK_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_API')
     if (!PAYSTACK_SECRET_KEY) {
       console.error('PAYSTACK_SECRET_KEY not configured')
       return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     // Load registration
     const { data: reg, error: regErr } = await supabase
       .from('camp_registrations')
-      .select('id, parent_name, email, camp_type, total_amount, payment_status')
+      .select('id, parent_name, email, camp_type, total_amount, discount_amount, payment_status')
       .eq('id', registrationId)
       .maybeSingle()
 
@@ -134,12 +134,12 @@ Deno.serve(async (req) => {
     const paymentMethod =
       channel === 'mobile_money' ? 'mpesa' : channel === 'card' ? 'card' : 'card'
 
-    // Idempotency: only insert if no completed payment with this reference exists
+    // Idempotency: only insert if no payment with this reference + registration exists
     const { data: existing } = await supabase
       .from('payments')
-      .select('id')
+      .select('id, status')
       .eq('payment_reference', reference)
-      .eq('status', 'completed')
+      .eq('registration_id', registrationId)
       .maybeSingle()
 
     if (!existing) {
@@ -152,18 +152,29 @@ Deno.serve(async (req) => {
         amount: thisAmountKES,
         payment_method: paymentMethod,
         payment_reference: reference,
+        payment_date: new Date().toISOString().slice(0, 10),
         status: 'completed',
         notes: `Paystack ${channel || 'online'} payment (webhook)`,
       })
       if (insErr) {
         console.error('Webhook: payments insert failed', insErr)
       }
+    } else if (existing.status !== 'completed') {
+      await supabase
+        .from('payments')
+        .update({
+          status: 'completed',
+          amount: thisAmountKES,
+          payment_method: paymentMethod,
+          notes: `Paystack ${channel || 'online'} payment (webhook, promoted)`,
+        })
+        .eq('id', existing.id)
     } else {
       console.log('Webhook: payment already recorded for', reference)
     }
 
     // Recompute total paid and update registration status
-    const totalAmount = Number(reg.total_amount) || 0
+    const totalAmount = Math.max(0, (Number(reg.total_amount) || 0) - (Number(reg.discount_amount) || 0))
     const { data: allPaid } = await supabase
       .from('payments')
       .select('amount, status, source')
@@ -180,13 +191,16 @@ Deno.serve(async (req) => {
     const newStatus =
       totalPaid >= totalAmount ? 'paid' : totalPaid > 0 ? 'partial' : 'unpaid'
 
+    const registrationUpdates: Record<string, string> = {
+      payment_status: newStatus,
+      payment_method: paymentMethod,
+      payment_reference: reference,
+    }
+    if (newStatus === 'paid') registrationUpdates.billing_doc_type = 'paid'
+
     const { error: updErr } = await supabase
       .from('camp_registrations')
-      .update({
-        payment_status: newStatus,
-        payment_method: paymentMethod,
-        payment_reference: reference,
-      })
+      .update(registrationUpdates)
       .eq('id', registrationId)
 
     if (updErr) {

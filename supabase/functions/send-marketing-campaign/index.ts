@@ -14,7 +14,8 @@ import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-internal-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const APP_URL = "https://amusekenya.co.ke";
@@ -41,7 +42,7 @@ function buildHtml(bodyHtml: string, unsubToken: string | null): string {
   const unsubBlock = unsubToken
     ? `<hr style="margin-top:32px;border:none;border-top:1px solid #eee" />
   <p style="font-size:12px;color:#888;text-align:center;">
-    You received this because you registered with Amuse Bush Camp.<br/>
+    You received this because you registered with Amuse Kenya.<br/>
     <a href="${APP_URL}/unsubscribe/${unsubToken}" style="color:#888;">Unsubscribe</a>
   </p>`
     : `<hr style="margin-top:32px;border:none;border-top:1px solid #eee" />
@@ -107,19 +108,24 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Server configuration error: missing anon key" }, 500);
     }
 
-    // Auth: require admin/marketing/ceo
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return jsonResponse({ success: false, error: "Unauthorized: missing bearer token" }, 401);
-    }
-    const userSupabase = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // Auth: either a marketing/admin/ceo user bearer token, OR an internal
+    // service-key call from the scheduled-dispatch worker.
+    const internalSecret = req.headers.get("x-internal-secret");
+    const isInternal = internalSecret && internalSecret === serviceKey;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const authorization = await authorizeStaffCaller(userSupabase);
-    if (authorization.error) {
-      return jsonResponse({ success: false, error: authorization.error }, authorization.status || 401);
+    if (!isInternal) {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return jsonResponse({ success: false, error: "Unauthorized: missing bearer token" }, 401);
+      }
+      const userSupabase = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const authorization = await authorizeStaffCaller(userSupabase);
+      if (authorization.error) {
+        return jsonResponse({ success: false, error: authorization.error }, authorization.status || 401);
+      }
     }
 
     const body: SendBody = await req.json();
@@ -132,14 +138,17 @@ serve(async (req) => {
       if (!body.subject?.trim()) return jsonResponse({ success: false, error: "Subject is required" }, 400);
       if (!body.body_html?.trim()) return jsonResponse({ success: false, error: "Email body is required" }, 400);
 
-      const fromName = body.from_name || "Amuse Bush Camp";
+      const fromName = body.from_name || "Amuse Kenya";
       const fromAddr = `${fromName} <${DEFAULT_FROM_LOCAL}@${DEFAULT_FROM_DOMAIN}>`;
       const html = buildHtml(body.body_html, null);
       const subject = `[TEST] ${body.subject}`;
 
       try {
         const result = await resend.emails.send({
-          from: fromAddr, to: testEmail, subject, html,
+          from: fromAddr,
+          to: testEmail,
+          subject,
+          html,
         });
         const errMsg = (result as any)?.error?.message || (result as any)?.error;
         if (errMsg) {
@@ -156,7 +165,9 @@ serve(async (req) => {
             subject,
             status: "sent",
           });
-        } catch (_) { /* ignore */ }
+        } catch (_) {
+          /* ignore */
+        }
 
         return jsonResponse({ success: true, sent: 1, failed: 0, total: 1, test: true });
       } catch (err: any) {
@@ -169,11 +180,7 @@ serve(async (req) => {
     const campaignId = body.campaignId;
     if (!campaignId) return jsonResponse({ success: false, error: "campaignId required" }, 400);
 
-    const { data: campaign, error: cErr } = await supabase
-      .from("campaigns")
-      .select("*")
-      .eq("id", campaignId)
-      .single();
+    const { data: campaign, error: cErr } = await supabase.from("campaigns").select("*").eq("id", campaignId).single();
     if (cErr || !campaign) return jsonResponse({ success: false, error: "Campaign not found" }, 404);
 
     // Build recipient list
@@ -216,7 +223,7 @@ serve(async (req) => {
 
     await supabase.from("campaigns").update({ status: "active" }).eq("id", campaignId);
 
-    const fromName = campaign.from_name || "Amuse Bush Camp";
+    const fromName = campaign.from_name || "Amuse Kenya";
     const fromAddr = `${fromName} <${DEFAULT_FROM_LOCAL}@${DEFAULT_FROM_DOMAIN}>`;
     const subject = campaign.subject || campaign.name;
 
@@ -252,7 +259,8 @@ serve(async (req) => {
         const secs = m ? parseInt(m[1], 10) : 0;
         return { retry: true, retryAfterMs: Math.max(secs * 1000, 2000), message: msg };
       }
-      const isTransient = (typeof status === "number" && status >= 500) || lower.includes("network") || lower.includes("timeout");
+      const isTransient =
+        (typeof status === "number" && status >= 500) || lower.includes("network") || lower.includes("timeout");
       if (isTransient) return { retry: true, retryAfterMs: 1000, message: msg };
       return { retry: false, retryAfterMs: 0, message: msg };
     };
@@ -269,7 +277,9 @@ serve(async (req) => {
           campaign_id: campaignId,
           postmark_data: { error: message },
         });
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
     };
 
     while (queue.length > 0) {
@@ -291,47 +301,49 @@ serve(async (req) => {
       const batch: Pending[] = [];
       while (batch.length < BATCH && queue.length > 0) batch.push(queue.shift()!);
 
-      await Promise.all(batch.map(async (r) => {
-        const attempt = (attempts.get(r.email) || 0) + 1;
-        attempts.set(r.email, attempt);
-        try {
-          const token = await getOrCreateUnsubToken(supabase, r.email);
-          const html = buildHtml(campaign.body_html || "", token);
-          const result = await resend.emails.send({ from: fromAddr, to: r.email, subject, html });
-          const errPayload = (result as any)?.error;
-          if (errPayload) {
-            const errMsg = errPayload?.message || errPayload;
-            const e: any = new Error(typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg));
-            e.statusCode = errPayload?.statusCode || errPayload?.status;
-            throw e;
-          }
-          const messageId = (result as any)?.data?.id || (result as any)?.id || null;
-
-          await supabase.from("email_deliveries").insert({
-            email: r.email,
-            message_id: messageId,
-            recipient_type: r.lead_id ? "lead" : null,
-            recipient_id: r.lead_id || null,
-            email_type: "marketing",
-            subject,
-            status: "sent",
-            campaign_id: campaignId,
-          });
-          sent++;
-        } catch (err: any) {
-          const cls = classifyError(err);
-          console.error(`send attempt ${attempt} failed for ${r.email}: ${cls.message}`);
-          if (cls.retry && attempt < MAX_ATTEMPTS) {
-            // Re-queue at the tail; bump cooldown for the whole loop.
-            queue.push(r);
-            if (cls.retryAfterMs > 0) {
-              cooldownUntil = Math.max(cooldownUntil, Date.now() + cls.retryAfterMs);
+      await Promise.all(
+        batch.map(async (r) => {
+          const attempt = (attempts.get(r.email) || 0) + 1;
+          attempts.set(r.email, attempt);
+          try {
+            const token = await getOrCreateUnsubToken(supabase, r.email);
+            const html = buildHtml(campaign.body_html || "", token);
+            const result = await resend.emails.send({ from: fromAddr, to: r.email, subject, html });
+            const errPayload = (result as any)?.error;
+            if (errPayload) {
+              const errMsg = errPayload?.message || errPayload;
+              const e: any = new Error(typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg));
+              e.statusCode = errPayload?.statusCode || errPayload?.status;
+              throw e;
             }
-          } else {
-            await finalizeFailure(r, cls.message);
+            const messageId = (result as any)?.data?.id || (result as any)?.id || null;
+
+            await supabase.from("email_deliveries").insert({
+              email: r.email,
+              message_id: messageId,
+              recipient_type: r.lead_id ? "lead" : null,
+              recipient_id: r.lead_id || null,
+              email_type: "marketing",
+              subject,
+              status: "sent",
+              campaign_id: campaignId,
+            });
+            sent++;
+          } catch (err: any) {
+            const cls = classifyError(err);
+            console.error(`send attempt ${attempt} failed for ${r.email}: ${cls.message}`);
+            if (cls.retry && attempt < MAX_ATTEMPTS) {
+              // Re-queue at the tail; bump cooldown for the whole loop.
+              queue.push(r);
+              if (cls.retryAfterMs > 0) {
+                cooldownUntil = Math.max(cooldownUntil, Date.now() + cls.retryAfterMs);
+              }
+            } else {
+              await finalizeFailure(r, cls.message);
+            }
           }
-        }
-      }));
+        }),
+      );
 
       if (queue.length > 0) await sleep(PACE_MS);
     }
@@ -339,19 +351,24 @@ serve(async (req) => {
     // For retries, accumulate counts on top of previous run instead of overwriting.
     const newSentCount = body.retry ? (campaign.sent_count || 0) + sent : sent;
     // Failures from previous runs that succeeded this time should reduce failed_count.
-    const newFailedCount = body.retry
-      ? Math.max(0, (campaign.failed_count || 0) - sent + failed)
-      : failed;
+    const newFailedCount = body.retry ? Math.max(0, (campaign.failed_count || 0) - sent + failed) : failed;
 
-    await supabase.from("campaigns").update({
-      status: "completed",
-      sent_count: newSentCount,
-      failed_count: newFailedCount,
-      sent_at: new Date().toISOString(),
-    }).eq("id", campaignId);
+    await supabase
+      .from("campaigns")
+      .update({
+        status: "completed",
+        sent_count: newSentCount,
+        failed_count: newFailedCount,
+        sent_at: new Date().toISOString(),
+      })
+      .eq("id", campaignId);
 
     return jsonResponse({
-      success: true, sent, failed, total: recipients.length, retry: !!body.retry,
+      success: true,
+      sent,
+      failed,
+      total: recipients.length,
+      retry: !!body.retry,
       ...(failed > 0 && lastError.msg ? { warning: `Some sends failed. Last error: ${lastError.msg}` } : {}),
     });
   } catch (e: any) {

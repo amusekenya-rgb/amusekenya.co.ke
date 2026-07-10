@@ -7,7 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Users, Filter } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Filter, Download, FileText } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { emailManagementService, EmailSegment } from '@/services/emailManagementService';
 import { useToast } from "@/hooks/use-toast";
 
@@ -127,6 +129,63 @@ const EmailSegmentsTab: React.FC = () => {
   const handleDialogClose = () => {
     setIsDialogOpen(false);
     resetForm();
+  };
+
+  const sanitizeFilename = (s: string) =>
+    s.replace(/[^a-z0-9-_]+/gi, '_').replace(/^_+|_+$/g, '') || 'segment';
+
+  const handleExportCSV = async (segment: EmailSegment) => {
+    const recipients = await emailManagementService.resolveSegmentRecipients(segment.id);
+    if (!recipients.length) {
+      toast({ title: "No recipients", description: "This segment has no eligible recipients.", variant: "destructive" });
+      return;
+    }
+    const headers = ['Full Name', 'Email', 'Lead ID'];
+    const rows = recipients.map(r => [r.full_name || '', r.email, r.lead_id]);
+    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map(r => r.map(escape).join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sanitizeFilename(segment.name)}_recipients.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: "CSV exported", description: `${recipients.length} recipients exported.` });
+  };
+
+  const handleExportPDF = async (segment: EmailSegment) => {
+    const recipients = await emailManagementService.resolveSegmentRecipients(segment.id);
+    if (!recipients.length) {
+      toast({ title: "No recipients", description: "This segment has no eligible recipients.", variant: "destructive" });
+      return;
+    }
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(`Email Segment: ${segment.name}`, 14, 18);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    if (segment.description) doc.text(segment.description, 14, 25);
+    const filterText = Object.entries(segment.filters || {})
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('  |  ') || 'No filters';
+    doc.text(`Filters: ${filterText}`, 14, segment.description ? 31 : 25);
+    doc.text(`Total recipients: ${recipients.length}`, 14, segment.description ? 37 : 31);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, segment.description ? 43 : 37);
+
+    autoTable(doc, {
+      startY: segment.description ? 50 : 44,
+      head: [['#', 'Full Name', 'Email']],
+      body: recipients.map((r, i) => [i + 1, r.full_name || '—', r.email]),
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [34, 139, 34] },
+    });
+
+    doc.save(`${sanitizeFilename(segment.name)}_recipients.pdf`);
+    toast({ title: "PDF exported", description: `${recipients.length} recipients exported.` });
   };
 
   return (
@@ -267,7 +326,13 @@ const EmailSegmentsTab: React.FC = () => {
                       <p className="text-sm text-muted-foreground mt-1">{segment.description}</p>
                     )}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleExportCSV(segment)} title="Download CSV">
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleExportPDF(segment)} title="Download PDF">
+                      <FileText className="h-4 w-4" />
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => handleEdit(segment)}>
                       <Edit className="h-4 w-4" />
                     </Button>

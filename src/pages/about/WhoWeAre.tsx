@@ -52,8 +52,8 @@ const WhoWeAre = () => {
   return (
     <div className="min-h-screen bg-background">
       <SEOHead
-        title="Who We Are | Amuse Kenya — Our Mission & Values"
-        description="Learn about Amuse Kenya's mission to make outdoor learning meaningful, accessible, and unforgettable for children aged 3-17 in Nairobi, Kenya. Discover our 7 core pillars."
+        title="Who We Are | Amuse Kenya — Mission & Values"
+        description="Learn about Amuse Kenya's mission to make outdoor learning meaningful & unforgettable for children aged 3-17 in Nairobi. Discover our 7 core pillars."
         keywords="Amuse Kenya about, outdoor education mission, nature learning Kenya, children outdoor programs Nairobi, Karura Forest education"
         canonical="https://amusekenya.co.ke/about/who-we-are"
       />

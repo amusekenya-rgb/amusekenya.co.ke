@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { ROLES } from '@/services/roleService';
 import { auditLogService } from '@/services/auditLogService';
 import { coachAccessService, CAMP_TABS, CampTabId, ALL_TAB_IDS } from '@/services/coachAccessService';
+import PreauthorizeStaff from './PreauthorizeStaff';
 
 interface PendingUser {
   id: string;
@@ -427,6 +428,10 @@ const UserManagement: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      <PreauthorizeStaff />
+
+
 
       {/* Pending Users Table */}
       {pendingUsers.length > 0 && (

@@ -12,7 +12,7 @@ const Contact = () => {
     <>
       <SEOHead
         title="Contact Us | Amuse Kenya - Get in Touch"
-        description="Contact Amuse Kenya for inquiries about our forest adventures, camps, birthday parties, and outdoor education programs. We're here to help plan your perfect nature experience."
+        description="Contact Amuse Kenya for inquiries about camps, parties & outdoor programs. We're here to help plan your perfect nature experience."
         keywords="contact Amuse Kenya, inquiries, booking information, program details, Karura Forest contact, outdoor education contact"
         canonical="https://amusekenya.co.ke/contact"
       />

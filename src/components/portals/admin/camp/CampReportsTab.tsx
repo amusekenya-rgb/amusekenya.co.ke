@@ -12,15 +12,53 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, isWithinInterval, subDays, differenceInDays } from 'date-fns';
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, isWithinInterval, subDays, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { registrationInDateWindow } from '@/utils/registrationDate';
+import { parseLocalDate } from '@/utils/dateUtils';
+
+// Count children whose booked attendance dates (selectedDates) fall inside the
+// window. Mirrors AttendanceMarkingTab's "Expected" logic so totals agree.
+const countChildrenInWindow = (reg: CampRegistration, start?: Date, end?: Date): number => {
+  const children = Array.isArray((reg as any).children) ? (reg as any).children : [];
+  if (!start && !end) {
+    // No window → count every child on every registration.
+    return children.reduce((sum: number, c: any) => sum + 1, 0);
+  }
+  const fromMs = start ? startOfDay(start).getTime() : -Infinity;
+  const toMs = end ? endOfDay(end).getTime() : Infinity;
+
+  let total = 0;
+  let sawAnySelectedDates = false;
+  for (const c of children) {
+    const selected: string[] = Array.isArray(c?.selectedDates) ? c.selectedDates : [];
+    if (selected.length > 0) {
+      sawAnySelectedDates = true;
+      const inWindow = selected.some(d => {
+        if (typeof d !== 'string') return false;
+        const t = parseLocalDate(d).getTime();
+        return t >= fromMs && t <= toMs;
+      });
+      if (inWindow) total += 1;
+    }
+  }
+  // Legacy fallback: registration has no selectedDates anywhere → bucket by created_at
+  if (!sawAnySelectedDates) {
+    const createdMs = reg.created_at ? new Date(reg.created_at).getTime() : NaN;
+    if (!Number.isNaN(createdMs) && createdMs >= fromMs && createdMs <= toMs) {
+      return children.length;
+    }
+    return 0;
+  }
+  return total;
+};
 
 const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'];
 
-type DatePreset = 'all' | 'this-month' | 'last-month' | 'last-3-months' | 'this-year' | 'custom';
+type DatePreset = 'all' | 'today' | 'yesterday' | 'this-month' | 'last-month' | 'last-3-months' | 'this-year' | 'custom';
 
 interface PeriodMetrics {
   totalRevenue: number;
@@ -32,7 +70,11 @@ interface PeriodMetrics {
   averagePerRegistration: number;
 }
 
-const calculatePeriodMetrics = (registrations: CampRegistration[]): PeriodMetrics => {
+const calculatePeriodMetrics = (
+  registrations: CampRegistration[],
+  start?: Date,
+  end?: Date,
+): PeriodMetrics => {
   if (registrations.length === 0) {
     return {
       totalRevenue: 0,
@@ -45,16 +87,23 @@ const calculatePeriodMetrics = (registrations: CampRegistration[]): PeriodMetric
     };
   }
   const summary = exportService.calculateSummary(registrations);
+  // Count children whose booked attendance dates fall in the window — keeps
+  // this in sync with AttendanceMarkingTab's "Expected" count.
+  const totalChildren = registrations.reduce(
+    (sum, reg) => sum + countChildrenInWindow(reg, start, end),
+    0,
+  );
   return {
     totalRevenue: summary?.totalRevenue || 0,
     totalRegistrations: summary?.totalRegistrations || 0,
-    totalChildren: summary?.totalChildren || 0,
+    totalChildren,
     paidRevenue: summary?.paidRevenue || 0,
     unpaidRevenue: summary?.unpaidRevenue || 0,
     partialRevenue: summary?.partialRevenue || 0,
     averagePerRegistration: summary?.averagePerRegistration || 0,
   };
 };
+
 
 const getPercentageChange = (current: number, previous: number): number => {
   if (previous === 0) return current > 0 ? 100 : 0;
@@ -87,7 +136,7 @@ const ChangeIndicator: React.FC<{ current: number; previous: number }> = ({ curr
 export const CampReportsTab: React.FC = () => {
   const [registrations, setRegistrations] = useState<CampRegistration[]>([]);
   const [loading, setLoading] = useState(true);
-  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [datePreset, setDatePreset] = useState<DatePreset>('today');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [showComparison, setShowComparison] = useState(true);
@@ -112,22 +161,32 @@ export const CampReportsTab: React.FC = () => {
   useEffect(() => {
     const now = new Date();
     switch (datePreset) {
+      case 'today':
+        setStartDate(startOfDay(now));
+        setEndDate(endOfDay(now));
+        break;
+      case 'yesterday': {
+        const y = subDays(now, 1);
+        setStartDate(startOfDay(y));
+        setEndDate(endOfDay(y));
+        break;
+      }
       case 'this-month':
         setStartDate(startOfMonth(now));
-        setEndDate(endOfMonth(now));
+        setEndDate(endOfDay(endOfMonth(now)));
         break;
       case 'last-month':
         const lastMonth = subMonths(now, 1);
         setStartDate(startOfMonth(lastMonth));
-        setEndDate(endOfMonth(lastMonth));
+        setEndDate(endOfDay(endOfMonth(lastMonth)));
         break;
       case 'last-3-months':
         setStartDate(startOfMonth(subMonths(now, 2)));
-        setEndDate(endOfMonth(now));
+        setEndDate(endOfDay(endOfMonth(now)));
         break;
       case 'this-year':
         setStartDate(startOfYear(now));
-        setEndDate(endOfYear(now));
+        setEndDate(endOfDay(endOfYear(now)));
         break;
       case 'all':
         setStartDate(undefined);
@@ -146,15 +205,9 @@ export const CampReportsTab: React.FC = () => {
 
   const filterByDateRange = (regs: CampRegistration[], start?: Date, end?: Date) => {
     if (!start && !end) return regs;
-    return regs.filter(reg => {
-      const regDate = reg.created_at ? new Date(reg.created_at) : null;
-      if (!regDate) return false;
-      if (start && end) return isWithinInterval(regDate, { start, end });
-      if (start) return regDate >= start;
-      if (end) return regDate <= end;
-      return true;
-    });
+    return regs.filter(reg => registrationInDateWindow(reg, start, end));
   };
+
 
   const filteredRegistrations = useMemo(() => 
     filterByDateRange(registrations, startDate, endDate),
@@ -166,8 +219,20 @@ export const CampReportsTab: React.FC = () => {
     [registrations, previousPeriod]
   );
 
-  const currentMetrics = useMemo(() => calculatePeriodMetrics(filteredRegistrations), [filteredRegistrations]);
-  const previousMetrics = useMemo(() => calculatePeriodMetrics(previousRegistrations), [previousRegistrations]);
+  const currentMetrics = useMemo(() => calculatePeriodMetrics(filteredRegistrations, startDate, endDate), [filteredRegistrations, startDate, endDate]);
+  const previousMetrics = useMemo(() => calculatePeriodMetrics(previousRegistrations, previousPeriod.start, previousPeriod.end), [previousRegistrations, previousPeriod]);
+
+  // Children EXPECTED (attendance) — counted across ALL registrations whose
+  // children[*].selectedDates falls in the window, regardless of when the
+  // registration was billed/paid. Matches AttendanceMarkingTab's "Expected".
+  const currentExpectedChildren = useMemo(
+    () => registrations.reduce((sum, reg) => sum + countChildrenInWindow(reg, startDate, endDate), 0),
+    [registrations, startDate, endDate]
+  );
+  const previousExpectedChildren = useMemo(
+    () => registrations.reduce((sum, reg) => sum + countChildrenInWindow(reg, previousPeriod.start, previousPeriod.end), 0),
+    [registrations, previousPeriod]
+  );
 
   const summary = useMemo(() => {
     if (filteredRegistrations.length === 0) return null;
@@ -245,7 +310,7 @@ export const CampReportsTab: React.FC = () => {
             <Filter className="h-5 w-5" />
             Date Range Filter
           </CardTitle>
-          <CardDescription>Filter analytics by registration date</CardDescription>
+          <CardDescription>Filter analytics by attendance date (matches the Attendance page)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4 items-end">
@@ -257,6 +322,8 @@ export const CampReportsTab: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
                   <SelectItem value="this-month">This Month</SelectItem>
                   <SelectItem value="last-month">Last Month</SelectItem>
                   <SelectItem value="last-3-months">Last 3 Months</SelectItem>
@@ -309,12 +376,12 @@ export const CampReportsTab: React.FC = () => {
           {(startDate || endDate) && (
             <div className="mt-3 space-y-1">
               <div className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">Current:</span> {filteredRegistrations.length} registrations
+                <span className="font-medium text-foreground">Current:</span> {filteredRegistrations.length} registrations booked for this period
                 {startDate && endDate && ` (${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")})`}
               </div>
               {canShowComparison && previousPeriod.start && previousPeriod.end && (
                 <div className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Previous:</span> {previousRegistrations.length} registrations
+                  <span className="font-medium text-foreground">Previous:</span> {previousRegistrations.length} registrations booked for the previous period
                   {` (${format(previousPeriod.start, "MMM d")} - ${format(previousPeriod.end, "MMM d, yyyy")})`}
                 </div>
               )}
@@ -347,7 +414,7 @@ export const CampReportsTab: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{currentMetrics.totalRegistrations}</div>
             {canShowComparison && <ChangeIndicator current={currentMetrics.totalRegistrations} previous={previousMetrics.totalRegistrations} />}
-            <p className="text-xs text-muted-foreground mt-1">{currentMetrics.totalChildren} children enrolled</p>
+            <p className="text-xs text-muted-foreground mt-1">{currentExpectedChildren} children expected (attendance)</p>
           </CardContent>
         </Card>
 
@@ -380,6 +447,48 @@ export const CampReportsTab: React.FC = () => {
         </Card>
       </div>
 
+      {/* Quote vs Invoice KPIs */}
+      {(() => {
+        const quote = filteredRegistrations.filter(r => (r.billing_doc_type || (r.payment_status === 'paid' ? 'paid' : 'quotation')) === 'quotation');
+        const invoice = filteredRegistrations.filter(r => r.billing_doc_type === 'invoice');
+        const paidRegs = filteredRegistrations.filter(r => r.payment_status === 'paid');
+        const sum = (arr: CampRegistration[]) => arr.reduce((s, r) => s + (r.total_amount || 0), 0);
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-muted-foreground/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Quotations Outstanding</CardTitle>
+                <CardDescription className="text-xs">Registered, not paid, not attended — prospective no-shows</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{quote.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">KES {sum(quote).toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-amber-700">Invoices Outstanding</CardTitle>
+                <CardDescription className="text-xs">Attended but unpaid — real receivables</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-700">{invoice.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">KES {sum(invoice).toLocaleString()}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-green-300">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-green-700">Paid Registrations</CardTitle>
+                <CardDescription className="text-xs">Fully collected</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-700">{paidRegs.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">KES {sum(paidRegs).toLocaleString()}</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
       {/* Comparison Summary Card */}
       {canShowComparison && (
         <Card className="bg-muted/50">
@@ -408,9 +517,9 @@ export const CampReportsTab: React.FC = () => {
               </div>
               <div className="text-center p-3 bg-background rounded-lg">
                 <div className="text-xs text-muted-foreground mb-1">Children Change</div>
-                <div className={cn("text-xl font-bold", getPercentageChange(currentMetrics.totalChildren, previousMetrics.totalChildren) >= 0 ? "text-green-600" : "text-red-600")}>
-                  {getPercentageChange(currentMetrics.totalChildren, previousMetrics.totalChildren) >= 0 ? '+' : ''}
-                  {getPercentageChange(currentMetrics.totalChildren, previousMetrics.totalChildren).toFixed(1)}%
+                <div className={cn("text-xl font-bold", getPercentageChange(currentExpectedChildren, previousExpectedChildren) >= 0 ? "text-green-600" : "text-red-600")}>
+                  {getPercentageChange(currentExpectedChildren, previousExpectedChildren) >= 0 ? '+' : ''}
+                  {getPercentageChange(currentExpectedChildren, previousExpectedChildren).toFixed(1)}%
                 </div>
               </div>
               <div className="text-center p-3 bg-background rounded-lg">

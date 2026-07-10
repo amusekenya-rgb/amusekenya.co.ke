@@ -435,7 +435,10 @@ const campTypeToCalendarProgram: Record<string, string[]> = {
  * Filters out past dates so registration forms only show upcoming dates.
  * Calendar views are NOT affected — past dates remain visible there.
  */
-export const getCalendarDatesForCampType = async (campFormKey: string): Promise<string[]> => {
+export const getCalendarDatesForCampType = async (
+  campFormKey: string,
+  location?: string
+): Promise<string[]> => {
   try {
     const events = await loadEvents();
     const programTypes = campTypeToCalendarProgram[campFormKey];
@@ -445,9 +448,19 @@ export const getCalendarDatesForCampType = async (campFormKey: string): Promise<
     }
 
     // Filter events matching this camp type
-    const matchingEvents = events.filter(
+    let matchingEvents = events.filter(
       (e) => e.programType && programTypes.includes(e.programType)
     );
+
+    // Optional location scoping (case-insensitive trim). Only filter when at least
+    // one matching event has a location set, so legacy events without a location
+    // remain available as a fallback.
+    if (location && matchingEvents.some((e) => e.location && e.location.trim())) {
+      const target = location.trim().toLowerCase();
+      matchingEvents = matchingEvents.filter(
+        (e) => (e.location || '').trim().toLowerCase() === target
+      );
+    }
 
     if (matchingEvents.length === 0) {
       return [];

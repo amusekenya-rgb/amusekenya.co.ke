@@ -51,6 +51,40 @@ async function sendAttendanceNotification(
     console.error('Error sending attendance notification:', err);
   }
 }
+// Client-side fallback for the DB trigger that promotes a quotation to an
+// invoice the moment a child checks in. Safe to run even when the trigger
+// already did it (idempotent — only updates rows still marked as quotations).
+async function promoteRegistrationToInvoiceIfNeeded(registrationId: string) {
+  try {
+    const { data: reg } = await (supabase as any)
+      .from('camp_registrations')
+      .select('id, billing_doc_type, payment_status, invoice_number, converted_to_invoice_at')
+      .eq('id', registrationId)
+      .maybeSingle();
+
+    if (!reg) return;
+    const r = reg as any;
+    if (r.payment_status === 'paid') return;
+    if (r.billing_doc_type === 'invoice' || r.billing_doc_type === 'paid') return;
+
+    const time = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const invoiceNumber = r.invoice_number || `INV-${time}-${rand}`;
+
+    await (supabase as any)
+      .from('camp_registrations')
+      .update({
+        billing_doc_type: 'invoice',
+        invoice_number: invoiceNumber,
+        converted_to_invoice_at: r.converted_to_invoice_at || new Date().toISOString(),
+      })
+      .eq('id', registrationId);
+  } catch (err) {
+    // Non-fatal: trigger will/has handled it.
+    console.warn('promoteRegistrationToInvoiceIfNeeded skipped:', err);
+  }
+}
+
 
 export const attendanceService = {
   async checkIn(registrationId: string, childName: string, markedBy: string, notes?: string, sendNotification = false) {
@@ -68,6 +102,9 @@ export const attendanceService = {
       .single();
 
     if (error) throw error;
+
+    // Promote quotation → invoice (idempotent client fallback for DB trigger)
+    await promoteRegistrationToInvoiceIfNeeded(registrationId);
 
     // Optionally send notification
     if (sendNotification) {
@@ -92,6 +129,8 @@ export const attendanceService = {
       .single();
 
     if (error) throw error;
+
+    await promoteRegistrationToInvoiceIfNeeded(registrationId);
 
     if (sendNotification) {
       sendAttendanceNotification(registrationId, childName, 'check-in', notes);
@@ -190,15 +229,20 @@ export const attendanceService = {
   },
 
   async hasCheckedInOnDate(registrationId: string, childName: string, date: string) {
+    // Use limit(1) instead of maybeSingle because legacy data sometimes contains
+    // duplicate attendance rows for the same child/date (e.g. two staff checking
+    // in concurrently). maybeSingle() throws PGRST116 in that case and would
+    // break the whole "Failed to load registrations" flow.
     const { data, error } = await supabase
       .from('camp_attendance')
       .select('*')
       .eq('registration_id', registrationId)
       .eq('child_name', childName)
       .eq('attendance_date', date)
-      .maybeSingle();
+      .order('check_in_time', { ascending: true })
+      .limit(1);
 
     if (error) throw error;
-    return data as CampAttendance | null;
+    return ((data && data[0]) || null) as CampAttendance | null;
   },
 };

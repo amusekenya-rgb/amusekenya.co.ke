@@ -6,8 +6,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { TrendingUp, PieChart, BarChart3, Calendar as CalendarIcon, FileText, Clock, Activity, Filter, X } from 'lucide-react';
-import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { TrendingUp, PieChart, BarChart3, Calendar as CalendarIcon, FileText, Clock, Activity, Filter, X, ClipboardList } from 'lucide-react';
+import { CampRegistrationsManager } from '../admin/CampRegistrationsManager';
+import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay } from 'date-fns';
 import { DateRange } from '@/services/financialReportService';
 import { ACTIVITY_CATEGORIES } from '@/lib/activityCategories';
 import { useActivityCategories } from '@/hooks/useActivityCategories';
@@ -85,13 +86,15 @@ const FinancialReports: React.FC = () => {
   }, [selectedActivities]);
 
   const presetRanges = [
-    { label: 'Last 7 days', value: () => ({ startDate: subDays(new Date(), 7), endDate: new Date() }) },
-    { label: 'Last 30 days', value: () => ({ startDate: subDays(new Date(), 30), endDate: new Date() }) },
-    { label: 'Last 90 days', value: () => ({ startDate: subDays(new Date(), 90), endDate: new Date() }) },
-    { label: 'This month', value: () => ({ startDate: startOfMonth(new Date()), endDate: new Date() }) },
-    { label: 'Last month', value: () => ({ startDate: startOfMonth(subMonths(new Date(), 1)), endDate: endOfMonth(subMonths(new Date(), 1)) }) },
-    { label: 'Last 6 months', value: () => ({ startDate: subMonths(new Date(), 6), endDate: new Date() }) },
-    { label: 'Year to date', value: () => ({ startDate: new Date(new Date().getFullYear(), 0, 1), endDate: new Date() }) },
+    { label: 'Today', value: () => ({ startDate: startOfDay(new Date()), endDate: endOfDay(new Date()) }) },
+    { label: 'Yesterday', value: () => ({ startDate: startOfDay(subDays(new Date(), 1)), endDate: endOfDay(subDays(new Date(), 1)) }) },
+    { label: 'Last 7 days', value: () => ({ startDate: startOfDay(subDays(new Date(), 7)), endDate: endOfDay(new Date()) }) },
+    { label: 'Last 30 days', value: () => ({ startDate: startOfDay(subDays(new Date(), 30)), endDate: endOfDay(new Date()) }) },
+    { label: 'Last 90 days', value: () => ({ startDate: startOfDay(subDays(new Date(), 90)), endDate: endOfDay(new Date()) }) },
+    { label: 'This month', value: () => ({ startDate: startOfMonth(new Date()), endDate: endOfDay(new Date()) }) },
+    { label: 'Last month', value: () => ({ startDate: startOfMonth(subMonths(new Date(), 1)), endDate: endOfDay(endOfMonth(subMonths(new Date(), 1))) }) },
+    { label: 'Last 6 months', value: () => ({ startDate: startOfDay(subMonths(new Date(), 6)), endDate: endOfDay(new Date()) }) },
+    { label: 'Year to date', value: () => ({ startDate: new Date(new Date().getFullYear(), 0, 1), endDate: endOfDay(new Date()) }) },
   ];
 
   const handlePresetClick = (preset: typeof presetRanges[0]) => {
@@ -189,9 +192,9 @@ const FinancialReports: React.FC = () => {
                     selected={{ from: dateRange.startDate, to: dateRange.endDate }}
                     onSelect={(range) => {
                       if (range?.from && range?.to) {
-                        setDateRange({ startDate: range.from, endDate: range.to });
+                        setDateRange({ startDate: startOfDay(range.from), endDate: endOfDay(range.to) });
                       } else if (range?.from) {
-                        setDateRange({ startDate: range.from, endDate: range.from });
+                        setDateRange({ startDate: startOfDay(range.from), endDate: endOfDay(range.from) });
                       }
                     }}
                     numberOfMonths={1}
@@ -217,7 +220,7 @@ const FinancialReports: React.FC = () => {
       )}
 
       <Tabs defaultValue="profit-loss" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className="grid grid-cols-7 w-full">
           <TabsTrigger value="profit-loss" className="flex items-center justify-center gap-1 px-1 sm:px-3">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline text-xs sm:text-sm">P&L</span>
@@ -242,6 +245,10 @@ const FinancialReports: React.FC = () => {
             <PieChart className="h-4 w-4" />
             <span className="hidden sm:inline text-xs sm:text-sm">Expenses</span>
           </TabsTrigger>
+          <TabsTrigger value="attendance" className="flex items-center justify-center gap-1 px-1 sm:px-3">
+            <ClipboardList className="h-4 w-4" />
+            <span className="hidden sm:inline text-xs sm:text-sm">Attendance</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profit-loss">
@@ -253,7 +260,7 @@ const FinancialReports: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="ar-aging">
-          <ARAgingReport activities={selectedActivities} />
+          <ARAgingReport activities={selectedActivities} dateRange={dateRange} />
         </TabsContent>
 
         <TabsContent value="daily-sales">
@@ -266,6 +273,10 @@ const FinancialReports: React.FC = () => {
 
         <TabsContent value="expenses">
           <ExpenseReport dateRange={dateRange} activities={selectedActivities} />
+        </TabsContent>
+
+        <TabsContent value="attendance">
+          <CampRegistrationsManager visibleTabs={['daily', 'attendance', 'history']} />
         </TabsContent>
       </Tabs>
     </div>
