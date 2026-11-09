@@ -53,6 +53,10 @@ export interface CampFormConfig {
     skills: string;
     color: string;
   }>;
+  emailContent?: {
+    karura?: { timing?: string; activities?: string[]; whatToBring?: string[] };
+    ngong?: { timing?: string; activities?: string[]; whatToBring?: string[] };
+  };
 }
 
 export const useCampFormConfig = (formType: string) => {

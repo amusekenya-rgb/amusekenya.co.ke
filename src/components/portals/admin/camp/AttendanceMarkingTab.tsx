@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getChildBookedDates, isChildBookedOnDate } from '@/utils/registrationDate';
-import { Search, CheckCircle, XCircle, Clock, QrCode, Calendar, Users, CalendarDays, Mail, Download, FileText } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Clock, QrCode, Calendar, Users, CalendarDays, Mail, Download, FileText, CameraOff } from 'lucide-react';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { attendanceService } from '@/services/attendanceService';
 import { qrCodeService } from '@/services/qrCodeService';
@@ -31,7 +31,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { displayLocation } from '@/lib/locationDisplay';
 import { useRegistrationLoadProgress } from '@/hooks/useRegistrationLoadProgress';
 import { RegistrationLoadStatus } from './RegistrationLoadStatus';
-import { AllergyCell, MediaConsentCell } from './HealthConsentCells';
+import { AllergyCell, MediaConsentCell, isPhotoOptedOut, mediaConsentLabel } from './HealthConsentCells';
 
 interface ExpectedChild {
   registration: CampRegistration;
@@ -44,6 +44,7 @@ export const AttendanceMarkingTab: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [campTypeFilter, setCampTypeFilter] = useState<string>('all');
   const [locationFilter, setLocationFilter] = useState<string>('all');
+  const [mediaFilter, setMediaFilter] = useState<'all' | 'optout' | 'consent'>('all');
   const [registrations, setRegistrations] = useState<CampRegistration[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
@@ -177,6 +178,9 @@ export const AttendanceMarkingTab: React.FC = () => {
     for (const reg of registrations) {
       // Filter by location
       if (locationFilter !== 'all' && (reg.location || 'Kurura Gate F') !== locationFilter) continue;
+      // Media consent filter (opted-out families surface first for staff awareness)
+      if (mediaFilter === 'optout' && !isPhotoOptedOut(reg.consent_given)) continue;
+      if (mediaFilter === 'consent' && reg.consent_given !== true) continue;
 
       for (const child of reg.children) {
         if (isChildBookedOnDate(child, selectedDate)) {
@@ -200,7 +204,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       item.registration.parent_name.toLowerCase().includes(term) ||
       item.registration.registration_number?.toLowerCase().includes(term)
     );
-  }, [registrations, selectedDate, searchTerm, locationFilter]);
+  }, [registrations, selectedDate, searchTerm, locationFilter, mediaFilter]);
 
   const paidExpected = filteredExpectedChildren.filter(e => e.registration.payment_status === 'paid');
   const unpaidExpected = filteredExpectedChildren.filter(e => e.registration.payment_status !== 'paid');
@@ -361,7 +365,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       toast.error('No data to export');
       return;
     }
-    const headers = ['Reg #', 'Camp Type', 'Parent Name', 'Phone', 'Child Name', 'Age', 'Session', 'Payment', 'Status', 'Check-In Time', 'Check-Out Time', 'Special Needs/Medical Info'];
+    const headers = ['Reg #', 'Camp Type', 'Parent Name', 'Phone', 'Child Name', 'Age', 'Session', 'Payment', 'Status', 'Check-In Time', 'Check-Out Time', 'Media Consent', 'Special Needs/Medical Info'];
     const rows = items.map(item => {
       const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
       const att = attendanceStatus[key];
@@ -378,6 +382,7 @@ export const AttendanceMarkingTab: React.FC = () => {
         status,
         att?.check_in_time ? new Date(att.check_in_time).toLocaleTimeString() : '',
         att?.check_out_time ? new Date(att.check_out_time).toLocaleTimeString() : '',
+        mediaConsentLabel(item.registration.consent_given),
         item.child.specialNeeds || ''
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
     });
@@ -407,7 +412,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       doc.setFontSize(16);
       doc.text(`Attendance - ${format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy')}`, 14, 20);
       doc.setFontSize(10);
-      doc.text(`Expected: ${totalExpected} | Present: ${totalPresent} | Absent: ${totalAbsent} | Paid: ${paidExpectedCount} | Unpaid: ${unpaidExpectedCount}`, 14, 28);
+      doc.text(`Expected: ${totalExpected} | Present: ${totalPresent} | Absent: ${totalAbsent} | Paid: ${paidExpectedCount} | Unpaid: ${unpaidExpectedCount} | No Photos: ${items.filter(i => isPhotoOptedOut(i.registration.consent_given)).length}`, 14, 28);
 
       const tableData = items.map(item => {
         const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
@@ -425,12 +430,13 @@ export const AttendanceMarkingTab: React.FC = () => {
           status,
           att?.check_in_time ? new Date(att.check_in_time).toLocaleTimeString() : '',
           att?.check_out_time ? new Date(att.check_out_time).toLocaleTimeString() : '',
+          mediaConsentLabel(item.registration.consent_given),
           item.child.specialNeeds || ''
         ];
       });
 
       autoTable(doc, {
-        head: [['Reg #', 'Camp', 'Parent', 'Phone', 'Child', 'Age', 'Session', 'Payment', 'Status', 'In', 'Out', 'Special Needs']],
+        head: [['Reg #', 'Camp', 'Parent', 'Phone', 'Child', 'Age', 'Session', 'Payment', 'Status', 'In', 'Out', 'Media', 'Special Needs']],
         body: tableData,
         startY: 34,
         styles: { fontSize: 8 },
@@ -457,6 +463,7 @@ export const AttendanceMarkingTab: React.FC = () => {
       const key = `${item.registration.id}-${item.child.childName}-${selectedDate}`;
       return attendanceStatus[key] && !attendanceStatus[key].check_out_time;
     }).length;
+    const optOutCount = items.filter(item => isPhotoOptedOut(item.registration.consent_given)).length;
 
     return (
       <Card className="mb-6">
@@ -473,6 +480,12 @@ export const AttendanceMarkingTab: React.FC = () => {
                 </Badge>
               )}
               <Badge variant="outline">{presentCount}/{items.length} Present</Badge>
+              {optOutCount > 0 && (
+                <Badge variant="destructive" className="gap-1" title="Families that opted out of photography/video">
+                  <CameraOff className="h-3 w-3" />
+                  {optOutCount} No Photos
+                </Badge>
+              )}
               <Badge variant={isPaid ? 'default' : 'secondary'}>{items.length} Expected</Badge>
             </div>
           </CardTitle>
@@ -728,6 +741,16 @@ export const AttendanceMarkingTab: React.FC = () => {
                 <SelectItem value="all">All Locations</SelectItem>
                 <SelectItem value="Kurura Gate F">Karura Gate F</SelectItem>
                 <SelectItem value="Ngong Sanctuary">Ngong Sanctuary</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={mediaFilter} onValueChange={(v) => setMediaFilter(v as 'all' | 'optout' | 'consent')}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Media Consent" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Media Consents</SelectItem>
+                <SelectItem value="optout">No Photos (Opted Out)</SelectItem>
+                <SelectItem value="consent">Photo Consent Given</SelectItem>
               </SelectContent>
             </Select>
           </div>

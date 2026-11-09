@@ -7,16 +7,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { cmsService } from '@/services/cmsService';
+import { createDefaultCampFormConfig } from '@/utils/defaultCampConfigs';
 
 
 interface CampFormEditorProps {
   isOpen: boolean;
   onClose: () => void;
   formSlug: string | null;
+  formTitle?: string;
   onSave: () => void;
 }
 
-export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose, formSlug, onSave }) => {
+export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose, formSlug, formTitle, onSave }) => {
   const [formData, setFormData] = useState({
     pricing: {
       halfDayRate: 1500,
@@ -80,30 +82,38 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
   const loadFormData = async () => {
     if (!formSlug) return;
     
-    const data = await cmsService.getCampFormConfig(formSlug.replace('-form', ''));
-    if (data?.metadata?.formConfig) {
-      setFormData({
-        ...formData,
-        ...data.metadata.formConfig,
-        specialNeedsSection: {
-          ...formData.specialNeedsSection,
-          ...(data.metadata.formConfig.specialNeedsSection || {})
+    const formType = formSlug.replace('-form', '');
+    const defaults = createDefaultCampFormConfig(formType);
+    const data = await cmsService.getCampFormConfig(formType);
+    const savedConfig = data?.metadata?.formConfig || {};
+    const savedKaruraEmail = savedConfig.emailContent?.karura || {};
+    const savedNgongEmail = savedConfig.emailContent?.ngong || {};
+    setFormData({
+      ...defaults,
+      ...savedConfig,
+      pricing: { ...defaults.pricing, ...(savedConfig.pricing || {}) },
+      fields: { ...defaults.fields, ...(savedConfig.fields || {}) },
+      buttons: { ...defaults.buttons, ...(savedConfig.buttons || {}) },
+      messages: { ...defaults.messages, ...(savedConfig.messages || {}) },
+      specialNeedsSection: { ...defaults.specialNeedsSection, ...(savedConfig.specialNeedsSection || {}) },
+      availableDates: savedConfig.availableDates || defaults.availableDates || [],
+      locations: savedConfig.locations || defaults.locations || ['Kurura Gate F', 'Ngong Sanctuary'],
+      archeryRate: savedConfig.archeryRate ?? defaults.archeryRate ?? 1000,
+      emailContent: {
+        karura: {
+          ...defaults.emailContent?.karura,
+          ...savedKaruraEmail,
+          activities: Array.isArray(savedKaruraEmail.activities) ? savedKaruraEmail.activities : defaults.emailContent?.karura?.activities || [],
+          whatToBring: Array.isArray(savedKaruraEmail.whatToBring) ? savedKaruraEmail.whatToBring : defaults.emailContent?.karura?.whatToBring || []
         },
-        availableDates: data.metadata.formConfig.availableDates || [],
-        locations: data.metadata.formConfig.locations || ['Kurura Gate F', 'Ngong Sanctuary'],
-        archeryRate: data.metadata.formConfig.archeryRate || 1000,
-        emailContent: {
-          karura: {
-            ...formData.emailContent.karura,
-            ...(data.metadata.formConfig.emailContent?.karura || {})
-          },
-          ngong: {
-            ...formData.emailContent.ngong,
-            ...(data.metadata.formConfig.emailContent?.ngong || {})
-          }
+        ngong: {
+          ...defaults.emailContent?.ngong,
+          ...savedNgongEmail,
+          activities: Array.isArray(savedNgongEmail.activities) ? savedNgongEmail.activities : defaults.emailContent?.ngong?.activities || [],
+          whatToBring: Array.isArray(savedNgongEmail.whatToBring) ? savedNgongEmail.whatToBring : defaults.emailContent?.ngong?.whatToBring || []
         }
-      });
-    }
+      }
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,7 +123,7 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
     try {
       const formType = formSlug?.replace('-form', '') || '';
       
-      const result = await cmsService.updateCampFormConfig(formType, formData);
+      const result = await cmsService.updateCampFormConfig(formType, formData, formTitle);
       
       if (result) {
         toast.success('Camp form updated successfully');
@@ -134,8 +144,8 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Camp Form Configuration</DialogTitle>
-          <DialogDescription>Customize all form labels, pricing, and messages</DialogDescription>
+          <DialogTitle>{formTitle || 'Edit Camp Form Configuration'}</DialogTitle>
+          <DialogDescription>Customize this camp’s labels, pricing, and messages</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -437,7 +447,7 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
                 <div>
                   <Label>Activities (comma-separated)</Label>
                   <Textarea
-                    value={formData.emailContent.karura.activities.join(', ')}
+                    value={formData.emailContent.karura.activities?.join(', ') || ''}
                     onChange={(e) => setFormData({
                       ...formData,
                       emailContent: { ...formData.emailContent, karura: { ...formData.emailContent.karura, activities: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } }
@@ -448,7 +458,7 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
                 <div>
                   <Label>What to Bring (comma-separated)</Label>
                   <Textarea
-                    value={formData.emailContent.karura.whatToBring.join(', ')}
+                    value={formData.emailContent.karura.whatToBring?.join(', ') || ''}
                     onChange={(e) => setFormData({
                       ...formData,
                       emailContent: { ...formData.emailContent, karura: { ...formData.emailContent.karura, whatToBring: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } }
@@ -474,7 +484,7 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
                 <div>
                   <Label>Activities (comma-separated)</Label>
                   <Textarea
-                    value={formData.emailContent.ngong.activities.join(', ')}
+                    value={formData.emailContent.ngong.activities?.join(', ') || ''}
                     onChange={(e) => setFormData({
                       ...formData,
                       emailContent: { ...formData.emailContent, ngong: { ...formData.emailContent.ngong, activities: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } }
@@ -485,7 +495,7 @@ export const CampFormEditor: React.FC<CampFormEditorProps> = ({ isOpen, onClose,
                 <div>
                   <Label>What to Bring (comma-separated)</Label>
                   <Textarea
-                    value={formData.emailContent.ngong.whatToBring.join(', ')}
+                    value={formData.emailContent.ngong.whatToBring?.join(', ') || ''}
                     onChange={(e) => setFormData({
                       ...formData,
                       emailContent: { ...formData.emailContent, ngong: { ...formData.emailContent.ngong, whatToBring: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } }

@@ -45,7 +45,7 @@ const kenyanExperiencesSchema = z.object({
   specialMedicalNeeds: z.string().max(500),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(1, "Phone number is required").max(20),
-  consent: z.boolean().default(false),
+  consent: z.boolean({ required_error: 'Please choose a photography & video preference', invalid_type_error: 'Please choose a photography & video preference' }),
   participationConsent: z.literal(true, {
     errorMap: () => ({ message: "You must read and accept the participation form" }),
   }),
@@ -148,7 +148,7 @@ const KenyanExperiencesProgram = () => {
       participants: [{ name: "", ageRange: "9-12" as const }],
       preferredDates: [{ date: undefined as any }],
       transport: false,
-      consent: false,
+      consent: undefined,
     },
   });
 

@@ -29,7 +29,7 @@ const kenyanExperiencesSchema = z.object({
   specialNeeds: z.string().max(500).optional(),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().default(false)
+  consent: z.boolean({ required_error: 'Please choose a photography & video preference', invalid_type_error: 'Please choose a photography & video preference' })
 });
 
 type KenyanExperiencesFormData = z.infer<typeof kenyanExperiencesSchema>;
@@ -45,7 +45,7 @@ const KenyanExperiencesForm = () => {
     resolver: zodResolver(kenyanExperiencesSchema),
     defaultValues: {
       transport: false,
-      consent: false
+      consent: undefined
     }
   });
 

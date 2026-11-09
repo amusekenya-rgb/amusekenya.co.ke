@@ -53,7 +53,7 @@ const littleForestSchema = z.object({
   altEmergencyContact: z.string().trim().max(100).optional(),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(10, 'Phone number must be at least 10 digits'),
-  consent: z.boolean().default(false),
+  consent: z.boolean({ required_error: 'Please choose a photography & video preference', invalid_type_error: 'Please choose a photography & video preference' }),
   participationConsent: z.literal(true, { errorMap: () => ({ message: 'You must read and accept the participation form' }) }),
 });
 
@@ -96,7 +96,7 @@ const LittleForestProgram = () => {
   } = useForm<LittleForestFormData>({
     resolver: zodResolver(littleForestSchema),
     defaultValues: {
-      consent: false,
+      consent: undefined,
       children: [{
         childName: '',
         childAge: undefined,

@@ -224,6 +224,18 @@ const baseFormConfig: Omit<CampFormConfig, 'ageGroups'> = {
   specialNeedsSection: {
     title: 'Special Needs & Medical Information',
     description: 'Please provide any information about allergies, medical conditions, or special accommodations needed.'
+  },
+  emailContent: {
+    karura: {
+      timing: 'Full Day: 9:00 AM - 3:00 PM / Half Day: 9:00 AM - 1:00 PM',
+      activities: ['Nature exploration', 'Adventure activities', 'Team games', 'Creative crafts', 'Environmental education'],
+      whatToBring: ['Comfortable clothes', 'Closed shoes', 'Water bottle', 'Sunscreen', 'Packed lunch (full day)']
+    },
+    ngong: {
+      timing: '9:00 AM - 1:00 PM',
+      activities: ['Archery', 'Outdoor exploration', 'Team-building activities', 'Creative workshops', 'Nature walks', 'Group games', 'Environmental education'],
+      whatToBring: ['Comfortable clothes', 'Closed shoes', 'Water bottle', 'Sunscreen', 'Packed snack']
+    }
   }
 };
 
@@ -314,4 +326,9 @@ export const defaultCampFormConfigs: Record<string, CampFormConfig> = {
       }
     ]
   }
+};
+
+export const createDefaultCampFormConfig = (formType: string): CampFormConfig => {
+  const defaults = defaultCampFormConfigs[formType] || baseFormConfig;
+  return JSON.parse(JSON.stringify(defaults)) as CampFormConfig;
 };

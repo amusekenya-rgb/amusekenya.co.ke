@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -12,30 +13,24 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ConsentDialogProps {
-  checked: boolean;
+  /** true = consents, false = opted out, undefined = not chosen yet */
+  checked: boolean | undefined;
   onCheckedChange: (checked: boolean) => void;
   error?: string;
 }
 
 export const ConsentDialog = ({ checked, onCheckedChange, error }: ConsentDialogProps) => {
   const [open, setOpen] = useState(false);
+  const value = checked === true ? "yes" : checked === false ? "no" : "";
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-start space-x-3">
-        <Checkbox
-          id="consent"
-          checked={checked}
-          onCheckedChange={(v) => onCheckedChange(v === true)}
-        />
+    <div className="space-y-2" data-field="consent">
+      <div className="space-y-3">
         <div className="flex-1">
           <div className="flex items-center gap-1 flex-wrap">
-            <label
-              htmlFor="consent"
-             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              I consent to the Photography & Video Recording terms (optional)
-            </label>
+            <span className="text-sm font-medium leading-none">
+              Photography & Video Recording Preference <span className="text-destructive">*</span>
+            </span>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button 
@@ -119,6 +114,24 @@ export const ConsentDialog = ({ checked, onCheckedChange, error }: ConsentDialog
             </Dialog>
           </div>
         </div>
+        <RadioGroup
+          value={value}
+          onValueChange={(v) => onCheckedChange(v === "yes")}
+          className="space-y-2"
+        >
+          <div className="flex items-start space-x-3">
+            <RadioGroupItem value="yes" id="consent-yes" className="mt-0.5" />
+            <Label htmlFor="consent-yes" className="text-sm font-normal leading-snug cursor-pointer">
+              I consent to photography and video recording for camp highlights
+            </Label>
+          </div>
+          <div className="flex items-start space-x-3">
+            <RadioGroupItem value="no" id="consent-no" className="mt-0.5" />
+            <Label htmlFor="consent-no" className="text-sm font-normal leading-snug cursor-pointer">
+              I prefer to opt out (do not photograph or record my child)
+            </Label>
+          </div>
+        </RadioGroup>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>

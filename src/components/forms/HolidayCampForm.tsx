@@ -53,7 +53,7 @@ const holidayCampSchema = z.object({
   altEmergencyContact: z.string().trim().max(100).optional(),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(1, 'Phone number is required').max(20),
-  consent: z.boolean().default(false),
+  consent: z.boolean({ required_error: 'Please choose a photography & video preference', invalid_type_error: 'Please choose a photography & video preference' }),
   participationConsent: z.literal(true, { errorMap: () => ({ message: 'You must read and accept the participation form' }) })
 });
 
@@ -138,7 +138,7 @@ const HolidayCampForm = ({ campType, campTitle }: HolidayCampFormProps) => {
         activityType: 'camp' as const
       }],
       campType: campType,
-      consent: false
+      consent: undefined
     }
   });
 

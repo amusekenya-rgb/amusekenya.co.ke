@@ -539,7 +539,7 @@ export const cmsService = {
     }
   },
 
-  async updateCampFormConfig(formType: string, config: any): Promise<ContentItem | null> {
+  async updateCampFormConfig(formType: string, config: any, displayTitle?: string): Promise<ContentItem | null> {
     try {
       const slug = `${formType}-form`;
       const { data: { user } } = await supabase.auth.getUser();
@@ -550,7 +550,7 @@ export const cmsService = {
         .upsert({
           slug,
           content_type: 'camp_form',
-          title: `${formType.charAt(0).toUpperCase() + formType.slice(1)} Form Config`,
+          title: displayTitle || `${formType.charAt(0).toUpperCase() + formType.slice(1)} Form Config`,
           status: 'published',
           content: JSON.stringify(config),
           metadata: { formConfig: config },

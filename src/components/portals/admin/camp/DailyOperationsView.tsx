@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Search, CheckCircle, XCircle, Clock, QrCode, UserPlus, DollarSign, RefreshCw } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Clock, QrCode, UserPlus, DollarSign, RefreshCw, CameraOff } from 'lucide-react';
 import { campRegistrationService } from '@/services/campRegistrationService';
 import { attendanceService } from '@/services/attendanceService';
 import { accountsActionService } from '@/services/accountsActionService';
@@ -30,7 +30,7 @@ import { QuickGroundRegistration } from './QuickGroundRegistration';
 import { promptForPaymentMethod } from '@/utils/promptPaymentMethod';
 import { useRegistrationLoadProgress } from '@/hooks/useRegistrationLoadProgress';
 import { RegistrationLoadStatus } from './RegistrationLoadStatus';
-import { AllergyCell, MediaConsentCell } from './HealthConsentCells';
+import { AllergyCell, MediaConsentCell, isPhotoOptedOut } from './HealthConsentCells';
 
 const CAMP_TYPES = [
   { value: 'all', label: 'All Camps' },
@@ -48,6 +48,7 @@ export const DailyOperationsView: React.FC = () => {
   const { user } = useSupabaseAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [campTypeFilter, setCampTypeFilter] = useState<string>('all');
+  const [mediaFilter, setMediaFilter] = useState<'all' | 'optout' | 'consent'>('all');
   const [registrations, setRegistrations] = useState<CampRegistration[]>([]);
   const [loading, setLoading] = useState(false);
   const { progress, begin } = useRegistrationLoadProgress();
@@ -379,6 +380,13 @@ export const DailyOperationsView: React.FC = () => {
     }))
   );
 
+  // Media consent filter — stats above always use the full childRows list
+  const visibleChildRows = childRows.filter(row => {
+    if (mediaFilter === 'optout') return isPhotoOptedOut(row.reg.consent_given);
+    if (mediaFilter === 'consent') return row.reg.consent_given === true;
+    return true;
+  });
+
   return (
     <div className="space-y-4">
       <RegistrationLoadStatus progress={progress} />
@@ -438,12 +446,22 @@ export const DailyOperationsView: React.FC = () => {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={mediaFilter} onValueChange={(v) => setMediaFilter(v as 'all' | 'optout' | 'consent')}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Media Consent" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Media Consents</SelectItem>
+                <SelectItem value="optout">No Photos (Opted Out)</SelectItem>
+                <SelectItem value="consent">Photo Consent Given</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
       {/* Stats summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <Card className="p-3">
           <div className="text-2xl font-bold">{childRows.length}</div>
           <div className="text-xs text-muted-foreground">Total Children</div>
@@ -466,6 +484,15 @@ export const DailyOperationsView: React.FC = () => {
           </div>
           <div className="text-xs text-muted-foreground">Unpaid/Partial</div>
         </Card>
+        <Card className="p-3">
+          <div className="flex items-center gap-2">
+            <CameraOff className="h-4 w-4 text-destructive flex-shrink-0" />
+            <div className="text-2xl font-bold text-destructive">
+              {childRows.filter(r => isPhotoOptedOut(r.reg.consent_given)).length}
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">No Photos (opted out)</div>
+        </Card>
       </div>
 
       {/* Main table */}
@@ -475,6 +502,8 @@ export const DailyOperationsView: React.FC = () => {
             <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : childRows.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No registrations found</div>
+          ) : visibleChildRows.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No children match the media consent filter</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -492,7 +521,7 @@ export const DailyOperationsView: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {childRows.map(({ reg, child, key, attendance }) => {
+                  {visibleChildRows.map(({ reg, child, key, attendance }) => {
                     const checkedIn = !!attendance;
                     const checkedOut = attendance?.check_out_time;
                     const lastCheckInAt = recentCheckIns[key] || 0;

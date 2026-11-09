@@ -34,10 +34,24 @@ import { HomeschoolingPageEditor } from './editors/HomeschoolingPageEditor';
 import { KenyanExperiencesPageEditor } from './editors/KenyanExperiencesPageEditor';
 import MediaLibrary from './MediaLibrary';
 import { BlogPostEditor } from './editors/BlogPostEditor';
+import { defaultCampFormConfigs } from '@/utils/defaultCampConfigs';
 import HomeSectionEditor from './editors/HomeSectionEditor';
 import LivePreviewPanel from './LivePreviewPanel';
 import SortableHomeSections from './SortableHomeSections';
 type EditorType = 'hero' | 'program' | 'announcement' | 'testimonial' | 'team' | 'settings' | 'about' | 'service' | 'camp-page' | 'camp-form' | 'little-forest' | 'program-form' | 'activity-detail' | 'legal-terms' | 'legal-privacy' | 'parties-page' | 'team-building-page' | 'experience-page' | 'school-adventures-page' | 'homeschooling-page' | 'kenyan-experiences-page' | 'blog-post' | 'home-section' | null;
+
+const CAMP_FORM_OPTIONS = [
+  { type: 'easter', title: 'Easter Camp Registration Form' },
+  { type: 'summer', title: 'Summer Camp Registration Form' },
+  { type: 'end-year', title: 'End-Year Camp Registration Form' },
+  { type: 'mid-term-feb-march', title: 'Mid-Term Camp (Feb/March) Registration Form' },
+  { type: 'mid-term-may-june', title: 'Mid-Term Camp (May/June) Registration Form' },
+  { type: 'mid-term-october', title: 'Mid-Term Camp (October) Registration Form' }
+] as const;
+
+const getCampFormTitle = (formType: string) =>
+  CAMP_FORM_OPTIONS.find(option => option.type === formType)?.title || `${formType} Registration Form`;
+
 const ContentManagement = () => {
   const isMobile = useIsMobile();
   const [isTabletOrSmaller, setIsTabletOrSmaller] = React.useState<boolean>(
@@ -70,6 +84,7 @@ const ContentManagement = () => {
   const [serviceItems, setServiceItems] = useState<ContentItem[]>([]);
   const [campPages, setCampPages] = useState<ContentItem[]>([]);
   const [campForms, setCampForms] = useState<ContentItem[]>([]);
+  const [showAddCampFormOptions, setShowAddCampFormOptions] = useState(false);
   const [programForms, setProgramForms] = useState<ContentItem[]>([]);
   const [activityDetails, setActivityDetails] = useState<ContentItem[]>([]);
   const [experiencePages, setExperiencePages] = useState<ContentItem[]>([]);
@@ -214,6 +229,17 @@ const ContentManagement = () => {
     // Dispatch custom event to notify pages to refresh their content
     window.dispatchEvent(new CustomEvent('cms-content-updated'));
   };
+  const savedCampFormSlugs = new Set(campForms.map(form => form.slug));
+  const visibleCampForms = [
+    ...CAMP_FORM_OPTIONS.map(option => ({
+      slug: `${option.type}-form`,
+      title: option.title,
+      isConfigured: savedCampFormSlugs.has(`${option.type}-form`)
+    })),
+    ...campForms
+      .filter(form => !CAMP_FORM_OPTIONS.some(option => form.slug === `${option.type}-form`))
+      .map(form => ({ slug: form.slug, title: form.title, isConfigured: true }))
+  ];
   const getStatusBadge = (status: string) => {
     if (status === 'published') return <Badge className="bg-green-100 text-green-800">Published</Badge>;
     if (status === 'draft') return <Badge className="bg-yellow-100 text-yellow-800">Draft</Badge>;
@@ -689,22 +715,41 @@ const ContentManagement = () => {
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Camp Forms</CardTitle>
-                <CardDescription>Manage camp registration form configurations</CardDescription>
+                <CardHeader className="flex flex-row items-start justify-between gap-3">
+                  <div>
+                    <CardTitle>Camp Forms</CardTitle>
+                    <CardDescription>Each camp has its own editable registration form.</CardDescription>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowAddCampFormOptions(value => !value)}>
+                    <Plus className="h-4 w-4 mr-2" /> Add Camp Form
+                  </Button>
               </CardHeader>
               <CardContent>
+                  {showAddCampFormOptions && <div className="mb-4 rounded-md border p-3">
+                    <p className="mb-2 text-sm font-medium">Choose a camp form to set up or edit</p>
+                    <div className="flex flex-wrap gap-2">
+                      {CAMP_FORM_OPTIONS.map(option => (
+                        <Button key={option.type} type="button" size="sm" variant="secondary" onClick={() => {
+                          setActiveEditor('camp-form');
+                          setEditingItem(`${option.type}-form`);
+                          setShowAddCampFormOptions(false);
+                        }}>
+                          {option.title.replace(' Registration Form', '')}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>}
                 {isLoading ? <div className="text-center py-4">Loading...</div> : <div className="space-y-2">
-                    {campForms.map(form => <div key={form.id} className="flex justify-between items-center p-3 border rounded hover:bg-muted/50">
+                    {visibleCampForms.map(form => <div key={form.slug} className="flex justify-between items-center gap-3 p-3 border rounded hover:bg-muted/50">
                         <div>
                           <p className="font-medium">{form.title}</p>
-                          <p className="text-xs text-muted-foreground">{form.slug}</p>
+                          <p className="text-xs text-muted-foreground">{form.isConfigured ? 'Saved configuration' : 'Using default settings until saved'} · {form.slug}</p>
                         </div>
                         <Button variant="outline" size="sm" onClick={() => {
                     setActiveEditor('camp-form');
                     setEditingItem(form.slug);
                   }}>
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-4 w-4 mr-2" /> Edit
                         </Button>
                       </div>)}
                   </div>}
@@ -923,7 +968,7 @@ const ContentManagement = () => {
 
       {activeEditor === 'camp-page' && <CampPageEditor isOpen={true} onClose={closeEditor} campSlug={editingItem} onSave={handleSave} />}
 
-      {activeEditor === 'camp-form' && <CampFormEditor isOpen={true} onClose={closeEditor} formSlug={editingItem} onSave={handleSave} />}
+      {activeEditor === 'camp-form' && <CampFormEditor isOpen={true} onClose={closeEditor} formSlug={editingItem} formTitle={getCampFormTitle(String(editingItem || '').replace(/-form$/, ''))} onSave={handleSave} />}
 
       {activeEditor === 'little-forest' && <LittleForestEditor isOpen={true} onClose={closeEditor} onSave={handleSave} />}
 

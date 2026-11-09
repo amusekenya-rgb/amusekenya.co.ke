@@ -47,7 +47,7 @@ const schoolExperienceSchema = z.object({
   specialNeeds: z.string().max(500),
   email: z.string().email("Invalid email address"),
   phone: z.string().min(1, "Phone number is required").max(20),
-  consent: z.boolean().default(false),
+  consent: z.boolean({ required_error: 'Please choose a photography & video preference', invalid_type_error: 'Please choose a photography & video preference' }),
   participationConsent: z.literal(true, { errorMap: () => ({ message: 'You must read and accept the participation form' }) })
 });
 
@@ -192,7 +192,7 @@ const SchoolExperienceProgram = () => {
       }],
       transport: false,
       catering: false,
-      consent: false
+      consent: undefined
     }
   });
 

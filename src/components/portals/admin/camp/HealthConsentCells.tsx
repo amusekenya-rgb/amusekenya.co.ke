@@ -1,5 +1,6 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
+import { CameraOff } from 'lucide-react';
 import { CampChild } from '@/types/campRegistration';
 
 export const AllergyCell: React.FC<{ children?: CampChild[]; child?: CampChild }> = ({ children, child }) => {
@@ -16,8 +17,29 @@ export const AllergyCell: React.FC<{ children?: CampChild[]; child?: CampChild }
   );
 };
 
-export const MediaConsentCell: React.FC<{ consent?: boolean }> = ({ consent }) => (
-  <Badge variant={consent ? 'default' : 'secondary'} className="text-xs whitespace-nowrap">
-    {consent ? 'Yes' : 'No'}
-  </Badge>
-);
+/** True when the parent explicitly opted out of photography/video (consent_given === false). */
+export const isPhotoOptedOut = (consent?: boolean | null): boolean => consent === false;
+
+/** Plain-text label for CSV/PDF exports. */
+export const mediaConsentLabel = (consent?: boolean | null): string =>
+  consent === false ? 'No Photos (opted out)' : consent ? 'Yes' : 'No';
+
+export const MediaConsentCell: React.FC<{ consent?: boolean | null }> = ({ consent }) => {
+  if (consent === false) {
+    return (
+      <Badge
+        variant="destructive"
+        className="text-xs whitespace-nowrap w-fit gap-1"
+        title="Parent opted out — do not photograph or record this child"
+      >
+        <CameraOff className="h-3 w-3 flex-shrink-0" />
+        No Photos
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant={consent ? 'default' : 'secondary'} className="text-xs whitespace-nowrap">
+      {consent ? 'Yes' : 'No'}
+    </Badge>
+  );
+};

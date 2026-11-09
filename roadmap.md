@@ -1,3 +1,5 @@
 - [x] Add record counts and partial/complete/error status to All, Attendance, and Daily Ops.
 - [x] Check compilation, lint, patch formatting, and browser-rendered loading states; compilation and new-file lint pass, repository lint has existing failures.
 - [ ] Verify live signed-in tab loads — blocked because the external project's preview login is not available in the sandbox.
+- [x] Add page-matched seasonal camp forms to the CMS list, with default-prefilled editors and an Add Camp Form action.
+- [ ] Verify camp-form editing and persistence with a signed-in CMS user — external preview auth unavailable in the sandbox.
